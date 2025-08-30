@@ -1,0 +1,23 @@
+const mongoose = require('mongoose');
+const AutoIncrement = require('mongoose-sequence')(mongoose);
+
+const TransactionSchema = new mongoose.Schema({
+  TRANSACTION_ID: { type: Number, unique: true },
+  user_id: { type: Number, ref: 'User', required: true },
+  amount: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
+  payment_method: { type: String, required: true },
+  transactionType: { type: String, enum: ['registration_fee', 'deposit', 'withdraw', 'RechargeByAdmin'], required: true },
+  transaction_date: { type: Date, default: Date.now },
+  reference_number: { type: String},
+  created_at: { type: Date, default: Date.now },
+  created_by: { type: Number, ref: 'User', required: true },
+  updated_at: { type: Date },
+  bank_id: { type: Number, ref: 'AdvisorBankAccountDetails' }
+}, {
+  collection: 'transactions',
+});
+
+TransactionSchema.plugin(AutoIncrement, { inc_field: 'TRANSACTION_ID' });
+
+module.exports = mongoose.model('Transaction', TransactionSchema); 

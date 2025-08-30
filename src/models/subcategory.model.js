@@ -1,0 +1,48 @@
+const mongoose = require('mongoose');
+const AutoIncrement = require('mongoose-sequence')(mongoose);
+
+const SubcategorySchema = new mongoose.Schema({
+  subcategory_id: {
+    type: Number,
+    unique: true
+  },
+  category_id: {
+    type: Number,
+    ref: 'Category',
+    required: true
+  },
+  subcategory_name: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  status: {
+    type: Number,
+    default: 1
+  },
+  created_By: {
+    type: Number,
+    ref: 'User',
+    required: true
+  },
+  created_At: {
+    type: Date,
+    default: Date.now
+  },
+  updated_By: {
+    type: Number,
+    ref: 'User'
+  },
+  updated_At: {
+    type: Date
+  }
+}, {
+  collection: 'subcategories'
+});
+
+SubcategorySchema.plugin(AutoIncrement, { inc_field: 'subcategory_id' });
+
+module.exports = mongoose.model('Subcategory', SubcategorySchema); 
