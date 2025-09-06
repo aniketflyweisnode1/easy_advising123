@@ -1074,7 +1074,7 @@ const deleteUser = async (req, res) => {
 // Update user status and login permission status
 const updateUserStatus = async (req, res) => {
   try {
-    const { user_id, status, login_permission_status } = req.body;
+    const { user_id, status, login_permission_status, suspended_reason } = req.body;
     const adminId = req.user.user_id;
 
     // Validate user_id
@@ -1147,10 +1147,15 @@ const updateUserStatus = async (req, res) => {
       updateData.login_permission_status = login_permission_status;
     }
 
+    if (suspended_reason !== undefined) {
+      updateData.suspended_reason = suspended_reason;
+    }
+
     // Update the user
     const updatedUser = await User.findOneAndUpdate(
       { user_id: parseInt(user_id) },
       updateData,
+      suspended_reason,
       { new: true, runValidators: true }
     );
 
@@ -1170,6 +1175,7 @@ const updateUserStatus = async (req, res) => {
         email: updatedUser.email,
         status: updatedUser.status,
         login_permission_status: updatedUser.login_permission_status,
+        suspended_reason: updatedUser.suspended_reason,
         role_id: updatedUser.role_id
       },
       status: 200
