@@ -1074,7 +1074,7 @@ const deleteUser = async (req, res) => {
 // Update user status and login permission status
 const updateUserStatus = async (req, res) => {
   try {
-    const { user_id, status, login_permission_status, suspended_reason } = req.body;
+    const { user_id, status, login_permission_status, login_suspended_reason } = req.body;
     const adminId = req.user.user_id;
 
     // Validate user_id
@@ -1085,27 +1085,30 @@ const updateUserStatus = async (req, res) => {
       });
     }
 
-    // Validate that at least one status field is provided
-    if (status === undefined && login_permission_status === undefined) {
+    // Validate that at least one field is provided
+    if (status === undefined && login_permission_status === undefined && login_suspended_reason === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'At least one status field (status or login_permission_status) is required'
+        message: 'At least one field (status, login_permission_status, or login_suspended_reason) is required'
       });
     }
 
     // Validate status values if provided
-    if (status !== undefined && ![0, 1].includes(status)) {
+    if (status !== undefined && ![0, 1].includes(parseInt(status))) {
       return res.status(400).json({
         success: false,
         message: 'Status must be 0 (inactive) or 1 (active)'
       });
     }
 
-    if (login_permission_status !== undefined && ![true, false].includes(login_permission_status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'login_permission_status must be true or false'
-      });
+    // Validate login_permission_status if provided
+    if (login_permission_status !== undefined) {
+      if (![true, false, 'true', 'false', 1, 0].includes(login_permission_status)) {
+        return res.status(400).json({
+          success: false,
+          message: 'login_permission_status must be true, false, 1, or 0'
+        });
+      }
     }
 
     // Check if admin is trying to update themselves
@@ -1139,23 +1142,30 @@ const updateUserStatus = async (req, res) => {
       updated_on: new Date()
     };
 
+    // Handle status update
     if (status !== undefined) {
-      updateData.status = status;
+      updateData.status = parseInt(status);
     }
 
+    // Handle login_permission_status update
     if (login_permission_status !== undefined) {
-      updateData.login_permission_status = login_permission_status;
+      updateData.login_permission_status = login_permission_status === 'true' || login_permission_status === true || login_permission_status === 1;
     }
 
-    if (suspended_reason !== undefined) {
-      updateData.suspended_reason = suspended_reason;
+    // Handle login_suspended_reason update
+    if (login_suspended_reason !== undefined) {
+      updateData.login_suspended_reason = login_suspended_reason;
+      // If suspended reason is provided, automatically set status to inactive and disable login
+      if (login_suspended_reason && login_suspended_reason.trim() !== '') {
+        updateData.status = 0;
+        updateData.login_permission_status = false;
+      }
     }
 
     // Update the user
     const updatedUser = await User.findOneAndUpdate(
       { user_id: parseInt(user_id) },
       updateData,
-      suspended_reason,
       { new: true, runValidators: true }
     );
 
@@ -1175,7 +1185,7 @@ const updateUserStatus = async (req, res) => {
         email: updatedUser.email,
         status: updatedUser.status,
         login_permission_status: updatedUser.login_permission_status,
-        suspended_reason: updatedUser.suspended_reason,
+        login_suspended_reason: updatedUser.login_suspended_reason,
         role_id: updatedUser.role_id
       },
       status: 200

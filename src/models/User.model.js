@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  suspended_reason: {
+  login_suspended_reason: {
     type: String
   },
   status: {
