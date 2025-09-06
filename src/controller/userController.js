@@ -618,15 +618,161 @@ The API now provides powerful pagination and search capabilities for efficient d
   }
 };
 
-// Get all advisors (role_id = 2)
+// Get all advisors (role_id = 2) with pagination, search, and sorting
 const getAdvisorList = async (req, res) => {
   try {
-    const advisors = await User.find({ role_id: 2 })
+    // Extract query parameters
+    const {
+      page = 1,
+      limit = 10,
+      search = '',
+      category = '',
+      subcategory = '',
+      skill = '',
+      language = '',
+      state = '',
+      city = '',
+      login_permission_status = '',
+      status = '',
+      rating_min = '',
+      rating_max = '',
+      experience_min = '',
+      experience_max = '',
+      sortBy = 'created_at',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Convert page and limit to numbers
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build base filter for advisors
+    let searchFilter = { role_id: 2 };
+
+    // Add search functionality
+    if (search) {
+      searchFilter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { mobile: { $regex: search, $options: 'i' } },
+        { description_Bio: { $regex: search, $options: 'i' } },
+        { expertise_offer: { $regex: search, $options: 'i' } },
+        { login_permission_status: { $regex: search, $options: 'i' } },
+        { status: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add category filter
+    if (category) {
+      searchFilter.Category = parseInt(category);
+    }
+
+    // Add subcategory filter
+    if (subcategory) {
+      searchFilter.Subcategory = parseInt(subcategory);
+    }
+
+    // Add skill filter
+    if (skill) {
+      searchFilter.skill = parseInt(skill);
+    }
+
+    // Add language filter
+    if (language) {
+      searchFilter.language = parseInt(language);
+    }
+
+    // Add state filter
+    if (state) {
+      searchFilter.state = parseInt(state);
+    }
+
+    // Add city filter
+    if (city) {
+      searchFilter.city = parseInt(city);
+    }
+
+    // Add login permission status filter
+    if (login_permission_status) {
+      searchFilter.login_permission_status = parseInt(login_permission_status);
+    }
+
+    // Add status filter
+    if (status) {
+      searchFilter.status = parseInt(status);
+    }
+
+    // Add rating filters
+    if (rating_min || rating_max) {
+      searchFilter.rating = {};
+      if (rating_min) searchFilter.rating.$gte = parseFloat(rating_min);
+      if (rating_max) searchFilter.rating.$lte = parseFloat(rating_max);
+    }
+
+    // Add experience filters
+    if (experience_min || experience_max) {
+      searchFilter.experience_year = {};
+      if (experience_min) searchFilter.experience_year.$gte = parseInt(experience_min);
+      if (experience_max) searchFilter.experience_year.$lte = parseInt(experience_max);
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Get total count for pagination
+    const totalCount = await User.countDocuments(searchFilter);
+
+    // Get advisors with pagination and sorting
+    const advisors = await User.find(searchFilter)
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id' })
-      .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id' });
-    return res.status(200).json({ advisors, status: 200 });
+      .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id' })
+      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id' })
+      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id' })
+      .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id' })
+      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id' })
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limitNum);
+
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Response with pagination metadata
+    return res.status(200).json({
+      advisors,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        limit: limitNum,
+        hasNextPage,
+        hasPrevPage
+      },
+      filters: {
+        search,
+        category,
+        subcategory,
+        skill,
+        language,
+        state,
+        city,
+        login_permission_status,
+        status,
+        rating_min,
+        rating_max,
+        experience_min,
+        experience_max,
+        sortBy,
+        sortOrder
+      },
+      status: 200
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
   }
