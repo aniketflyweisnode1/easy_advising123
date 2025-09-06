@@ -657,9 +657,7 @@ const getAdvisorList = async (req, res) => {
         { email: { $regex: search, $options: 'i' } },
         { mobile: { $regex: search, $options: 'i' } },
         { description_Bio: { $regex: search, $options: 'i' } },
-        { expertise_offer: { $regex: search, $options: 'i' } },
-        { login_permission_status: { $regex: search, $options: 'i' } },
-        { status: { $regex: search, $options: 'i' } }
+        { expertise_offer: { $regex: search, $options: 'i' } }
       ];
     }
 
@@ -694,13 +692,13 @@ const getAdvisorList = async (req, res) => {
     }
 
     // Add login permission status filter
-    if (login_permission_status) {
-      searchFilter.login_permission_status = parseInt(login_permission_status);
+    if (login_permission_status !== '') {
+      searchFilter.login_permission_status = login_permission_status === 'true' || login_permission_status === '1';
     }
 
     // Add status filter
-    if (status) {
-      searchFilter.status = parseInt(status);
+    if (status !== '') {
+      searchFilter.status = status === 'true' || status === '1' ? 1 : 0;
     }
 
     // Add rating filters
