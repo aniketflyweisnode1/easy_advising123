@@ -1,4 +1,5 @@
 const ScheduleCall = require('../models/schedule_call.model.js');
+const User = require('../models/User.model.js');
 
 // Create Schedule Call
 const createScheduleCall = async (req, res) => {
@@ -51,12 +52,88 @@ const getScheduleCallById = async (req, res) => {
     }
 };
 
-// Get all
+// Get all with pagination, search, and sorting
 const getAllScheduleCalls = async (req, res) => {
     try {
-        const schedules = await ScheduleCall.find();
+        // Extract query parameters
+        const {
+            page = 1,
+            limit = 10,
+            search = '',
+            call_type = '',
+            callStatus = '',
+            approval_status = '',
+            sortBy = 'created_at',
+            sortOrder = 'desc'
+        } = req.query;
+
+        // Convert page and limit to numbers
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+        const skip = (pageNum - 1) * limitNum;
+
+        // Build search filter
+        let searchFilter = {};
         
-        // Get all unique user ids from schedules (advisor_id and created_by)
+        // If search term is provided, we'll need to search in user names
+        // For now, we'll search in basic fields and then filter by user names
+        if (search) {
+            searchFilter = {
+                $or: [
+                    { call_type: { $regex: search, $options: 'i' } },
+                    { callStatus: { $regex: search, $options: 'i' } },
+                    { summary_type: { $regex: search, $options: 'i' } }
+                ]
+            };
+        }
+
+        // Add other filters
+        if (call_type) {
+            searchFilter.call_type = call_type;
+        }
+        if (callStatus) {
+            searchFilter.callStatus = callStatus;
+        }
+        if (approval_status !== '') {
+            searchFilter.approval_status = approval_status === 'true';
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+        // Get total count for pagination
+        const totalCount = await ScheduleCall.countDocuments(searchFilter);
+
+        // Get schedules with pagination and sorting
+        let schedules = await ScheduleCall.find(searchFilter)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(limitNum);
+
+        // If search term is provided, we need to filter by user names
+        if (search) {
+            // Get all unique user ids from schedules
+            const advisorIds = [...new Set(schedules.map(schedule => schedule.advisor_id))];
+            const creatorIds = [...new Set(schedules.map(schedule => schedule.created_by))];
+            const allUserIds = [...new Set([...advisorIds, ...creatorIds])];
+
+            // Fetch users that match the search term
+            const matchingUsers = await User.find({
+                user_id: { $in: allUserIds },
+                name: { $regex: search, $options: 'i' }
+            }, { user_id: 1, name: 1, _id: 0 });
+
+            const matchingUserIds = matchingUsers.map(u => u.user_id);
+
+            // Filter schedules to include only those with matching advisor or creator names
+            schedules = schedules.filter(schedule => 
+                matchingUserIds.includes(schedule.advisor_id) || 
+                matchingUserIds.includes(schedule.created_by)
+            );
+        }
+        
+        // Get all unique user ids from filtered schedules
         const advisorIds = [...new Set(schedules.map(schedule => schedule.advisor_id))];
         const creatorIds = [...new Set(schedules.map(schedule => schedule.created_by))];
         const allUserIds = [...new Set([...advisorIds, ...creatorIds])];
@@ -73,8 +150,33 @@ const getAllScheduleCalls = async (req, res) => {
             scheduleObj.created_by = { user_id: schedule.created_by, name: userMap[schedule.created_by] || null };
             return scheduleObj;
         });
-        
-        res.status(200).json({ schedules: schedulesWithNames, status: 200 });
+
+        // Calculate pagination metadata
+        const totalPages = Math.ceil(totalCount / limitNum);
+        const hasNextPage = pageNum < totalPages;
+        const hasPrevPage = pageNum > 1;
+
+        // Response with pagination metadata
+        res.status(200).json({
+            schedules: schedulesWithNames,
+            pagination: {
+                currentPage: pageNum,
+                totalPages,
+                totalCount,
+                limit: limitNum,
+                hasNextPage,
+                hasPrevPage
+            },
+            filters: {
+                search,
+                call_type,
+                callStatus,
+                approval_status,
+                sortBy,
+                sortOrder
+            },
+            status: 200
+        });
     } catch (error) {
         res.status(500).json({ message: error.message || error, status: 500 });
     }
