@@ -824,8 +824,11 @@ const getAdviserById = async (req, res) => {
     // Transactions
     const transactions = await require('../models/transaction.model').find({ user_id: Number(advisor_id) });
     
-    // Subscriber list
-    const subscribers = await require('../models/package_subscription.model').find({ subscribe_by: Number(advisor_id) });
+    // Subscriber list with populated data
+    const subscribers = await require('../models/package_subscription.model').find({ subscribe_by: Number(advisor_id) })
+      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name description price duration' })
+      .populate({ path: 'subscribe_by', model: 'User', localField: 'subscribe_by', foreignField: 'user_id', select: 'user_id name email mobile' })
+      .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile' });
     
     // Packages (from advisor.package_id and from subscriptions)
     const packageIds = [advisor.package_id].filter(Boolean);
