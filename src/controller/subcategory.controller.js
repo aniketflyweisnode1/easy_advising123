@@ -13,8 +13,8 @@ const createSubcategory = async (req, res) => {
       });
     }
 
-    const category = await Category.findOne({ category_id: parseInt(category_id) });
-    if (!category) {
+    const existingCategory = await Category.findOne({ category_id: parseInt(category_id) });
+    if (!existingCategory) {
       return res.status(400).json({
         success: false,
         message: 'Category not found'
@@ -40,12 +40,19 @@ const createSubcategory = async (req, res) => {
     });
 
     const savedSubcategory = await subcategory.save();
-    await savedSubcategory.populate('category_id', 'category_id category_name description status');
+
+    // Fetch category details
+    const category = await Category.findOne({ category_id: savedSubcategory.category_id });
+    
+    const subcategoryWithCategory = {
+      ...savedSubcategory.toObject(),
+      category_details: category || null
+    };
 
     res.status(201).json({
       success: true,
       message: 'Subcategory created successfully',
-      data: savedSubcategory
+      data: subcategoryWithCategory
     });
   } catch (error) {
     console.error('Error creating subcategory:', error);
@@ -75,8 +82,8 @@ const updateSubcategory = async (req, res) => {
     };
 
     if (category_id) {
-      const category = await Category.findOne({ category_id: parseInt(category_id) });
-      if (!category) {
+      const existingCategory = await Category.findOne({ category_id: parseInt(category_id) });
+      if (!existingCategory) {
         return res.status(400).json({
           success: false,
           message: 'Category not found'
@@ -112,7 +119,7 @@ const updateSubcategory = async (req, res) => {
       { subcategory_id: parseInt(subcategory_id) },
       updateData,
       { new: true }
-    ).populate('category_id', 'category_id category_name description status');
+    );
 
     if (!updatedSubcategory) {
       return res.status(404).json({
@@ -121,10 +128,18 @@ const updateSubcategory = async (req, res) => {
       });
     }
 
+    // Fetch category details
+    const category = await Category.findOne({ category_id: updatedSubcategory.category_id });
+    
+    const subcategoryWithCategory = {
+      ...updatedSubcategory.toObject(),
+      category_details: category || null
+    };
+
     res.status(200).json({
       success: true,
       message: 'Subcategory updated successfully',
-      data: updatedSubcategory
+      data: subcategoryWithCategory
     });
   } catch (error) {
     console.error('Error updating subcategory:', error);
@@ -149,7 +164,7 @@ const getSubcategoryById = async (req, res) => {
 
     const subcategory = await Subcategory.findOne({
       subcategory_id: parseInt(subcategory_id)
-    }).populate('category_id', 'category_id category_name description status');
+    });
 
     if (!subcategory) {
       return res.status(404).json({
@@ -158,10 +173,18 @@ const getSubcategoryById = async (req, res) => {
       });
     }
 
+    // Fetch category details
+    const category = await Category.findOne({ category_id: subcategory.category_id });
+    
+    const subcategoryWithCategory = {
+      ...subcategory.toObject(),
+      category_details: category || null
+    };
+
     res.status(200).json({
       success: true,
       message: 'Subcategory retrieved successfully',
-      data: subcategory
+      data: subcategoryWithCategory
     });
   } catch (error) {
     console.error('Error getting subcategory by ID:', error);
@@ -176,13 +199,23 @@ const getSubcategoryById = async (req, res) => {
 const getAllSubcategories = async (req, res) => {
   try {
     const subcategories = await Subcategory.find()
-      .populate('category_id', 'category_id category_name description status')
       .sort({ created_At: -1 });
+
+    // Fetch category details for each subcategory
+    const subcategoriesWithCategories = await Promise.all(
+      subcategories.map(async (subcategory) => {
+        const category = await Category.findOne({ category_id: subcategory.category_id });
+        return {
+          ...subcategory.toObject(),
+          category_details: category || null
+        };
+      })
+    );
 
     res.status(200).json({
       success: true,
       message: 'Subcategories retrieved successfully',
-      data: subcategories
+      data: subcategoriesWithCategories
     });
   } catch (error) {
     console.error('Error getting all subcategories:', error);
@@ -215,13 +248,23 @@ const getSubcategoriesByCategoryId = async (req, res) => {
 
     const subcategories = await Subcategory.find({
       category_id: parseInt(category_id)
-    }).populate('category_id', 'category_id category_name description status')
-    .sort({ created_At: -1 });
+    }).sort({ created_At: -1 });
+
+    // Fetch category details for each subcategory
+    const subcategoriesWithCategories = await Promise.all(
+      subcategories.map(async (subcategory) => {
+        const category = await Category.findOne({ category_id: subcategory.category_id });
+        return {
+          ...subcategory.toObject(),
+          category_details: category || null
+        };
+      })
+    );
 
     res.status(200).json({
       success: true,
       message: 'Subcategories retrieved successfully',
-      data: subcategories
+      data: subcategoriesWithCategories
     });
   } catch (error) {
     console.error('Error getting subcategories by category ID:', error);
