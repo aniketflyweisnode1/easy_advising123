@@ -40,6 +40,7 @@ const createSubcategory = async (req, res) => {
     });
 
     const savedSubcategory = await subcategory.save();
+    await savedSubcategory.populate('category_id', 'category_id category_name description status');
 
     res.status(201).json({
       success: true,
@@ -111,7 +112,7 @@ const updateSubcategory = async (req, res) => {
       { subcategory_id: parseInt(subcategory_id) },
       updateData,
       { new: true }
-    );
+    ).populate('category_id', 'category_id category_name description status');
 
     if (!updatedSubcategory) {
       return res.status(404).json({
@@ -148,7 +149,7 @@ const getSubcategoryById = async (req, res) => {
 
     const subcategory = await Subcategory.findOne({
       subcategory_id: parseInt(subcategory_id)
-    });
+    }).populate('category_id', 'category_id category_name description status');
 
     if (!subcategory) {
       return res.status(404).json({
@@ -175,6 +176,7 @@ const getSubcategoryById = async (req, res) => {
 const getAllSubcategories = async (req, res) => {
   try {
     const subcategories = await Subcategory.find()
+      .populate('category_id', 'category_id category_name description status')
       .sort({ created_At: -1 });
 
     res.status(200).json({
@@ -213,7 +215,8 @@ const getSubcategoriesByCategoryId = async (req, res) => {
 
     const subcategories = await Subcategory.find({
       category_id: parseInt(category_id)
-    }).sort({ created_At: -1 });
+    }).populate('category_id', 'category_id category_name description status')
+    .sort({ created_At: -1 });
 
     res.status(200).json({
       success: true,
