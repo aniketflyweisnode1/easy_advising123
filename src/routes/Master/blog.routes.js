@@ -14,6 +14,6 @@ router.get('/auth', auth, getBlogsByAuthUser);
 // Created: 2025-07-14
 router.get('/:id', auth, getBlogById);
 // Created: 2025-07-14
-router.get('/',  getAllBlogs);
+router.get('/', auth, getAllBlogs);
 
 module.exports = router; 

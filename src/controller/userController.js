@@ -1,9 +1,9 @@
 const User = require('../models/User.model.js');
 const PackageSubscription = require('../models/package_subscription.model.js');
-const ScheduleCall = require('../models/schedule_call.model.js');
 const Transaction = require('../models/transaction.model.js');
 const Package = require('../models/package.model.js');
 const Wallet = require('../models/wallet.model.js');
+const CallType = require('../models/call_type.model.js');
 
 const registerUser = async (req, res) => {
   try {
@@ -34,6 +34,7 @@ const registerUser = async (req, res) => {
       chat_Rate,
       voiceCall_Rate,
       package_id,
+      firebase_token ,
       supporting_Document,
       social_linkdin_link,
       social_instagorm_link,
@@ -87,6 +88,7 @@ console.log( choose_slot,choose_day)
       social_facebook_link,
       choose_slot,
       choose_day,
+      firebase_token,
       instant_call,
       applyslots_remainingDays
     });
@@ -210,6 +212,14 @@ const updateProfile = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
+    // Update user_online status to false
+    if (req.user && req.user.user_id) {
+      await User.findOneAndUpdate(
+        { user_id: req.user.user_id },
+        { user_online: false, updated_by: req.user.user_id }
+      );
+    }
+
     if (req.session) {
         req.session.destroy(err => {
             if (err) {
@@ -262,13 +272,13 @@ const getUserFullDetails = async (req, res) => {
       });
     }
 
-    // Appointments: all schedule_call where advisor_id or created_by is user
-    const appointments = await ScheduleCall.find({ 
-      $or: [ 
-        { advisor_id: Number(user_id) }, 
-        { created_by: Number(user_id) } 
-      ] 
-    });
+         // Appointments: all schedule_call where advisor_id or created_by is user
+     const appointments = await require('../models/schedule_call.model').find({ 
+       $or: [ 
+         { advisor_id: Number(user_id) }, 
+         { created_by: Number(user_id) } 
+       ] 
+     });
 
     // Get user details for appointments (advisor_id and created_by)
     const appointmentUserIds = [...new Set([
@@ -276,25 +286,30 @@ const getUserFullDetails = async (req, res) => {
       ...appointments.map(apt => apt.created_by)
     ])];
     
-    // Get all unique skill IDs and package IDs from appointments
-    const skillIds = [...new Set(appointments.map(apt => apt.skills_id))];
-    const appointmentPackageIds = [...new Set(appointments.map(apt => apt.package_id))];
-    
-    // Fetch all related data in parallel
-    const [appointmentUsers, skills, appointmentPackages] = await Promise.all([
-      User.find(
-        { user_id: { $in: appointmentUserIds } }, 
-        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-      ),
-      require('../models/skill.model').find(
-        { skill_id: { $in: skillIds } },
-        { skill_id: 1, skill_name: 1, _id: 0 }
-      ),
-      Package.find(
-        { package_id: { $in: appointmentPackageIds } },
-        { package_id: 1, package_name: 1, price: 1, _id: 0 }
-      )
-    ]);
+         // Get all unique skill IDs, package IDs, and call type IDs from appointments
+     const skillIds = [...new Set(appointments.map(apt => apt.skills_id))];
+     const appointmentPackageIds = [...new Set(appointments.map(apt => apt.package_id))];
+     const callTypeIds = [...new Set(appointments.map(apt => apt.call_type_id))];
+     
+     // Fetch all related data in parallel
+     const [appointmentUsers, skills, appointmentPackages, callTypes] = await Promise.all([
+       User.find(
+         { user_id: { $in: appointmentUserIds } }, 
+         { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+       ),
+       require('../models/skill.model').find(
+         { skill_id: { $in: skillIds } },
+         { skill_id: 1, skill_name: 1, _id: 0 }
+       ),
+       Package.find(
+         { package_id: { $in: appointmentPackageIds } },
+         { package_id: 1, package_name: 1, price: 1, _id: 0 }
+       ),
+       require('../models/call_type.model').find(
+         { call_type_id: { $in: callTypeIds } },
+         { call_type_id: 1, mode_name: 1, price_per_minute: 1, adviser_commission: 1, admin_commission: 1, _id: 0 }
+       )
+     ]);
     
     const appointmentUserMap = {};
     appointmentUsers.forEach(u => { appointmentUserMap[u.user_id] = u; });
@@ -302,11 +317,14 @@ const getUserFullDetails = async (req, res) => {
     const skillMap = {};
     skills.forEach(s => { skillMap[s.skill_id] = s; });
     
-    const appointmentPackageMap = {};
-    appointmentPackages.forEach(p => { appointmentPackageMap[p.package_id] = p; });
+         const appointmentPackageMap = {};
+     appointmentPackages.forEach(p => { appointmentPackageMap[p.package_id] = p; });
+     
+     const callTypeMap = {};
+     callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
 
-    // Map appointments with user details, skills, packages, and duration
-    const appointmentsWithDetails = appointments.map(appointment => {
+     // Map appointments with user details, skills, packages, call types, and duration
+     const appointmentsWithDetails = appointments.map(appointment => {
       const appointmentObj = appointment.toObject();
       return {
         ...appointmentObj,
@@ -330,6 +348,13 @@ const getUserFullDetails = async (req, res) => {
           package_id: appointmentPackageMap[appointment.package_id].package_id,
           package_name: appointmentPackageMap[appointment.package_id].package_name,
           price: appointmentPackageMap[appointment.package_id].price
+        } : null,
+        call_type_details: callTypeMap[appointment.call_type_id] ? {
+          call_type_id: callTypeMap[appointment.call_type_id].call_type_id,
+          mode_name: callTypeMap[appointment.call_type_id].mode_name,
+          price_per_minute: callTypeMap[appointment.call_type_id].price_per_minute,
+          adviser_commission: callTypeMap[appointment.call_type_id].adviser_commission,
+          admin_commission: callTypeMap[appointment.call_type_id].admin_commission
         } : null,
         duration_info: {
           Call_duration: appointment.Call_duration || null,
@@ -472,8 +497,8 @@ The API now provides powerful pagination and search capabilities for efficient d
       .limit(limit)
       .sort({ created_at: -1 }); // Sort by newest first
     
-    // Get all appointments, transactions, wallets, and subscriptions
-    const allAppointments = await ScheduleCall.find();
+         // Get all appointments, transactions, wallets, and subscriptions
+     const allAppointments = await require('../models/schedule_call.model').find();
     const allTransactions = await Transaction.find();
     const allWallets = await Wallet.find();
     const allSubscriptions = await PackageSubscription.find();
@@ -482,18 +507,19 @@ The API now provides powerful pagination and search capabilities for efficient d
     const allPackageIds = allSubscriptions.map(sub => sub.package_id);
     const allPackages = await Package.find({ package_id: { $in: allPackageIds } });
     
-    // Get all unique skill IDs and package IDs from appointments
-    const allSkillIds = [...new Set(allAppointments.map(apt => apt.skills_id))];
-    const allAppointmentPackageIds = [...new Set(allAppointments.map(apt => apt.package_id))];
-    
-    // Get all unique user IDs for appointments
-    const allAppointmentUserIds = [...new Set([
-      ...allAppointments.map(apt => apt.advisor_id),
-      ...allAppointments.map(apt => apt.created_by)
-    ])];
-    
-    // Fetch all related data in parallel
-    const [allSkills, allAppointmentPackages, allAppointmentUsers] = await Promise.all([
+         // Get all unique skill IDs, package IDs, and call type IDs from appointments
+     const allSkillIds = [...new Set(allAppointments.map(apt => apt.skills_id))];
+     const allAppointmentPackageIds = [...new Set(allAppointments.map(apt => apt.package_id))];
+     const allCallTypeIds = [...new Set(allAppointments.map(apt => apt.call_type_id))];
+     
+     // Get all unique user IDs for appointments
+     const allAppointmentUserIds = [...new Set([
+       ...allAppointments.map(apt => apt.advisor_id),
+       ...allAppointments.map(apt => apt.created_by)
+     ])];
+     
+     // Fetch all related data in parallel
+     const [allSkills, allAppointmentPackages, allAppointmentUsers, allCallTypes] = await Promise.all([
       require('../models/skill.model').find(
         { skill_id: { $in: allSkillIds } },
         { skill_id: 1, skill_name: 1, _id: 0 }
@@ -502,11 +528,15 @@ The API now provides powerful pagination and search capabilities for efficient d
         { package_id: { $in: allAppointmentPackageIds } },
         { package_id: 1, package_name: 1, price: 1, _id: 0 }
       ),
-      User.find(
-        { user_id: { $in: allAppointmentUserIds } }, 
-        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-      )
-    ]);
+             User.find(
+         { user_id: { $in: allAppointmentUserIds } }, 
+         { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+       ),
+       require('../models/call_type.model').find(
+         { call_type_id: { $in: allCallTypeIds } },
+         { call_type_id: 1, mode_name: 1, price_per_minute: 1, adviser_commission: 1, admin_commission: 1, _id: 0 }
+       )
+     ]);
     
     // Create maps for efficient lookup
     const skillMap = {};
@@ -515,11 +545,14 @@ The API now provides powerful pagination and search capabilities for efficient d
     const appointmentPackageMap = {};
     allAppointmentPackages.forEach(p => { appointmentPackageMap[p.package_id] = p; });
     
-    const appointmentUserMap = {};
-    allAppointmentUsers.forEach(u => { appointmentUserMap[u.user_id] = u; });
-    
-    // Map users with their full details
-    const usersWithFullDetails = users.map(user => {
+         const appointmentUserMap = {};
+     allAppointmentUsers.forEach(u => { appointmentUserMap[u.user_id] = u; });
+     
+     const callTypeMap = {};
+     allCallTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
+     
+     // Map users with their full details
+     const usersWithFullDetails = users.map(user => {
       const userId = user.user_id;
       
       // Get user's appointments with enhanced details
@@ -548,12 +581,19 @@ The API now provides powerful pagination and search capabilities for efficient d
             skill_id: skillMap[appointment.skills_id].skill_id,
             skill_name: skillMap[appointment.skills_id].skill_name
           } : null,
-          package_details: appointmentPackageMap[appointment.package_id] ? {
-            package_id: appointmentPackageMap[appointment.package_id].package_id,
-            package_name: appointmentPackageMap[appointment.package_id].package_name,
-            price: appointmentPackageMap[appointment.package_id].price
-          } : null,
-          duration_info: {
+                     package_details: appointmentPackageMap[appointment.package_id] ? {
+             package_id: appointmentPackageMap[appointment.package_id].package_id,
+             package_name: appointmentPackageMap[appointment.package_id].package_name,
+             price: appointmentPackageMap[appointment.package_id].price
+           } : null,
+           call_type_details: callTypeMap[appointment.call_type_id] ? {
+             call_type_id: callTypeMap[appointment.call_type_id].call_type_id,
+             mode_name: callTypeMap[appointment.call_type_id].mode_name,
+             price_per_minute: callTypeMap[appointment.call_type_id].price_per_minute,
+             adviser_commission: callTypeMap[appointment.call_type_id].adviser_commission,
+             admin_commission: callTypeMap[appointment.call_type_id].admin_commission
+           } : null,
+           duration_info: {
             Call_duration: appointment.Call_duration || null,
             perminRate: appointment.perminRate || null,
             Amount: appointment.Amount || null,
@@ -618,159 +658,15 @@ The API now provides powerful pagination and search capabilities for efficient d
   }
 };
 
-// Get all advisors (role_id = 2) with pagination, search, and sorting
+// Get all advisors (role_id = 2)
 const getAdvisorList = async (req, res) => {
   try {
-    // Extract query parameters
-    const {
-      page = 1,
-      limit = 10,
-      search = '',
-      category = '',
-      subcategory = '',
-      skill = '',
-      language = '',
-      state = '',
-      city = '',
-      login_permission_status = '',
-      status = '',
-      rating_min = '',
-      rating_max = '',
-      experience_min = '',
-      experience_max = '',
-      sortBy = 'created_at',
-      sortOrder = 'desc'
-    } = req.query;
-
-    // Convert page and limit to numbers
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Build base filter for advisors
-    let searchFilter = { role_id: 2 };
-
-    // Add search functionality
-    if (search) {
-      searchFilter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { mobile: { $regex: search, $options: 'i' } },
-        { description_Bio: { $regex: search, $options: 'i' } },
-        { expertise_offer: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    // Add category filter
-    if (category) {
-      searchFilter.Category = parseInt(category);
-    }
-
-    // Add subcategory filter
-    if (subcategory) {
-      searchFilter.Subcategory = parseInt(subcategory);
-    }
-
-    // Add skill filter
-    if (skill) {
-      searchFilter.skill = parseInt(skill);
-    }
-
-    // Add language filter
-    if (language) {
-      searchFilter.language = parseInt(language);
-    }
-
-    // Add state filter
-    if (state) {
-      searchFilter.state = parseInt(state);
-    }
-
-    // Add city filter
-    if (city) {
-      searchFilter.city = parseInt(city);
-    }
-
-    // Add login permission status filter
-    if (login_permission_status !== '') {
-      searchFilter.login_permission_status = login_permission_status === 'true' || login_permission_status === '1';
-    }
-
-    // Add status filter
-    if (status !== '') {
-      searchFilter.status = status === 'true' || status === '1' ? 1 : 0;
-    }
-
-    // Add rating filters
-    if (rating_min || rating_max) {
-      searchFilter.rating = {};
-      if (rating_min) searchFilter.rating.$gte = parseFloat(rating_min);
-      if (rating_max) searchFilter.rating.$lte = parseFloat(rating_max);
-    }
-
-    // Add experience filters
-    if (experience_min || experience_max) {
-      searchFilter.experience_year = {};
-      if (experience_min) searchFilter.experience_year.$gte = parseInt(experience_min);
-      if (experience_max) searchFilter.experience_year.$lte = parseInt(experience_max);
-    }
-
-    // Build sort object
-    const sortObj = {};
-    sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
-
-    // Get total count for pagination
-    const totalCount = await User.countDocuments(searchFilter);
-
-    // Get advisors with pagination and sorting
-    const advisors = await User.find(searchFilter)
+    const advisors = await User.find({ role_id: 2 })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id' })
-      .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id' })
-      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id' })
-      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id' })
-      .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id' })
-      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id' })
-      .sort(sortObj)
-      .skip(skip)
-      .limit(limitNum);
-
-    // Calculate pagination metadata
-    const totalPages = Math.ceil(totalCount / limitNum);
-    const hasNextPage = pageNum < totalPages;
-    const hasPrevPage = pageNum > 1;
-
-    // Response with pagination metadata
-    return res.status(200).json({
-      advisors,
-      pagination: {
-        currentPage: pageNum,
-        totalPages,
-        totalCount,
-        limit: limitNum,
-        hasNextPage,
-        hasPrevPage
-      },
-      filters: {
-        search,
-        category,
-        subcategory,
-        skill,
-        language,
-        state,
-        city,
-        login_permission_status,
-        status,
-        rating_min,
-        rating_max,
-        experience_min,
-        experience_max,
-        sortBy,
-        sortOrder
-      },
-      status: 200
-    });
+      .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id' });
+    return res.status(200).json({ advisors, status: 200 });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
   }
@@ -800,15 +696,28 @@ const getAdviserById = async (req, res) => {
     // Reviews
     const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) });
     
-    // Appointments with enhanced details
-    const appointments = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) });
-    
-    // Map appointments with duration info
-    const appointmentsWithDetails = appointments.map(appointment => {
-      const appointmentObj = appointment.toObject();
-      return {
-        ...appointmentObj,
-        duration_info: {
+         // Appointments with enhanced details
+     const appointments = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) });
+     
+     // Get call type details for appointments
+     const callTypeIds = [...new Set(appointments.map(apt => apt.call_type_id))];
+     const appointmentCallTypes = callTypeIds.length > 0 ? await CallType.find({ call_type_id: { $in: callTypeIds } }) : [];
+     const callTypeMap = {};
+     appointmentCallTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
+     
+     // Map appointments with duration info and call type details
+     const appointmentsWithDetails = appointments.map(appointment => {
+             const appointmentObj = appointment.toObject();
+       return {
+         ...appointmentObj,
+         call_type_details: callTypeMap[appointment.call_type_id] ? {
+           call_type_id: callTypeMap[appointment.call_type_id].call_type_id,
+           mode_name: callTypeMap[appointment.call_type_id].mode_name,
+           price_per_minute: callTypeMap[appointment.call_type_id].price_per_minute,
+           adviser_commission: callTypeMap[appointment.call_type_id].adviser_commission,
+           admin_commission: callTypeMap[appointment.call_type_id].admin_commission
+         } : null,
+         duration_info: {
           Call_duration: appointment.Call_duration || null,
           perminRate: appointment.perminRate || null,
           Amount: appointment.Amount || null,
@@ -822,11 +731,8 @@ const getAdviserById = async (req, res) => {
     // Transactions
     const transactions = await require('../models/transaction.model').find({ user_id: Number(advisor_id) });
     
-    // Subscriber list with populated data
-    const subscribers = await require('../models/package_subscription.model').find({ subscribe_by: Number(advisor_id) })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name description price duration' })
-      .populate({ path: 'subscribe_by', model: 'User', localField: 'subscribe_by', foreignField: 'user_id', select: 'user_id name email mobile' })
-      .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile' });
+    // Subscriber list
+    const subscribers = await require('../models/package_subscription.model').find({ subscribe_by: Number(advisor_id) });
     
     // Packages (from advisor.package_id and from subscriptions)
     const packageIds = [advisor.package_id].filter(Boolean);
@@ -835,7 +741,7 @@ const getAdviserById = async (req, res) => {
     const packages = allPackageIds.length > 0 ? await require('../models/package.model').find({ package_id: { $in: allPackageIds } }) : [];
     
     // Call types (all)
-    const callTypes = await require('../models/call_type.model').find();
+    const allCallTypes = await CallType.find();
     
     return res.status(200).json({
       advisor,
@@ -844,7 +750,7 @@ const getAdviserById = async (req, res) => {
       transactions,
       subscribers,
       packages,
-      callTypes,
+      callTypes: allCallTypes,
       status: 200
     });
   } catch (error) {
@@ -1013,13 +919,7 @@ const deleteUser = async (req, res) => {
     // Delete related data (optional - you can choose to keep or delete related data)
     const userId = parseInt(user_id);
 
-    // Delete user's appointments/schedule calls
-    await ScheduleCall.deleteMany({
-      $or: [
-        { advisor_id: userId },
-        { created_by: userId }
-      ]
-    });
+         // Note: ScheduleCall model has been removed, so no appointments to delete
 
     // Delete user's transactions
     await Transaction.deleteMany({ user_id: userId });
@@ -1074,7 +974,7 @@ const deleteUser = async (req, res) => {
 // Update user status and login permission status
 const updateUserStatus = async (req, res) => {
   try {
-    const { user_id, status, login_permission_status, login_suspended_reason } = req.body;
+    const { user_id, status, login_permission_status } = req.body;
     const adminId = req.user.user_id;
 
     // Validate user_id
@@ -1085,30 +985,27 @@ const updateUserStatus = async (req, res) => {
       });
     }
 
-    // Validate that at least one field is provided
-    if (status === undefined && login_permission_status === undefined && login_suspended_reason === undefined) {
+    // Validate that at least one status field is provided
+    if (status === undefined && login_permission_status === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'At least one field (status, login_permission_status, or login_suspended_reason) is required'
+        message: 'At least one status field (status or login_permission_status) is required'
       });
     }
 
     // Validate status values if provided
-    if (status !== undefined && ![0, 1].includes(parseInt(status))) {
+    if (status !== undefined && ![0, 1].includes(status)) {
       return res.status(400).json({
         success: false,
         message: 'Status must be 0 (inactive) or 1 (active)'
       });
     }
 
-    // Validate login_permission_status if provided
-    if (login_permission_status !== undefined) {
-      if (![true, false, 'true', 'false', 1, 0].includes(login_permission_status)) {
-        return res.status(400).json({
-          success: false,
-          message: 'login_permission_status must be true, false, 1, or 0'
-        });
-      }
+    if (login_permission_status !== undefined && ![true, false].includes(login_permission_status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'login_permission_status must be true or false'
+      });
     }
 
     // Check if admin is trying to update themselves
@@ -1142,24 +1039,12 @@ const updateUserStatus = async (req, res) => {
       updated_on: new Date()
     };
 
-    // Handle status update
     if (status !== undefined) {
-      updateData.status = parseInt(status);
+      updateData.status = status;
     }
 
-    // Handle login_permission_status update
     if (login_permission_status !== undefined) {
-      updateData.login_permission_status = login_permission_status === 'true' || login_permission_status === true || login_permission_status === 1;
-    }
-
-    // Handle login_suspended_reason update
-    if (login_suspended_reason !== undefined) {
-      updateData.login_suspended_reason = login_suspended_reason;
-      // If suspended reason is provided, automatically set status to inactive and disable login
-      if (login_suspended_reason && login_suspended_reason.trim() !== '') {
-        updateData.status = 0;
-        updateData.login_permission_status = false;
-      }
+      updateData.login_permission_status = login_permission_status;
     }
 
     // Update the user
@@ -1185,7 +1070,6 @@ const updateUserStatus = async (req, res) => {
         email: updatedUser.email,
         status: updatedUser.status,
         login_permission_status: updatedUser.login_permission_status,
-        login_suspended_reason: updatedUser.login_suspended_reason,
         role_id: updatedUser.role_id
       },
       status: 200
@@ -1201,4 +1085,168 @@ const updateUserStatus = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus }; 
+// Update user online status
+const updateUserOnlineStatus = async (req, res) => {
+  try {
+    const { user_online } = req.body;
+    const userId = req.user.user_id;
+
+    // Validate required field
+    if (user_online === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_online field is required'
+      });
+    }
+
+    // Validate boolean value
+    if (typeof user_online !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'user_online must be a boolean value (true or false)'
+      });
+    }
+
+    // Update user online status
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: userId },
+      { 
+        user_online: user_online,
+        updated_by: userId,
+        updated_on: new Date()
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `User online status updated to ${user_online ? 'online' : 'offline'}`,
+      data: {
+        user_id: updatedUser.user_id,
+        name: updatedUser.name,
+        user_online: updatedUser.user_online,
+        updated_on: updatedUser.updated_on
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Update user online status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// Get all employees (excluding role_id 1, 2, 3)
+const getAllEmployees = async (req, res) => {
+  try {
+    // Get query parameters for pagination and search
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || '';
+    
+    // Calculate skip value for pagination
+    const skip = (page - 1) * limit;
+    
+    // Build search query - exclude role_id 1, 2, 3
+    let searchQuery = {
+      $and: [
+        { role_id: { $ne: 1 } }, // Not equal to 1 (Admin)
+        { role_id: { $ne: 2 } }, // Not equal to 2 (Advisor)
+        { role_id: { $ne: 3 } }  // Not equal to 3
+      ]
+    };
+    
+    // Add search functionality
+    if (search) {
+      searchQuery.$and.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+          { mobile: { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+    
+    // Get total count for pagination
+    const totalEmployees = await User.countDocuments(searchQuery);
+    
+    // Get employees with pagination and search, with populated fields
+    const employees = await User.find(searchQuery)
+      .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name' })
+      .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id', select: 'skill_id skill_name' })
+      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
+      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
+      .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
+      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
+      .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
+      .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
+      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name' })
+      .skip(skip)
+      .limit(limit)
+      .sort({ created_at: -1 }); // Sort by newest first
+    
+    // Get role details for each employee
+    const Role = require('../models/role.model');
+    const employeesWithRoles = await Promise.all(
+      employees.map(async (employee) => {
+        const role = await Role.findOne({ role_id: employee.role_id }, { role_id: 1, role_name: 1, description: 1, _id: 0 });
+        return {
+          ...employee.toObject(),
+          role_details: role ? {
+            role_id: role.role_id,
+            role_name: role.role_name,
+            description: role.description
+          } : null
+        };
+      })
+    );
+    
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalEmployees / limit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Employees retrieved successfully',
+      data: employeesWithRoles,
+      pagination: {
+        current_page: page,
+        total_pages: totalPages,
+        total_employees: totalEmployees,
+        limit: limit,
+        has_next_page: hasNextPage,
+        has_prev_page: hasPrevPage,
+        next_page: hasNextPage ? page + 1 : null,
+        prev_page: hasPrevPage ? page - 1 : null
+      },
+      filters: {
+        search: search,
+        excluded_roles: [1, 2, 3]
+      },
+      status: 200
+    });
+    
+  } catch (error) {
+    console.error('Get all employees error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees }; 

@@ -16,11 +16,32 @@ const packageSubscriptionSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  status: {
+  Subscription_status: {
     type: String,
-    enum: ['Actived', 'Expired', 'Panding', 'InActive'],
+    enum: ['Actived', 'Expired', 'Panding'],
     default : 'Panding',
     required: true
+  },
+  Expire_status: {
+    type: Boolean,
+    default: false
+  },
+  Expire_Date: {
+    type: Date
+  },
+  status: {
+    type: Boolean,
+    default: true
+  },
+  Remaining_minute: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  Remaining_Schedule: {
+    type: Number,
+    default: 0,
+    min: 0
   },
   created_by: {
     type: Number,

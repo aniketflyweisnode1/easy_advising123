@@ -19,22 +19,9 @@ const createReasonSummary = async (req, res) => {
     data.subCategory_id = schedule.subcategory_id;
     data.date = schedule.date;
     data.time = schedule.time;
-
-    // Create the reason summary
     const reasonSummary = new ReasonSummary(data);
     await reasonSummary.save();
-
-    // Update schedule_call model with summary_status = 1 and summary_type = "Reason"
-    await ScheduleCall.findOneAndUpdate(
-      { schedule_id: data.schedule_call_id },
-      {
-        summary_status: 1,
-        summary_type: data.summary_type,
-        updated_at: new Date()
-      }
-    );
-
-    return res.status(201).json({ message: 'Reason summary created and schedule call updated', reasonSummary, status: 201 });
+    return res.status(201).json({ message: 'Reason summary created', reasonSummary, status: 201 });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
   }
@@ -107,8 +94,8 @@ const getReasonByScheduleCallId = async (req, res) => {
     }
 
     // Find reason summary by schedule_call_id
-    const reasonSummary = await ReasonSummary.findOne({
-      schedule_call_id: parseInt(schedule_call_id)
+    const reasonSummary = await ReasonSummary.findOne({ 
+      schedule_call_id: parseInt(schedule_call_id) 
     });
 
     if (!reasonSummary) {
@@ -126,15 +113,15 @@ const getReasonByScheduleCallId = async (req, res) => {
     // Get category and subcategory details
     const Category = require('../models/category.model');
     const Subcategory = require('../models/subcategory.model');
-
-    const category = reasonSummary.category_id ?
+    
+    const category = reasonSummary.category_id ? 
       await Category.findOne({ category_id: reasonSummary.category_id }) : null;
-    const subcategory = reasonSummary.subCategory_id ?
+    const subcategory = reasonSummary.subCategory_id ? 
       await Subcategory.findOne({ subcategory_id: reasonSummary.subCategory_id }) : null;
 
     // Get schedule call details
-    const scheduleCall = await ScheduleCall.findOne({
-      schedule_id: reasonSummary.schedule_call_id
+    const scheduleCall = await ScheduleCall.findOne({ 
+      schedule_id: reasonSummary.schedule_call_id 
     });
 
     // Prepare response with populated data

@@ -37,7 +37,14 @@ const updateCallType = async (req, res) => {
 const getCallTypeById = async (req, res) => {
   try {
     const { call_type_id } = req.params;
-    const callType = await CallType.findOne({ call_type_id });
+    const callType = await CallType.findOne({ call_type_id })
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     if (!callType) {
       return res.status(404).json({ message: 'Call type not found', status: 404 });
     }
@@ -50,11 +57,47 @@ const getCallTypeById = async (req, res) => {
 // Get all call types
 const getAllCallTypes = async (req, res) => {
   try {
-    const callTypes = await CallType.find();
+    const callTypes = await CallType.find()
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     return res.status(200).json({ callTypes, status: 200 });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
   }
 };
 
-module.exports = { createCallType, updateCallType, getCallTypeById, getAllCallTypes }; 
+// Get call types by adviser ID
+const getCallTypesByAdviser = async (req, res) => {
+  try {
+    const { adviser_id } = req.params;
+    
+    if (!adviser_id) {
+      return res.status(400).json({ message: 'adviser_id is required', status: 400 });
+    }
+
+    const callTypes = await CallType.find({ adviser_id: Number(adviser_id) })
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
+
+    return res.status(200).json({ 
+      callTypes, 
+      adviser_id: Number(adviser_id),
+      count: callTypes.length,
+      status: 200 
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || error, status: 500 });
+  }
+};
+
+module.exports = { createCallType, updateCallType, getCallTypeById, getAllCallTypes, getCallTypesByAdviser }; 

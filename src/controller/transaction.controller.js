@@ -20,6 +20,26 @@ const createTransaction = async (req, res) => {
         } else {
             req.body.bank_id = undefined;
         }
+
+        // Calculate GST for Recharge transactions
+        if (req.body.transactionType === 'Recharge') {
+            const baseAmount = Number(req.body.amount);
+            if (!isNaN(baseAmount) && baseAmount > 0) {
+                // Calculate CGST and SGST (9% each)
+                const cgstAmount = (baseAmount * 9) / 100;
+                const sgstAmount = (baseAmount * 9) / 100;
+                const totalGST = cgstAmount + sgstAmount;
+                
+                // Set GST fields in request body
+                req.body.CGST = cgstAmount;
+                req.body.SGST = sgstAmount;
+                req.body.TotalGST = totalGST;
+                
+                // Update the amount to include GST
+                req.body.amount = baseAmount + totalGST;
+            }
+        }
+
         console.log(req.body, req.user)
         const transaction = new Transaction(req.body);
         await transaction.save();
@@ -34,7 +54,7 @@ const createTransaction = async (req, res) => {
         let newAmount = Number(wallet.amount);
         const transactionAmount = Number(amount);
         
-        if (transactionType === 'deposit') {
+        if (transactionType === 'deposit' || transactionType === 'Recharge') {
             newAmount += transactionAmount;
         } else if (transactionType === 'registration_fee' || transactionType === 'withdraw') {
             if (newAmount < transactionAmount) {
@@ -46,7 +66,20 @@ const createTransaction = async (req, res) => {
         wallet.updated_At = new Date();
         await wallet.save();
 
-        return res.status(201).json({ message: 'Transaction created and wallet updated', transaction, wallet, status: 201 });
+        // Prepare response with GST details for Recharge transactions
+        let responseData = { message: 'Transaction created and wallet updated', transaction, wallet, status: 201 };
+        
+        if (transactionType === 'Recharge') {
+            responseData.gst_details = {
+                base_amount: Number(req.body.amount) - (req.body.CGST + req.body.SGST),
+                CGST: req.body.CGST,
+                SGST: req.body.SGST,
+                TotalGST: req.body.TotalGST,
+                final_amount: req.body.amount
+            };
+        }
+        
+        return res.status(201).json(responseData);
     } catch (error) {
         return res.status(500).json({ message: error.message || error, status: 500 });
     }

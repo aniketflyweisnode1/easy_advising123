@@ -10,6 +10,11 @@ const callTypeSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  adviser_id: {
+    type: Number,
+    ref: 'User',
+    required: true
+  },
   price_per_minute: {
     type: Number,
     required: true

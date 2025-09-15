@@ -45,12 +45,21 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  login_suspended_reason: {
+  suspended_reason: {
     type: String
   },
   status: {
     type: Number,
     default: 1
+  },
+  user_online: {
+    type: Boolean,
+    default: false
+  },
+  firebase_token: {
+    type: String,
+    default: null,
+    trim: true
   },
   created_by: {
     type: Number,

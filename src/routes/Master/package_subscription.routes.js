@@ -8,7 +8,9 @@ const {
     getPackageSubscriptionsBySubscribeBy,
     getPackageSubscriptionsByPackageId,
     getAllPackageSubscriptions,
-    getAllActivedPackageSubscriptions
+    getAllActivedPackageSubscriptions,
+    updateSubscriptionStatus,
+    getSubscriptionsByStatus
 } = require('../../controller/package_subscription.controller.js');
 
 // create by data 2025-07-14
@@ -25,5 +27,10 @@ router.get('/getByPackageId/:package_id', auth, getPackageSubscriptionsByPackage
 router.get('/getAll', auth, getAllPackageSubscriptions);
 // create by data 2025-07-14
 router.get('/getAllActived', auth, getAllActivedPackageSubscriptions);
+
+// Update subscription status 2025-07-15
+router.patch('/updateStatus', auth, updateSubscriptionStatus);
+// Get subscriptions by status 2025-07-15
+router.get('/getByStatus/:status', auth, getSubscriptionsByStatus);
 
 module.exports = router; 

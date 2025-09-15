@@ -13,6 +13,16 @@ const packageSchema = new mongoose.Schema({
   price: {
     type: Number
   },
+  minute: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  Schedule: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   status: {
     type: Number,
     default: 1

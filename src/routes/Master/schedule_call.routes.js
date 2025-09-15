@@ -7,7 +7,8 @@ const {
     getScheduleCallById,
     getAllScheduleCalls,
     getScheduleCallsByCreator,
-    getScheduleCallsByAdvisor
+    getScheduleCallsByAdvisor,
+    endCall
 } = require('../../controller/schedule_call.controller.js');
 
 // Create  2025-07-14
@@ -22,5 +23,7 @@ router.get('/getAll', auth, getAllScheduleCalls);
 router.get('/getByCreated', auth, getScheduleCallsByCreator);
 // Get by advisor 2025-07-14
 router.get('/getByAdvisor/:advisor_id', auth, getScheduleCallsByAdvisor);
+// End call and process payment 2025-07-14
+router.post('/endcall', auth, endCall);
 
 module.exports = router; 

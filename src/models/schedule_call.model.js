@@ -16,25 +16,21 @@ const scheduleCallSchema = new mongoose.Schema({
     ref: 'Skill',
     required: true
   },
-  category_id: {
+  call_type_id: {
     type: Number,
-    ref: 'Category',
+    ref: 'CallType',
     required: true
   },
-  subcategory_id: {
-    type: Number,
-    ref: 'Subcategory',
-    required: true
-  },
-  call_type: {
+  schedule_type: {
     type: String,
-    enum: ['CHAT', 'VIDEO', 'AUDIO'],
+    enum: ['Schedule', 'Instant'],
+    default: 'Schedule',
     required: true
   },
-  package_id: {
+  package_Subscription_id: {
     type: Number,
-    ref: 'Package',
-    required: true
+    ref: 'PackageSubscription',
+    default: null
   },
   date: {
     type: Date,
