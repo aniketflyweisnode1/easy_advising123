@@ -1209,8 +1209,8 @@ const getAllEmployees = async (req, res) => {
             description: role.description
           } : null
         };
-      }));
-    
+      })
+    );
     
     // Calculate pagination info
     const totalPages = Math.ceil(totalEmployees / limit);
@@ -1249,4 +1249,132 @@ const getAllEmployees = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees }; 
+// Update user (Admin function - can update any user)
+const updateUser = async (req, res) => {
+  try {
+    const { user_id, ...updateData } = req.body;
+    const adminId = req.user.user_id;
+
+    // Validate user_id
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required in request body'
+      });
+    }
+
+    // Check if admin is trying to update themselves
+    if (parseInt(user_id) === adminId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin cannot update their own account through this endpoint'
+      });
+    }
+
+    // Find the user to be updated
+    const userToUpdate = await User.findOne({ user_id: parseInt(user_id) });
+    if (!userToUpdate) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Remove sensitive fields that shouldn't be updated via this endpoint
+    delete updateData.user_id;
+    delete updateData.created_by;
+    delete updateData.created_at;
+    delete updateData.updated_by;
+    delete updateData.updated_on;
+
+    // If role_id is being updated, validate it
+    if (updateData.role_id !== undefined) {
+      const Role = require('../models/role.model');
+      const roleExists = await Role.findOne({ role_id: updateData.role_id });
+      if (!roleExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid role_id provided'
+        });
+      }
+    }
+
+    // If email is being updated, check for duplicates
+    if (updateData.email) {
+      const existingUser = await User.findOne({ 
+        email: updateData.email, 
+        user_id: { $ne: parseInt(user_id) } 
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already exists for another user'
+        });
+      }
+    }
+
+    // If mobile is being updated, check for duplicates
+    if (updateData.mobile) {
+      const existingUser = await User.findOne({ 
+        mobile: updateData.mobile, 
+        user_id: { $ne: parseInt(user_id) } 
+      });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mobile number already exists for another user'
+        });
+      }
+    }
+
+    // Prepare update data with admin info
+    const finalUpdateData = {
+      ...updateData,
+      updated_by: adminId,
+      updated_on: new Date()
+    };
+
+    // Update the user
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: parseInt(user_id) },
+      finalUpdateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update user'
+      });
+    }
+
+    // Get role details for the updated user
+    const Role = require('../models/role.model');
+    const role = await Role.findOne({ role_id: updatedUser.role_id });
+
+    return res.status(200).json({
+      success: true,
+      message: 'User updated successfully',
+      data: {
+        ...updatedUser.toObject(),
+        role_details: role ? {
+          role_id: role.role_id,
+          role_name: role.name,
+          description: role.description
+        } : null
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Update user error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser }; 

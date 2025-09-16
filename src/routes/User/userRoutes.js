@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees } = require('../../controller/userController');
+const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser } = require('../../controller/userController');
 const { auth } = require('../../middleware/authMiddleware');
 
 router.post('/register', registerUser);
@@ -24,5 +24,8 @@ router.patch('/user-online', auth, updateUserOnlineStatus);
 
 // Get all employees (excluding role_id 1, 2, 3)
 router.get('/getallemployees', auth, getAllEmployees);
+
+// Update user (Admin function)
+router.put('/update', auth, updateUser);
 
 module.exports = router; 
