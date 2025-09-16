@@ -171,7 +171,7 @@ const getRoleById = async (req, res) => {
 // Get all roles
 const getAllRoles = async (req, res) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
+    const { status = true, page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
     // Build query
