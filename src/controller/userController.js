@@ -1200,17 +1200,17 @@ const getAllEmployees = async (req, res) => {
     const Role = require('../models/role.model');
     const employeesWithRoles = await Promise.all(
       employees.map(async (employee) => {
-        const role = await Role.findOne({ role_id: employee.role_id }, { role_id: 1, role_name: 1, description: 1, _id: 0 });
+        const role = await Role.findOne({ role_id: employee.role_id });
         return {
           ...employee.toObject(),
           role_details: role ? {
             role_id: role.role_id,
-            role_name: role.role_name,
+            role_name: role.name,
             description: role.description
           } : null
         };
-      })
-    );
+      }));
+    
     
     // Calculate pagination info
     const totalPages = Math.ceil(totalEmployees / limit);
