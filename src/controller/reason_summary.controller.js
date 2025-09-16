@@ -19,9 +19,22 @@ const createReasonSummary = async (req, res) => {
     data.subCategory_id = schedule.subcategory_id;
     data.date = schedule.date;
     data.time = schedule.time;
+    
+    // Create the reason summary
     const reasonSummary = new ReasonSummary(data);
     await reasonSummary.save();
-    return res.status(201).json({ message: 'Reason summary created', reasonSummary, status: 201 });
+    
+    // Update schedule_call model with summary_status = 1 and summary_type = "Reason"
+    await ScheduleCall.findOneAndUpdate(
+      { schedule_id: data.schedule_call_id },
+      { 
+        summary_status: 1,
+        summary_type: "Reason",
+        updated_at: new Date()
+      }
+    );
+    
+    return res.status(201).json({ message: 'Reason summary created and schedule call updated', reasonSummary, status: 201 });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
   }
