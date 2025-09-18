@@ -167,7 +167,7 @@ const verifyOTP = async (req, res) => {
 const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+console.log(email, password);
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -176,7 +176,7 @@ const adminLogin = async (req, res) => {
     }
 
     // Find user by email and role_id = 1 (admin)
-    const user = await User.findOne({ email, role_id: 2 });
+    const user = await User.findOne({ email});
 
     if (!user) {
       return res.status(401).json({
