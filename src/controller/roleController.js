@@ -177,7 +177,22 @@ const getAllRoles = async (req, res) => {
     // Build query
     const query = {};
     if (status !== undefined) {
-      query.status = parseInt(status);
+      // Handle different status formats: 'true'/'false', '1'/'0', 1/0
+      let statusValue;
+      if (status === 'true' || status === true) {
+        statusValue = 1;
+      } else if (status === 'false' || status === false) {
+        statusValue = 0;
+      } else {
+        statusValue = parseInt(status);
+        // If parseInt returns NaN, don't add to query
+        if (isNaN(statusValue)) {
+          statusValue = undefined;
+        }
+      }
+      if (statusValue !== undefined) {
+        query.status = statusValue;
+      }
     }
 
     // Get roles with pagination

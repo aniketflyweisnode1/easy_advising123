@@ -461,7 +461,20 @@ The API now provides powerful pagination and search capabilities for efficient d
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || '';
     const role_id = req.query.role_id ? parseInt(req.query.role_id) : null;
-    const status = req.query.status ? parseInt(req.query.status) : null;
+    // Handle status parsing with proper validation
+    let status = null;
+    if (req.query.status !== undefined && req.query.status !== null && req.query.status !== '') {
+      if (req.query.status === 'true' || req.query.status === true) {
+        status = 1;
+      } else if (req.query.status === 'false' || req.query.status === false) {
+        status = 0;
+      } else {
+        const parsedStatus = parseInt(req.query.status);
+        if (!isNaN(parsedStatus)) {
+          status = parsedStatus;
+        }
+      }
+    }
     
     // Calculate skip value for pagination
     const skip = (page - 1) * limit;
