@@ -20,30 +20,56 @@ const createWithdrawRequest = async (req, res) => {
 };
 
 // Update withdraw request
+// Update withdraw request
 const updateWithdrawRequest = async (req, res) => {
   try {
     const { request_id, ...updateData } = req.body;
-    if (req.user && req.user.user_id) {
-      updateData.updated_by = req.user.user_id;
-      updateData.updated_at = new Date();
+    
+    // Validate request_id
+    if (!request_id) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Request ID is required', 
+        status: 400 
+      });
     }
+
+    // Find the withdraw request
     const request = await WithdrawRequest.findOne({ request_id });
     if (!request) {
-      return res.status(404).json({ message: 'Withdraw request not found', status: 404 });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Withdraw request not found', 
+        status: 404 
+      });
     }
+
+    // Prepare update data with audit fields
+    const finalUpdateData = {
+      ...updateData,
+      updated_by: req.user?.user_id || null,
+      updated_at: new Date()
+    };
+
     // If status is Release or Approved, create transaction and deduct from wallet
-    if (["Release", "Approved"].includes(updateData.last_status)) {
+    if (updateData.last_status && ["Release", "Approved"].includes(updateData.last_status)) {
       const wallet = await Wallet.findOne({ user_id: request.user_id });
       const requestAmount = Number(request.amount);
       const walletAmount = Number(wallet?.amount) || 0;
       
       if (!wallet || walletAmount < requestAmount) {
-        return res.status(400).json({ message: 'Insufficient funds in wallet', status: 400 });
+        return res.status(400).json({ 
+          success: false,
+          message: 'Insufficient funds in wallet', 
+          status: 400 
+        });
       }
+      
       // Deduct from wallet - ensure both values are numbers
       wallet.amount = walletAmount - requestAmount;
       wallet.updated_At = new Date();
       await wallet.save();
+      
       // Create transaction
       const transaction = new Transaction({
         user_id: request.user_id,
@@ -55,16 +81,42 @@ const updateWithdrawRequest = async (req, res) => {
         created_by: req.user.user_id
       });
       await transaction.save();
+      
       // Update withdraw request with transaction_id
-      request.transaction_id = transaction.TRANSACTION_ID;
-      await request.save();
+      finalUpdateData.transaction_id = transaction.TRANSACTION_ID;
     }
-    return res.status(200).json({ message: 'Withdraw request updated', request, status: 200 });
+
+    // Update the withdraw request
+    const updatedRequest = await WithdrawRequest.findOneAndUpdate(
+      { request_id },
+      finalUpdateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedRequest) {
+      return res.status(500).json({ 
+        success: false,
+        message: 'Failed to update withdraw request', 
+        status: 500 
+      });
+    }
+
+    return res.status(200).json({ 
+      success: true,
+      message: 'Withdraw request updated successfully', 
+      data: updatedRequest,
+      status: 200 
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message || error, status: 500 });
+    console.error('Update withdraw request error:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Internal server error', 
+      error: error.message,
+      status: 500 
+    });
   }
 };
-
 // Get withdraw request by ID
 const getWithdrawRequestById = async (req, res) => {
   try {
