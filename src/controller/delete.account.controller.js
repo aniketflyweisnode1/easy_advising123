@@ -1,5 +1,6 @@
 const DeleteAccount = require('../models/delete.account.model');
 const User = require('../models/User.model');
+const Role = require('../models/role.model');
 
 // Create delete account request
 const createDeleteAccount = async (req, res) => {
@@ -212,21 +213,42 @@ const getAllDeleteAccounts = async (req, res) => {
         // Fetch user details for all user IDs
         const users = await User.find(
             { user_id: { $in: userIds } },
-            { user_id: 1, name: 1, email: 1, mobile: 1, status: 1, login_permission_status: 1, _id: 0 }
+            { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, status: 1, login_permission_status: 1, _id: 0 }
         );
         const userMap = {};
         users.forEach(u => { userMap[u.user_id] = u; });
 
+        // Get all unique role IDs from users
+        const roleIds = [...new Set(users.map(u => u.role_id).filter(id => id))];
+
+        // Fetch role details for all role IDs
+        const roles = await Role.find(
+            { role_id: { $in: roleIds } },
+            { role_id: 1, name: 1, description: 1, status: 1, _id: 0 }
+        );
+        const roleMap = {};
+        roles.forEach(r => { roleMap[r.role_id] = r; });
+
+        // Enhance user data with role information
+        const enhancedUsers = users.map(user => ({
+            ...user.toObject(),
+            role: roleMap[user.role_id] || null
+        }));
+
+        // Update userMap with enhanced user data
+        const enhancedUserMap = {};
+        enhancedUsers.forEach(u => { enhancedUserMap[u.user_id] = u; });
+
         // Prepare response with populated data
         const populatedDeleteAccounts = deleteAccounts.map(deleteAccount => ({
             Daccountid_id: deleteAccount.Daccountid_id,
-            user: userMap[deleteAccount.user_id] || null,
+            user: enhancedUserMap[deleteAccount.user_id] || null,
             Delete_account_Reason: deleteAccount.Delete_account_Reason,
             Delete_status: deleteAccount.Delete_status,
             status: deleteAccount.status,
-            created_by_user: userMap[deleteAccount.created_by] || null,
+            created_by_user: enhancedUserMap[deleteAccount.created_by] || null,
             created_at: deleteAccount.created_at,
-            updated_by_user: deleteAccount.updated_by ? (userMap[deleteAccount.updated_by] || null) : null,
+            updated_by_user: deleteAccount.updated_by ? (enhancedUserMap[deleteAccount.updated_by] || null) : null,
             updated_at: deleteAccount.updated_at
         }));
 
