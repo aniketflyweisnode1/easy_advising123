@@ -3,6 +3,7 @@ const Transaction = require('../models/transaction.model.js');
 const Wallet = require('../models/wallet.model.js');
 const CallType = require('../models/call_type.model.js');
 const PackageSubscription = require('../models/package_subscription.model.js');
+const User = require('../models/User.model');
 // Create Schedule Call
 const createScheduleCall = async (req, res) => {
     try {
