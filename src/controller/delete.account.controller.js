@@ -167,11 +167,89 @@ const getDeleteAccountById = async (req, res) => {
 // Get all delete account requests
 const getAllDeleteAccounts = async (req, res) => {
     try {
-        const deleteAccounts = await DeleteAccount.find();
-        return res.status(200).json({ deleteAccounts, status: 200 });
+        const { page = 1, limit = 10, status, Delete_status } = req.query;
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {};
+        if (status !== undefined) {
+            // Handle different status formats: 'true'/'false', '1'/'0', 1/0
+            let statusValue;
+            if (status === 'true' || status === true) {
+                statusValue = 1;
+            } else if (status === 'false' || status === false) {
+                statusValue = 0;
+            } else {
+                statusValue = parseInt(status);
+                if (isNaN(statusValue)) {
+                    statusValue = undefined;
+                }
+            }
+            if (statusValue !== undefined) {
+                query.status = statusValue;
+            }
+        }
+        if (Delete_status) {
+            query.Delete_status = Delete_status;
+        }
+
+        // Get delete accounts with pagination
+        const deleteAccounts = await DeleteAccount.find(query)
+            .sort({ created_at: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalDeleteAccounts = await DeleteAccount.countDocuments(query);
+
+        // Get all unique user IDs from delete accounts
+        const userIds = [...new Set([
+            ...deleteAccounts.map(da => da.user_id),
+            ...deleteAccounts.map(da => da.created_by),
+            ...deleteAccounts.map(da => da.updated_by).filter(id => id)
+        ])];
+
+        // Fetch user details for all user IDs
+        const users = await User.find(
+            { user_id: { $in: userIds } },
+            { user_id: 1, name: 1, email: 1, mobile: 1, status: 1, login_permission_status: 1, _id: 0 }
+        );
+        const userMap = {};
+        users.forEach(u => { userMap[u.user_id] = u; });
+
+        // Prepare response with populated data
+        const populatedDeleteAccounts = deleteAccounts.map(deleteAccount => ({
+            Daccountid_id: deleteAccount.Daccountid_id,
+            user: userMap[deleteAccount.user_id] || null,
+            Delete_account_Reason: deleteAccount.Delete_account_Reason,
+            Delete_status: deleteAccount.Delete_status,
+            status: deleteAccount.status,
+            created_by_user: userMap[deleteAccount.created_by] || null,
+            created_at: deleteAccount.created_at,
+            updated_by_user: deleteAccount.updated_by ? (userMap[deleteAccount.updated_by] || null) : null,
+            updated_at: deleteAccount.updated_at
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: 'Delete account requests retrieved successfully',
+            data: {
+                deleteAccounts: populatedDeleteAccounts,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalDeleteAccounts / limit),
+                    total_items: totalDeleteAccounts,
+                    items_per_page: parseInt(limit)
+                }
+            },
+            status: 200
+        });
     } catch (error) {
+        console.error('Get all delete accounts error:', error);
         return res.status(500).json({
-            message: error.message || error,
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
             status: 500
         });
     }
