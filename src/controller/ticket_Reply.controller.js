@@ -75,11 +75,143 @@ const getTicketReplyById = async (req, res) => {
 // Get all ticket replies
 const getAllTicketReplies = async (req, res) => {
     try {
-        const ticketReplies = await TicketReply.find();
-        return res.status(200).json({ ticketReplies, status: 200 });
+        // Get URL parameters
+        const { date_from, date_to } = req.params;
+        
+        // Get query parameters
+        const { 
+            page = 1, 
+            limit = 10, 
+            search,
+            ticket_id,
+            reply_status,
+            created_date_from,
+            created_date_to,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+        
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {};
+
+        // Add ticket_id filter
+        if (ticket_id) {
+            query.ticket_id = parseInt(ticket_id);
+        }
+
+        // Add reply_status filter
+        if (reply_status) {
+            query.reply_status = reply_status;
+        }
+
+        // Add date range filters
+        // Priority: URL params (date_from, date_to) > query params (created_date_from, created_date_to)
+        const fromDate = date_from || created_date_from;
+        const toDate = date_to || created_date_to;
+        
+        if (fromDate || toDate) {
+            query.created_at = {};
+            if (fromDate) {
+                query.created_at.$gte = new Date(fromDate);
+            }
+            if (toDate) {
+                query.created_at.$lt = new Date(new Date(toDate).getTime() + 24 * 60 * 60 * 1000); // Add 1 day to include the entire day
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get ticket replies with pagination and sorting
+        const ticketReplies = await TicketReply.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalTicketReplies = await TicketReply.countDocuments(query);
+
+        // Get all unique user IDs from ticket replies
+        const userIds = [...new Set(ticketReplies.map(tr => tr.created_by))];
+
+        // Fetch user details for all user IDs
+        const User = require('../models/User.model');
+        const users = await User.find(
+            { user_id: { $in: userIds } },
+            { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+        );
+        const userMap = {};
+        users.forEach(u => { userMap[u.user_id] = u; });
+
+        // Map ticket replies to include user details
+        let ticketRepliesWithDetails = ticketReplies.map(ticketReply => {
+            const ticketReplyObj = ticketReply.toObject();
+            return {
+                ...ticketReplyObj,
+                created_by_user: userMap[ticketReply.created_by] ? {
+                    user_id: userMap[ticketReply.created_by].user_id,
+                    name: userMap[ticketReply.created_by].name,
+                    email: userMap[ticketReply.created_by].email,
+                    mobile: userMap[ticketReply.created_by].mobile
+                } : null
+            };
+        });
+
+        // Apply search filter if provided
+        if (search) {
+            ticketRepliesWithDetails = ticketRepliesWithDetails.filter(ticketReply => {
+                const searchLower = search.toLowerCase();
+                const searchTerm = search.toString();
+                return (
+                    (ticketReply.created_by_user && (
+                        ticketReply.created_by_user.name?.toLowerCase().includes(searchLower) ||
+                        ticketReply.created_by_user.email?.toLowerCase().includes(searchLower) ||
+                        ticketReply.created_by_user.mobile?.includes(searchTerm)
+                    )) ||
+                    ticketReply.reply_description?.toLowerCase().includes(searchLower) ||
+                    ticketReply.reply_status?.toLowerCase().includes(searchLower) ||
+                    ticketReply.reply_id?.toString().includes(searchTerm) ||
+                    ticketReply.ticket_id?.toString().includes(searchTerm) ||
+                    // Search by date (format: YYYY-MM-DD or partial date)
+                    (ticketReply.created_at && 
+                        ticketReply.created_at.toISOString().split('T')[0].includes(searchTerm)
+                    )
+                );
+            });
+        }
+
+        // Get available filter options
+        const allTicketReplies = await TicketReply.find({}, { reply_status: 1, ticket_id: 1, _id: 0 });
+        const availableReplyStatuses = [...new Set(allTicketReplies.map(tr => tr.reply_status))];
+        const availableTicketIds = [...new Set(allTicketReplies.map(tr => tr.ticket_id))];
+
+        return res.status(200).json({
+            success: true,
+            message: 'Ticket replies retrieved successfully',
+            data: {
+                ticketReplies: ticketRepliesWithDetails,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalTicketReplies / limit),
+                    total_items: totalTicketReplies,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_reply_statuses: availableReplyStatuses,
+                    available_ticket_ids: availableTicketIds
+                }
+            },
+            status: 200
+        });
     } catch (error) {
+        console.error('Get all ticket replies error:', error);
         return res.status(500).json({
-            message: error.message || error,
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
             status: 500
         });
     }

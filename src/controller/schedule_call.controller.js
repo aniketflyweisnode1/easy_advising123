@@ -167,29 +167,212 @@ const getScheduleCallById = async (req, res) => {
 // Get all
 const getAllScheduleCalls = async (req, res) => {
     try {
-        const schedules = await ScheduleCall.find();
+        const { 
+            page = 1, 
+            limit = 10, 
+            search, 
+            callStatus, 
+            date_from, 
+            date_to, 
+            advisor_name,
+            creator_name,
+            call_type,
+            schedule_type,
+            approval_status,
+            status,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+        
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {};
+
+        // Add call status filter
+        if (callStatus) {
+            const statusArray = Array.isArray(callStatus) ? callStatus : [callStatus];
+            query.callStatus = { $in: statusArray };
+        }
+
+        // Add date range filter
+        if (date_from || date_to) {
+            query.date = {};
+            if (date_from) {
+                query.date.$gte = new Date(date_from);
+            }
+            if (date_to) {
+                // Add one day to include the entire end date
+                const endDate = new Date(date_to);
+                endDate.setDate(endDate.getDate() + 1);
+                query.date.$lt = endDate;
+            }
+        }
+
+        // Add call type filter
+        if (call_type) {
+            query.call_type = call_type;
+        }
+
+        // Add schedule type filter
+        if (schedule_type) {
+            query.schedule_type = schedule_type;
+        }
+
+        // Add approval status filter
+        if (approval_status !== undefined) {
+            let approvalValue;
+            if (approval_status === 'true' || approval_status === true) {
+                approvalValue = true;
+            } else if (approval_status === 'false' || approval_status === false) {
+                approvalValue = false;
+            } else {
+                approvalValue = approval_status;
+            }
+            query.approval_status = approvalValue;
+        }
+
+        // Add status filter
+        if (status !== undefined) {
+            let statusValue;
+            if (status === 'true' || status === true) {
+                statusValue = 1;
+            } else if (status === 'false' || status === false) {
+                statusValue = 0;
+            } else {
+                statusValue = parseInt(status);
+                if (isNaN(statusValue)) {
+                    statusValue = undefined;
+                }
+            }
+            if (statusValue !== undefined) {
+                query.status = statusValue;
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get schedules with filters and pagination
+        const schedules = await ScheduleCall.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalSchedules = await ScheduleCall.countDocuments(query);
 
         // Get all unique user ids from schedules (advisor_id and created_by)
         const advisorIds = [...new Set(schedules.map(schedule => schedule.advisor_id))];
         const creatorIds = [...new Set(schedules.map(schedule => schedule.created_by))];
         const allUserIds = [...new Set([...advisorIds, ...creatorIds])];
 
-        // Fetch user names for all user ids
-        const users = await User.find({ user_id: { $in: allUserIds } }, { user_id: 1, name: 1, _id: 0 });
+        // Fetch user details for all user ids
+        const users = await User.find(
+            { user_id: { $in: allUserIds } }, 
+            { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+        );
         const userMap = {};
-        users.forEach(u => { userMap[u.user_id] = u.name; });
+        users.forEach(u => { userMap[u.user_id] = u; });
 
-        // Map schedules to include advisor_id and created_by as { user_id, name }
-        const schedulesWithNames = schedules.map(schedule => {
+        // If name search is provided, filter by user names
+        let filteredSchedules = schedules;
+        if (search || advisor_name || creator_name) {
+            filteredSchedules = schedules.filter(schedule => {
+                const advisor = userMap[schedule.advisor_id];
+                const creator = userMap[schedule.created_by];
+                
+                let matchesSearch = true;
+                let matchesAdvisorName = true;
+                let matchesCreatorName = true;
+
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    matchesSearch = (
+                        (advisor && advisor.name && advisor.name.toLowerCase().includes(searchLower)) ||
+                        (creator && creator.name && creator.name.toLowerCase().includes(searchLower)) ||
+                        (advisor && advisor.email && advisor.email.toLowerCase().includes(searchLower)) ||
+                        (creator && creator.email && creator.email.toLowerCase().includes(searchLower))
+                    );
+                }
+
+                if (advisor_name) {
+                    matchesAdvisorName = advisor && advisor.name && 
+                        advisor.name.toLowerCase().includes(advisor_name.toLowerCase());
+                }
+
+                if (creator_name) {
+                    matchesCreatorName = creator && creator.name && 
+                        creator.name.toLowerCase().includes(creator_name.toLowerCase());
+                }
+
+                return matchesSearch && matchesAdvisorName && matchesCreatorName;
+            });
+        }
+
+        // Get unique skill IDs and call type IDs for population
+        const skillIds = [...new Set(schedules.map(s => s.skills_id))];
+        const callTypeIds = [...new Set(schedules.map(s => s.call_type_id))];
+
+        // Fetch skill and call type details
+        const Skill = require('../models/skill.model');
+        const CallType = require('../models/call_type.model');
+        
+        const skills = await Skill.find(
+            { skill_id: { $in: skillIds } },
+            { skill_id: 1, skill_name: 1, description: 1, _id: 0 }
+        );
+        const skillMap = {};
+        skills.forEach(s => { skillMap[s.skill_id] = s; });
+
+        const callTypes = await CallType.find(
+            { call_type_id: { $in: callTypeIds } },
+            { call_type_id: 1, call_type_name: 1, description: 1, _id: 0 }
+        );
+        const callTypeMap = {};
+        callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
+
+        // Map schedules to include populated data
+        const schedulesWithDetails = filteredSchedules.map(schedule => {
             const scheduleObj = schedule.toObject();
-            scheduleObj.advisor_id = { user_id: schedule.advisor_id, name: userMap[schedule.advisor_id] || null };
-            scheduleObj.created_by = { user_id: schedule.created_by, name: userMap[schedule.created_by] || null };
+            scheduleObj.advisor = userMap[schedule.advisor_id] || null;
+            scheduleObj.creator = userMap[schedule.created_by] || null;
+            scheduleObj.skill = skillMap[schedule.skills_id] || null;
+            scheduleObj.call_type_details = callTypeMap[schedule.call_type_id] || null;
             return scheduleObj;
         });
 
-        res.status(200).json({ schedules: schedulesWithNames, status: 200 });
+        // Get available call statuses for filter options
+        const availableCallStatuses = ['Panding', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing'];
+
+        return res.status(200).json({
+            success: true,
+            message: 'Schedule calls retrieved successfully',
+            data: {
+                schedules: schedulesWithDetails,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalSchedules / limit),
+                    total_items: totalSchedules,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_call_statuses: availableCallStatuses,
+                    available_schedule_types: ['Schedule', 'Instant'],
+                    available_call_types: Object.values(callTypeMap)
+                }
+            },
+            status: 200
+        });
     } catch (error) {
-        res.status(500).json({ message: error.message || error, status: 500 });
+        console.error('Get all schedule calls error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
     }
 };
 
@@ -213,6 +396,222 @@ const getScheduleCallsByAdvisor = async (req, res) => {
         res.status(200).json({ schedules, status: 200 });
     } catch (error) {
         res.status(500).json({ message: error.message || error, status: 500 });
+    }
+};
+
+// Get schedule calls by schedule_type
+const getScheduleCallsByType = async (req, res) => {
+    try {
+        const { schedule_type } = req.params;
+        const { 
+            page = 1, 
+            limit = 10, 
+            search, 
+            callStatus, 
+            date_from, 
+            date_to, 
+            advisor_name,
+            creator_name,
+            call_type,
+            approval_status,
+            status,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        // Validate schedule_type
+        if (!['Schedule', 'Instant'].includes(schedule_type)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid schedule_type. Must be either "Schedule" or "Instant"',
+                status: 400
+            });
+        }
+
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = { schedule_type };
+
+        // Add call status filter
+        if (callStatus) {
+            const statusArray = Array.isArray(callStatus) ? callStatus : [callStatus];
+            query.callStatus = { $in: statusArray };
+        }
+
+        // Add date range filter
+        if (date_from || date_to) {
+            query.date = {};
+            if (date_from) {
+                query.date.$gte = new Date(date_from);
+            }
+            if (date_to) {
+                // Add one day to include the entire end date
+                const endDate = new Date(date_to);
+                endDate.setDate(endDate.getDate() + 1);
+                query.date.$lt = endDate;
+            }
+        }
+
+        // Add call type filter
+        if (call_type) {
+            query.call_type = call_type;
+        }
+
+        // Add approval status filter
+        if (approval_status !== undefined) {
+            let approvalValue;
+            if (approval_status === 'true' || approval_status === true) {
+                approvalValue = true;
+            } else if (approval_status === 'false' || approval_status === false) {
+                approvalValue = false;
+            } else {
+                approvalValue = approval_status;
+            }
+            query.approval_status = approvalValue;
+        }
+
+        // Add status filter
+        if (status !== undefined) {
+            let statusValue;
+            if (status === 'true' || status === true) {
+                statusValue = 1;
+            } else if (status === 'false' || status === false) {
+                statusValue = 0;
+            } else {
+                statusValue = parseInt(status);
+                if (isNaN(statusValue)) {
+                    statusValue = undefined;
+                }
+            }
+            if (statusValue !== undefined) {
+                query.status = statusValue;
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get schedules with filters and pagination
+        const schedules = await ScheduleCall.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalSchedules = await ScheduleCall.countDocuments(query);
+
+        // Get all unique user ids from schedules (advisor_id and created_by)
+        const advisorIds = [...new Set(schedules.map(schedule => schedule.advisor_id))];
+        const creatorIds = [...new Set(schedules.map(schedule => schedule.created_by))];
+        const allUserIds = [...new Set([...advisorIds, ...creatorIds])];
+
+        // Fetch user details for all user ids
+        const users = await User.find(
+            { user_id: { $in: allUserIds } }, 
+            { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+        );
+        const userMap = {};
+        users.forEach(u => { userMap[u.user_id] = u; });
+
+        // If name search is provided, filter by user names
+        let filteredSchedules = schedules;
+        if (search || advisor_name || creator_name) {
+            filteredSchedules = schedules.filter(schedule => {
+                const advisor = userMap[schedule.advisor_id];
+                const creator = userMap[schedule.created_by];
+                
+                let matchesSearch = true;
+                let matchesAdvisorName = true;
+                let matchesCreatorName = true;
+
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    matchesSearch = (
+                        (advisor && advisor.name && advisor.name.toLowerCase().includes(searchLower)) ||
+                        (creator && creator.name && creator.name.toLowerCase().includes(searchLower)) ||
+                        (advisor && advisor.email && advisor.email.toLowerCase().includes(searchLower)) ||
+                        (creator && creator.email && creator.email.toLowerCase().includes(searchLower))
+                    );
+                }
+
+                if (advisor_name) {
+                    matchesAdvisorName = advisor && advisor.name && 
+                        advisor.name.toLowerCase().includes(advisor_name.toLowerCase());
+                }
+
+                if (creator_name) {
+                    matchesCreatorName = creator && creator.name && 
+                        creator.name.toLowerCase().includes(creator_name.toLowerCase());
+                }
+
+                return matchesSearch && matchesAdvisorName && matchesCreatorName;
+            });
+        }
+
+        // Get unique skill IDs and call type IDs for population
+        const skillIds = [...new Set(schedules.map(s => s.skills_id))];
+        const callTypeIds = [...new Set(schedules.map(s => s.call_type_id))];
+
+        // Fetch skill and call type details
+        const Skill = require('../models/skill.model');
+        const CallType = require('../models/call_type.model');
+        
+        const skills = await Skill.find(
+            { skill_id: { $in: skillIds } },
+            { skill_id: 1, skill_name: 1, description: 1, _id: 0 }
+        );
+        const skillMap = {};
+        skills.forEach(s => { skillMap[s.skill_id] = s; });
+
+        const callTypes = await CallType.find(
+            { call_type_id: { $in: callTypeIds } },
+            { call_type_id: 1, call_type_name: 1, description: 1, _id: 0 }
+        );
+        const callTypeMap = {};
+        callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
+
+        // Map schedules to include populated data
+        const schedulesWithDetails = filteredSchedules.map(schedule => {
+            const scheduleObj = schedule.toObject();
+            scheduleObj.advisor = userMap[schedule.advisor_id] || null;
+            scheduleObj.creator = userMap[schedule.created_by] || null;
+            scheduleObj.skill = skillMap[schedule.skills_id] || null;
+            scheduleObj.call_type_details = callTypeMap[schedule.call_type_id] || null;
+            return scheduleObj;
+        });
+
+        // Get available call statuses for filter options
+        const availableCallStatuses = ['Panding', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing'];
+
+        return res.status(200).json({
+            success: true,
+            message: `${schedule_type} schedule calls retrieved successfully`,
+            data: {
+                schedule_type: schedule_type,
+                schedules: schedulesWithDetails,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalSchedules / limit),
+                    total_items: totalSchedules,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_call_statuses: availableCallStatuses,
+                    available_call_types: Object.values(callTypeMap)
+                }
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Get schedule calls by type error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
     }
 };
 
@@ -502,5 +901,6 @@ module.exports = {
     getAllScheduleCalls,
     getScheduleCallsByCreator,
     getScheduleCallsByAdvisor,
+    getScheduleCallsByType,
     endCall
 }; 

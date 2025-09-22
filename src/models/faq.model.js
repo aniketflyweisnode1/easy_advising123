@@ -1,35 +1,22 @@
 const mongoose = require('mongoose');
 const AutoIncrement = require('mongoose-sequence')(mongoose);
-const { generateTicketNo } = require('../utils/otpUtils');
-
-const faqStatusEnum = ["Panding", "Open", "process", "closed", "assign"];
 
 const faqSchema = new mongoose.Schema({
   faq_id: {
     type: Number,
     unique: true
   },
-  faq_no: {
-    type: String,
-    unique: true,
-    default: generateTicketNo
-  },
-  date: {
-    type: Date,
-    default: Date.now
-  },
-  postby_user_id: {
-    type: Number,
-    ref: 'User',
-    required: true
-  },
-  faq_status: {
-    type: String,
-    enum: faqStatusEnum,
-    default: "Panding"
-  },
   faq_Question: {
     type: String,
+    required: true
+  },
+  faq_Answer: {
+    type: String,
+    default: ""
+  },
+  role_id: {
+    type: Number,
+    ref: 'Role',
     required: true
   },
   status: {

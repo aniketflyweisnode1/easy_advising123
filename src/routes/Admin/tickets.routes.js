@@ -17,4 +17,8 @@ router.get('/getById/:ticket_id', auth, getTicketById);
 // Get all tickets 2025-07-16
 router.get('/getAll', getAllTickets);
 
+// Get tickets with date filters as URL parameters
+// Route with date range
+router.get('/getAll/:date_from/:date_to', getAllTickets);
+
 module.exports = router; 

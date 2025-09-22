@@ -42,7 +42,7 @@ const scheduleCallSchema = new mongoose.Schema({
   },
   callStatus : {
     type: String,
-    enum: ['Panding', 'Accepted', 'Completed', "Cancelled", "Upcoming"],
+    enum: ['Panding', 'Accepted', 'Completed', "Cancelled", "Upcoming", "Ongoing", "Not Answered"],
     default : 'Panding',
     required: true
   },

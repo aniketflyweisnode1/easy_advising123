@@ -51,10 +51,113 @@ const getSkillById = async (req, res) => {
 // Get all skills
 const getAllSkills = async (req, res) => {
   try {
-    const skills = await Skill.find();
-    return res.status(200).json({ skills, status: 200 });
+    const { 
+      page = 1, 
+      limit = 10, 
+      search, 
+      status,
+      sort_by = 'created_at',
+      sort_order = 'desc'
+    } = req.query;
+
+    const skip = (page - 1) * limit;
+
+    // Build query
+    const query = {};
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { skill_name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add status filter
+    if (status !== undefined) {
+      let statusValue;
+      if (status === 'true' || status === true) {
+        statusValue = 1;
+      } else if (status === 'false' || status === false) {
+        statusValue = 0;
+      } else {
+        statusValue = parseInt(status);
+        if (isNaN(statusValue)) {
+          statusValue = undefined;
+        }
+      }
+      if (statusValue !== undefined) {
+        query.status = statusValue;
+      }
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+    // Get skills with pagination and filters
+    const skills = await Skill.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count
+    const totalSkills = await Skill.countDocuments(query);
+
+    // Get skills with adviser counts
+    const skillsWithCounts = await Promise.all(
+      skills.map(async (skill) => {
+        // Count advisers with this skill
+        const adviserCount = await User.countDocuments({
+          role_id: 2, // Adviser role
+          skill: { $in: [skill.skill_id] }
+        });
+
+        // Get active adviser count
+        const activeAdviserCount = await User.countDocuments({
+          role_id: 2, // Adviser role
+          skill: { $in: [skill.skill_id] },
+          status: 1 // Active status
+        });
+
+        // Get inactive adviser count
+        const inactiveAdviserCount = await User.countDocuments({
+          role_id: 2, // Adviser role
+          skill: { $in: [skill.skill_id] },
+          status: 0 // Inactive status
+        });
+
+        return {
+          ...skill.toObject(),
+          adviser_count: adviserCount,
+          active_adviser_count: activeAdviserCount,
+          inactive_adviser_count: inactiveAdviserCount
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Skills retrieved successfully',
+      data: {
+        skills: skillsWithCounts,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(totalSkills / limit),
+          total_items: totalSkills,
+          items_per_page: parseInt(limit)
+        }
+      },
+      status: 200
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message || error, status: 500 });
+    console.error('Error getting all skills:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
   }
 };
 

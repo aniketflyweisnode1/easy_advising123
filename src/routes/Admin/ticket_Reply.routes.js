@@ -17,4 +17,8 @@ router.get('/getById/:reply_id', auth, getTicketReplyById);
 // Get all ticket replies 2025-07-16
 router.get('/getAll', getAllTicketReplies);
 
+// Get ticket replies with date filters as URL parameters
+// Route with date range
+router.get('/getAll/:date_from/:date_to', getAllTicketReplies);
+
 module.exports = router; 

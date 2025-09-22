@@ -8,6 +8,7 @@ const {
     getAllScheduleCalls,
     getScheduleCallsByCreator,
     getScheduleCallsByAdvisor,
+    getScheduleCallsByType,
     endCall
 } = require('../../controller/schedule_call.controller.js');
 
@@ -23,6 +24,8 @@ router.get('/getAll', auth, getAllScheduleCalls);
 router.get('/getByCreated', auth, getScheduleCallsByCreator);
 // Get by advisor 2025-07-14
 router.get('/getByAdvisor/:advisor_id', auth, getScheduleCallsByAdvisor);
+// Get by schedule type (Schedule/Instant) 2025-01-15
+router.get('/getByType/:schedule_type', auth, getScheduleCallsByType);
 // End call and process payment 2025-07-14
 router.post('/endcall', auth, endCall);
 

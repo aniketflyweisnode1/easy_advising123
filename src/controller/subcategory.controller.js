@@ -1,5 +1,6 @@
 const Subcategory = require('../models/subcategory.model.js');
 const Category = require('../models/category.model.js');
+const User = require('../models/User.model.js');
 
 const createSubcategory = async (req, res) => {
   try {
@@ -198,31 +199,128 @@ const getSubcategoryById = async (req, res) => {
 
 const getAllSubcategories = async (req, res) => {
   try {
-    const subcategories = await Subcategory.find()
-      .sort({ created_At: -1 });
+    const { 
+      page = 1, 
+      limit = 10, 
+      search, 
+      status,
+      category_id,
+      sort_by = 'created_At',
+      sort_order = 'desc'
+    } = req.query;
 
-    // Fetch category details for each subcategory
-    const subcategoriesWithCategories = await Promise.all(
+    const skip = (page - 1) * limit;
+
+    // Build query
+    const query = {};
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { subcategory_name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add status filter
+    if (status !== undefined) {
+      let statusValue;
+      if (status === 'true' || status === true) {
+        statusValue = 1;
+      } else if (status === 'false' || status === false) {
+        statusValue = 0;
+      } else {
+        statusValue = parseInt(status);
+        if (isNaN(statusValue)) {
+          statusValue = undefined;
+        }
+      }
+      if (statusValue !== undefined) {
+        query.status = statusValue;
+      }
+    }
+
+    // Add category filter
+    if (category_id) {
+      query.category_id = parseInt(category_id);
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+    // Get subcategories with pagination and filters
+    const subcategories = await Subcategory.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count
+    const totalSubcategories = await Subcategory.countDocuments(query);
+
+    // Get subcategories with category details and adviser counts
+    const subcategoriesWithDetails = await Promise.all(
       subcategories.map(async (subcategory) => {
+        // Fetch category details
         const category = await Category.findOne({ category_id: subcategory.category_id });
+
+        // Count advisers with this subcategory
+        const adviserCount = await User.countDocuments({
+          role_id: 2, // Adviser role
+          Subcategory: { $in: [subcategory.subcategory_id] }
+        });
+
+        // Get active adviser count
+        const activeAdviserCount = await User.countDocuments({
+          role_id: 2, // Adviser role
+          Subcategory: { $in: [subcategory.subcategory_id] },
+          status: 1 // Active status
+        });
+
+        // Get inactive adviser count
+        const inactiveAdviserCount = await User.countDocuments({
+          role_id: 2, // Adviser role
+          Subcategory: { $in: [subcategory.subcategory_id] },
+          status: 0 // Inactive status
+        });
+
         return {
           ...subcategory.toObject(),
-          category_details: category || null
+          category_details: category || null,
+          adviser_count: adviserCount,
+          active_adviser_count: activeAdviserCount,
+          inactive_adviser_count: inactiveAdviserCount
         };
       })
     );
 
-    res.status(200).json({
+    // Get all categories for filter options
+    const allCategories = await Category.find({}, { category_id: 1, category_name: 1, _id: 0 });
+
+    return res.status(200).json({
       success: true,
       message: 'Subcategories retrieved successfully',
-      data: subcategoriesWithCategories
+      data: {
+        subcategories: subcategoriesWithDetails,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(totalSubcategories / limit),
+          total_items: totalSubcategories,
+          items_per_page: parseInt(limit)
+        },
+        filters: {
+          available_categories: allCategories
+        }
+      },
+      status: 200
     });
   } catch (error) {
     console.error('Error getting all subcategories:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: 'Error retrieving subcategories',
-      error: error.message
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
     });
   }
 };

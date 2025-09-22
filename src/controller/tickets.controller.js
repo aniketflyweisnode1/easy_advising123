@@ -78,11 +78,30 @@ const getTicketById = async (req, res) => {
 // Get all tickets
 const getAllTickets = async (req, res) => {
     try {
-        const { page = 1, limit = 10, status, ticket_status } = req.query;
+        // Get URL parameters
+        const { date_from, date_to } = req.params;
+        
+        // Get query parameters
+        const { 
+            page = 1, 
+            limit = 10, 
+            status, 
+            ticket_status,
+            search,
+            created_date_from,
+            created_date_to,
+            updated_date_from,
+            updated_date_to,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+        
         const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
+        
+        // Add status filter
         if (status !== undefined) {
             // Handle different status formats: 'true'/'false', '1'/'0', 1/0
             let statusValue;
@@ -100,13 +119,45 @@ const getAllTickets = async (req, res) => {
                 query.status = statusValue;
             }
         }
+        
+        // Add ticket_status filter
         if (ticket_status) {
             query.ticket_status = ticket_status;
         }
 
-        // Get tickets with pagination
+        // Add date range filters
+        // Priority: URL params (date_from, date_to) > query params (created_date_from, created_date_to)
+        const fromDate = date_from || created_date_from;
+        const toDate = date_to || created_date_to;
+        
+        if (fromDate || toDate) {
+            query.created_at = {};
+            if (fromDate) {
+                query.created_at.$gte = new Date(fromDate);
+            }
+            if (toDate) {
+                query.created_at.$lt = new Date(new Date(toDate).getTime() + 24 * 60 * 60 * 1000); // Add 1 day to include the entire day
+            }
+        }
+
+        // Add updated date range filter
+        if (updated_date_from || updated_date_to) {
+            query.updated_at = {};
+            if (updated_date_from) {
+                query.updated_at.$gte = new Date(updated_date_from);
+            }
+            if (updated_date_to) {
+                query.updated_at.$lt = new Date(new Date(updated_date_to).getTime() + 24 * 60 * 60 * 1000);
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get tickets with pagination and sorting
         const tickets = await Tickets.find(query)
-            .sort({ created_at: -1 })
+            .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
 
@@ -150,7 +201,7 @@ const getAllTickets = async (req, res) => {
         });
 
         // Prepare response with populated data
-        const populatedTickets = tickets.map(ticket => ({
+        let populatedTickets = tickets.map(ticket => ({
             ticket_id: ticket.ticket_id,
             ticket_no: ticket.ticket_no,
             user: userMap[ticket.user_id] || null,
@@ -164,6 +215,40 @@ const getAllTickets = async (req, res) => {
             replies: repliesMap[ticket.ticket_id] || []
         }));
 
+        // Apply search filter if provided
+        if (search) {
+            populatedTickets = populatedTickets.filter(ticket => {
+                const searchLower = search.toLowerCase();
+                const searchTerm = search.toString();
+                return (
+                    (ticket.user && (
+                        ticket.user.name?.toLowerCase().includes(searchLower) ||
+                        ticket.user.email?.toLowerCase().includes(searchLower) ||
+                        ticket.user.mobile?.includes(searchTerm)
+                    )) ||
+                    (ticket.created_by_user && (
+                        ticket.created_by_user.name?.toLowerCase().includes(searchLower) ||
+                        ticket.created_by_user.email?.toLowerCase().includes(searchLower)
+                    )) ||
+                    ticket.ticket_Question?.toLowerCase().includes(searchLower) ||
+                    ticket.ticket_status?.toLowerCase().includes(searchLower) ||
+                    ticket.ticket_no?.toLowerCase().includes(searchLower) ||
+                    ticket.ticket_id?.toString().includes(searchTerm) ||
+                    // Search by date (format: YYYY-MM-DD or partial date)
+                    (ticket.created_at && 
+                        ticket.created_at.toISOString().split('T')[0].includes(searchTerm)
+                    ) ||
+                    (ticket.updated_at && 
+                        ticket.updated_at.toISOString().split('T')[0].includes(searchTerm)
+                    )
+                );
+            });
+        }
+
+        // Get available filter options
+        const allTickets = await Tickets.find({}, { ticket_status: 1, _id: 0 });
+        const availableTicketStatuses = [...new Set(allTickets.map(t => t.ticket_status))];
+
         return res.status(200).json({
             success: true,
             message: 'Tickets retrieved successfully',
@@ -174,6 +259,9 @@ const getAllTickets = async (req, res) => {
                     total_pages: Math.ceil(totalTickets / limit),
                     total_items: totalTickets,
                     items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_ticket_statuses: availableTicketStatuses
                 }
             },
             status: 200

@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth } = require('../../middleware/authMiddleware');
 const {
   createNotificationShare,
+  createNotificationShareByRole,
   updateNotificationShare,
   getNotificationShareById,
   getAllNotificationShares
@@ -10,6 +11,8 @@ const {
 
 // Create notification  2025-07-16
 router.post('/create', auth, createNotificationShare);
+// Create notification share by role  2025-07-16
+router.post('/createByRole', auth, createNotificationShareByRole);
 // Update notification share 2025-07-16
 router.put('/update', auth, updateNotificationShare);
 // Get notification share by ID 2025-07-16

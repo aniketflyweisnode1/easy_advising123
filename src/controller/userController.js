@@ -674,14 +674,207 @@ The API now provides powerful pagination and search capabilities for efficient d
 // Get all advisors (role_id = 2)
 const getAdvisorList = async (req, res) => {
   try {
-    const advisors = await User.find({ role_id: 2 })
-      .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id' })
-      .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id' })
-      .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id' })
-      .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id' });
-    return res.status(200).json({ advisors, status: 200 });
+    const { 
+      page = 1, 
+      limit = 10, 
+      search, 
+      category_id, 
+      subcategory_id, 
+      status, 
+      rating_min, 
+      rating_max,
+      experience_min,
+      experience_max,
+      sort_by = 'created_at',
+      sort_order = 'desc'
+    } = req.query;
+    
+    const skip = (page - 1) * limit;
+
+    // Build query
+    const query = { role_id: 2 };
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { mobile: { $regex: search, $options: 'i' } },
+        { Current_Designation: { $regex: search, $options: 'i' } },
+        { current_company_name: { $regex: search, $options: 'i' } },
+        { expertise_offer: { $regex: search, $options: 'i' } },
+        { description_Bio: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add category filter
+    if (category_id) {
+      const categoryIds = Array.isArray(category_id) ? category_id : [category_id];
+      query.Category = { $in: categoryIds.map(id => parseInt(id)) };
+    }
+
+    // Add subcategory filter
+    if (subcategory_id) {
+      const subcategoryIds = Array.isArray(subcategory_id) ? subcategory_id : [subcategory_id];
+      query.Subcategory = { $in: subcategoryIds.map(id => parseInt(id)) };
+    }
+
+    // Add status filter
+    if (status !== undefined) {
+      let statusValue;
+      if (status === 'true' || status === true) {
+        statusValue = 1;
+      } else if (status === 'false' || status === false) {
+        statusValue = 0;
+      } else {
+        statusValue = parseInt(status);
+        if (isNaN(statusValue)) {
+          statusValue = undefined;
+        }
+      }
+      if (statusValue !== undefined) {
+        query.status = statusValue;
+      }
+    }
+
+    // Add rating filter
+    if (rating_min !== undefined || rating_max !== undefined) {
+      query.rating = {};
+      if (rating_min !== undefined) {
+        query.rating.$gte = parseFloat(rating_min);
+      }
+      if (rating_max !== undefined) {
+        query.rating.$lte = parseFloat(rating_max);
+      }
+    }
+
+    // Add experience filter
+    if (experience_min !== undefined || experience_max !== undefined) {
+      query.experience_year = {};
+      if (experience_min !== undefined) {
+        query.experience_year.$gte = parseInt(experience_min);
+      }
+      if (experience_max !== undefined) {
+        query.experience_year.$lte = parseInt(experience_max);
+      }
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+    // Get advisors with pagination and filters
+    const advisors = await User.find(query)
+      .populate({ 
+        path: 'Category', 
+        model: 'Category', 
+        localField: 'Category', 
+        foreignField: 'category_id',
+        select: 'category_id category_name description'
+      })
+      .populate({ 
+        path: 'Subcategory', 
+        model: 'Subcategory', 
+        localField: 'Subcategory', 
+        foreignField: 'subcategory_id',
+        select: 'subcategory_id subcategory_name description'
+      })
+      .populate({ 
+        path: 'skill', 
+        model: 'Skill', 
+        localField: 'skill', 
+        foreignField: 'skill_id',
+        select: 'skill_id skill_name description'
+      })
+      .populate({ 
+        path: 'language', 
+        model: 'Language', 
+        localField: 'language', 
+        foreignField: 'language_id',
+        select: 'language_id language_name'
+      })
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count
+    const totalAdvisors = await User.countDocuments(query);
+
+    // Get unique category IDs for filter options
+    const allAdvisors = await User.find({ role_id: 2 }, { Category: 1 });
+    const allCategoryIds = [...new Set(allAdvisors.flatMap(advisor => advisor.Category))];
+    
+    // Get category details for filter options
+    const Category = require('../models/category.model');
+    const availableCategories = await Category.find(
+      { category_id: { $in: allCategoryIds } },
+      { category_id: 1, category_name: 1, description: 1, _id: 0 }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Advisors retrieved successfully',
+      data: {
+        advisors: advisors.map(advisor => ({
+          user_id: advisor.user_id,
+          name: advisor.name,
+          email: advisor.email,
+          mobile: advisor.mobile,
+          gender: advisor.gender,
+          DOB: advisor.DOB,
+          address: advisor.address,
+          pincode: advisor.pincode,
+          language: advisor.language,
+          rating: advisor.rating,
+          experience_year: advisor.experience_year,
+          skill: advisor.skill,
+          description_Bio: advisor.description_Bio,
+          state: advisor.state,
+          city: advisor.city,
+          IntroductionVideo: advisor.IntroductionVideo,
+          Current_Designation: advisor.Current_Designation,
+          current_company_name: advisor.current_company_name,
+          expertise_offer: advisor.expertise_offer,
+          Category: advisor.Category,
+          Subcategory: advisor.Subcategory,
+          chat_Rate: advisor.chat_Rate,
+          voiceCall_Rate: advisor.voiceCall_Rate,
+          package_id: advisor.package_id,
+          supporting_Document: advisor.supporting_Document,
+          social_linkdin_link: advisor.social_linkdin_link,
+          social_instagorm_link: advisor.social_instagorm_link,
+          social_twitter_link: advisor.social_twitter_link,
+          social_facebook_link: advisor.social_facebook_link,
+          choose_slot: advisor.choose_slot,
+          choose_day: advisor.choose_day,
+          instant_call: advisor.instant_call,
+          applyslots_remainingDays: advisor.applyslots_remainingDays,
+          status: advisor.status,
+          login_permission_status: advisor.login_permission_status,
+          user_online: advisor.user_online,
+          created_at: advisor.created_at,
+          updated_on: advisor.updated_on
+        })),
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(totalAdvisors / limit),
+          total_items: totalAdvisors,
+          items_per_page: parseInt(limit)
+        },
+        filters: {
+          available_categories: availableCategories
+        }
+      },
+      status: 200
+    });
   } catch (error) {
-    return res.status(500).json({ message: error.message || error, status: 500 });
+    console.error('Get advisor list error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
   }
 };
 

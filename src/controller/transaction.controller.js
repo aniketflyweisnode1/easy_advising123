@@ -262,7 +262,126 @@ const getTransactionById = async (req, res) => {
 
 const getAllTransactions = async (req, res) => {
     try {
-        const transactions = await Transaction.find().sort({ created_at: -1 });
+        // Get URL parameters
+        const { status, transactionType, date_from, date_to } = req.params;
+        
+        // Get query parameters
+        const { 
+            page = 1, 
+            limit = 10, 
+            search, 
+            transaction_type,
+            payment_method,
+            user_id,
+            amount_min,
+            amount_max,
+            created_date_from,
+            created_date_to,
+            transaction_date_from,
+            transaction_date_to,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        const skip = (page - 1) * limit;
+
+        // Build query
+        const query = {};
+
+        // Add status filter (support multiple statuses)
+        if (status) {
+            if (Array.isArray(status)) {
+                // Handle array of statuses
+                query.status = { $in: status };
+            } else if (typeof status === 'string' && status.includes(',')) {
+                // Handle comma-separated statuses
+                const statusArray = status.split(',').map(s => s.trim());
+                query.status = { $in: statusArray };
+            } else {
+                // Handle single status
+                query.status = status;
+            }
+        }
+
+        // Add transaction_type filter (priority: URL param > query param)
+        const transactionTypeFilter = transactionType || transaction_type;
+        if (transactionTypeFilter) {
+            if (Array.isArray(transactionTypeFilter)) {
+                query.transactionType = { $in: transactionTypeFilter };
+            } else if (typeof transactionTypeFilter === 'string' && transactionTypeFilter.includes(',')) {
+                const typeArray = transactionTypeFilter.split(',').map(t => t.trim());
+                query.transactionType = { $in: typeArray };
+            } else {
+                query.transactionType = transactionTypeFilter;
+            }
+        }
+
+        // Add payment_method filter
+        if (payment_method) {
+            if (Array.isArray(payment_method)) {
+                query.payment_method = { $in: payment_method };
+            } else if (typeof payment_method === 'string' && payment_method.includes(',')) {
+                const methodArray = payment_method.split(',').map(m => m.trim());
+                query.payment_method = { $in: methodArray };
+            } else {
+                query.payment_method = payment_method;
+            }
+        }
+
+        // Add user_id filter
+        if (user_id) {
+            query.user_id = parseInt(user_id);
+        }
+
+        // Add amount range filter
+        if (amount_min !== undefined || amount_max !== undefined) {
+            query.amount = {};
+            if (amount_min !== undefined) {
+                query.amount.$gte = parseFloat(amount_min);
+            }
+            if (amount_max !== undefined) {
+                query.amount.$lte = parseFloat(amount_max);
+            }
+        }
+
+        // Add date range filters
+        // Priority: URL params (date_from, date_to) > query params (created_date_from, created_date_to)
+        const fromDate = date_from || created_date_from;
+        const toDate = date_to || created_date_to;
+        
+        if (fromDate || toDate) {
+            query.created_at = {};
+            if (fromDate) {
+                query.created_at.$gte = new Date(fromDate);
+            }
+            if (toDate) {
+                query.created_at.$lt = new Date(new Date(toDate).getTime() + 24 * 60 * 60 * 1000); // Add 1 day to include the entire day
+            }
+        }
+
+        // Add transaction_date range filter
+        if (transaction_date_from || transaction_date_to) {
+            query.transaction_date = {};
+            if (transaction_date_from) {
+                query.transaction_date.$gte = new Date(transaction_date_from);
+            }
+            if (transaction_date_to) {
+                query.transaction_date.$lt = new Date(new Date(transaction_date_to).getTime() + 24 * 60 * 60 * 1000);
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get transactions with pagination and filters
+        const transactions = await Transaction.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalTransactions = await Transaction.countDocuments(query);
         
         // Get all unique user IDs from transactions
         const userIds = [...new Set([
@@ -274,10 +393,9 @@ const getAllTransactions = async (req, res) => {
         const bankIds = [...new Set(transactions.map(t => t.bank_id).filter(id => id))];
         
         // Fetch user details for all user IDs
-   
         const users = await User.find(
             { user_id: { $in: userIds } }, 
-            { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+            { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, status: 1, _id: 0 }
         );
         const userMap = {};
         users.forEach(u => { userMap[u.user_id] = u; });
@@ -288,13 +406,13 @@ const getAllTransactions = async (req, res) => {
             const AdvisorBankAccountDetails = require('../models/Advisor_bankAccountDetails.model');
             const banks = await AdvisorBankAccountDetails.find(
                 { AccountDetails_id: { $in: bankIds } },
-                { AccountDetails_id: 1, holdername: 1, bank_name: 1, account_no: 1, _id: 0 }
+                { AccountDetails_id: 1, holdername: 1, bank_name: 1, account_no: 1, ifsc_code: 1, _id: 0 }
             );
             banks.forEach(b => { bankMap[b.AccountDetails_id] = b; });
         }
         
         // Map transactions to include user and bank details
-        const transactionsWithDetails = transactions.map(transaction => {
+        let transactionsWithDetails = transactions.map(transaction => {
             const transactionObj = transaction.toObject();
             return {
                 ...transactionObj,
@@ -302,25 +420,84 @@ const getAllTransactions = async (req, res) => {
                     user_id: userMap[transaction.user_id].user_id,
                     name: userMap[transaction.user_id].name,
                     email: userMap[transaction.user_id].email,
-                    mobile: userMap[transaction.user_id].mobile
+                    mobile: userMap[transaction.user_id].mobile,
+                    role_id: userMap[transaction.user_id].role_id,
+                    status: userMap[transaction.user_id].status
                 } : null,
                 created_by_user: userMap[transaction.created_by] ? {
                     user_id: userMap[transaction.created_by].user_id,
-                    name: userMap[transaction.created_by].name
+                    name: userMap[transaction.created_by].name,
+                    email: userMap[transaction.created_by].email,
+                    mobile: userMap[transaction.created_by].mobile
                 } : null,
                 bank_details: transaction.bank_id && bankMap[transaction.bank_id] ? {
                     AccountDetails_id: bankMap[transaction.bank_id].AccountDetails_id,
                     holdername: bankMap[transaction.bank_id].holdername,
                     bank_name: bankMap[transaction.bank_id].bank_name,
-                    account_no: bankMap[transaction.bank_id].account_no
+                    account_no: bankMap[transaction.bank_id].account_no,
+                    ifsc_code: bankMap[transaction.bank_id].ifsc_code
                 } : null
             };
         });
 
+        // Apply search filter if provided
+        if (search) {
+            transactionsWithDetails = transactionsWithDetails.filter(transaction => {
+                const searchLower = search.toLowerCase();
+                const searchTerm = search.toString();
+                return (
+                    (transaction.user && (
+                        transaction.user.name?.toLowerCase().includes(searchLower) ||
+                        transaction.user.email?.toLowerCase().includes(searchLower) ||
+                        transaction.user.mobile?.includes(searchTerm)
+                    )) ||
+                    (transaction.created_by_user && (
+                        transaction.created_by_user.name?.toLowerCase().includes(searchLower) ||
+                        transaction.created_by_user.email?.toLowerCase().includes(searchLower)
+                    )) ||
+                    (transaction.bank_details && 
+                        transaction.bank_details.holdername?.toLowerCase().includes(searchLower)
+                    ) ||
+                    transaction.amount?.toString().includes(searchTerm) ||
+                    transaction.status?.toLowerCase().includes(searchLower) ||
+                    transaction.transactionType?.toLowerCase().includes(searchLower) ||
+                    transaction.payment_method?.toLowerCase().includes(searchLower) ||
+                    transaction.reference_number?.toLowerCase().includes(searchLower) ||
+                    transaction.TRANSACTION_ID?.toString().includes(searchTerm) ||
+                    // Search by date (format: YYYY-MM-DD or partial date)
+                    (transaction.created_at && 
+                        transaction.created_at.toISOString().split('T')[0].includes(searchTerm)
+                    ) ||
+                    (transaction.transaction_date && 
+                        transaction.transaction_date.toISOString().split('T')[0].includes(searchTerm)
+                    )
+                );
+            });
+        }
+
+        // Get available filter options
+        const allTransactions = await Transaction.find({}, { status: 1, transactionType: 1, payment_method: 1, _id: 0 });
+        const availableStatuses = [...new Set(allTransactions.map(t => t.status))];
+        const availableTransactionTypes = [...new Set(allTransactions.map(t => t.transactionType))];
+        const availablePaymentMethods = [...new Set(allTransactions.map(t => t.payment_method))];
+
         return res.status(200).json({ 
             success: true,
-            transactions: transactionsWithDetails,
-            count: transactionsWithDetails.length,
+            message: 'Transactions retrieved successfully',
+            data: {
+                transactions: transactionsWithDetails,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalTransactions / limit),
+                    total_items: totalTransactions,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_statuses: availableStatuses,
+                    available_transaction_types: availableTransactionTypes,
+                    available_payment_methods: availablePaymentMethods
+                }
+            },
             status: 200 
         });
     } catch (error) {
@@ -328,7 +505,8 @@ const getAllTransactions = async (req, res) => {
         return res.status(500).json({ 
             success: false,
             message: 'Internal server error',
-            error: error.message 
+            error: error.message,
+            status: 500 
         });
     }
 };
