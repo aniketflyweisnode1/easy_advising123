@@ -965,16 +965,62 @@ const getAdviserById = async (req, res) => {
 };
 
 // Admin Dashboard API
+// Route Parameters: month (1-12), year (YYYY)
+// Example: GET /admin-dashboard/:year/:month or GET /admin-dashboard/:year
 const getAdminDashboard = async (req, res) => {
   try {
-    // Counts
+    // Extract month and year filters from route parameters
+    const { month, year } = req.params;
+    
+    // Validate parameters
+    if (month && (isNaN(month) || month < 1 || month > 12)) {
+      return res.status(400).json({
+        message: 'Month must be a number between 1 and 12',
+        status: 400
+      });
+    }
+    
+    if (year && (isNaN(year) || year < 1900 || year > 2100)) {
+      return res.status(400).json({
+        message: 'Year must be a valid year between 1900 and 2100',
+        status: 400
+      });
+    }
+    
+    // Create date filter based on month and year parameters
+    let dateFilter = {};
+    if (month && year) {
+      // Filter by specific month and year
+      const startDate = new Date(year, month - 1, 1); // month is 0-indexed in Date constructor
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of the month
+      dateFilter = {
+        created_at: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      };
+    } else if (year) {
+      // Filter by entire year
+      const startDate = new Date(year, 0, 1); // January 1st
+      const endDate = new Date(year, 11, 31, 23, 59, 59, 999); // December 31st
+      dateFilter = {
+        created_at: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      };
+    }
+    // If no month/year provided, no date filter is applied (returns all data)
+
+    // Counts with date filters
     const totalUsers = await User.countDocuments({ role_id: { $ne: 1 } }); // All users except admin
     const totalAdvisers = await User.countDocuments({ role_id: 2 });
-    const withdrawRequests = await require('../models/withdraw_request.model').countDocuments();
-    const pendingRequests = await require('../models/withdraw_request.model').countDocuments({ status: 0 });
-    const completedSessions = await require('../models/schedule_call.model').countDocuments({ callStatus: 'Completed' });
-    const appointments = await require('../models/schedule_call.model').countDocuments();
+    const withdrawRequests = await require('../models/withdraw_request.model').countDocuments(dateFilter);
+    const pendingRequests = await require('../models/withdraw_request.model').countDocuments({ ...dateFilter, status: 0 });
+    const completedSessions = await require('../models/schedule_call.model').countDocuments({ ...dateFilter, callStatus: 'Completed' });
+    const appointments = await require('../models/schedule_call.model').countDocuments(dateFilter);
     const totalEarnings = await require('../models/transaction.model').aggregate([
+      ...(Object.keys(dateFilter).length > 0 ? [{ $match: dateFilter }] : []),
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const packageCount = await require('../models/package.model').countDocuments();
@@ -994,18 +1040,20 @@ const getAdminDashboard = async (req, res) => {
       
       // Sessions for this category
       const sessions = await require('../models/schedule_call.model').find({
-        advisor_id: { $in: adviserIds }
+        advisor_id: { $in: adviserIds },
+        ...dateFilter
       });
       
       // Revenue for this category
       const revenue = await require('../models/transaction.model').aggregate([
-        { $match: { user_id: { $in: adviserIds } } },
+        { $match: { user_id: { $in: adviserIds }, ...dateFilter } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]);
       
       // Average rating for this category
       const ratings = await require('../models/reviews.model').find({
-        user_id: { $in: adviserIds }
+        user_id: { $in: adviserIds },
+        ...dateFilter
       });
       const avgRating = ratings.length > 0 
         ? ratings.reduce((sum, review) => sum + (review.rating || 0), 0) / ratings.length 
@@ -1013,7 +1061,8 @@ const getAdminDashboard = async (req, res) => {
       
       // Packages sold for this category
       const packagesSold = await require('../models/package_subscription.model').countDocuments({
-        subscribe_by: { $in: adviserIds }
+        subscribe_by: { $in: adviserIds },
+        ...dateFilter
       });
       
       // Last 30 days growth (simplified - you can enhance this)
@@ -1021,7 +1070,8 @@ const getAdminDashboard = async (req, res) => {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const recentSessions = await require('../models/schedule_call.model').countDocuments({
         advisor_id: { $in: adviserIds },
-        created_at: { $gte: thirtyDaysAgo }
+        created_at: { $gte: thirtyDaysAgo },
+        ...dateFilter
       });
       
       return {
@@ -1036,6 +1086,7 @@ const getAdminDashboard = async (req, res) => {
 
     // Top Advisers (by sessions)
     const topAdvisers = await require('../models/schedule_call.model').aggregate([
+      ...(Object.keys(dateFilter).length > 0 ? [{ $match: dateFilter }] : []),
       { $group: { _id: '$advisor_id', sessionCount: { $sum: 1 } } },
       { $sort: { sessionCount: -1 } },
       { $limit: 10 }

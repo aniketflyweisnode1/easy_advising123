@@ -13,7 +13,9 @@ router.post('/verify-otp', verifyOTP);
 // Admin login route
 router.post('/admin_login', adminLogin);
 
-// Admin dashboard route
-router.get('/admin-dashboard', auth, getAdminDashboard);
+// Admin dashboard routes
+router.get('/admin-dashboard', auth, getAdminDashboard); // Get all data
+router.get('/admin-dashboard/:year', auth, getAdminDashboard); // Get data for specific year
+router.get('/admin-dashboard/:year/:month', auth, getAdminDashboard); // Get data for specific month/year
 
 module.exports = router; 
