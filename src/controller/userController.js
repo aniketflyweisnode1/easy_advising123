@@ -696,15 +696,24 @@ const getAdvisorList = async (req, res) => {
 
     // Add search functionality
     if (search) {
-      query.$or = [
+      // For text fields that can be searched directly
+      const textSearchFields = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { mobile: { $regex: search, $options: 'i' } },
-        { Current_Designation: { $regex: search, $options: 'i' } },
-        { current_company_name: { $regex: search, $options: 'i' } },
         { expertise_offer: { $regex: search, $options: 'i' } },
         { description_Bio: { $regex: search, $options: 'i' } }
       ];
+
+      // If search is a number, also search by company_id and designation_id
+      if (!isNaN(search)) {
+        textSearchFields.push(
+          { current_company_name: parseInt(search) },
+          { Current_Designation: parseInt(search) }
+        );
+      }
+
+      query.$or = textSearchFields;
     }
 
     // Add category filter
