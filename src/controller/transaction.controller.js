@@ -263,7 +263,7 @@ const getTransactionById = async (req, res) => {
 const getAllTransactions = async (req, res) => {
     try {
         // Get URL parameters
-        const { status, transactionType, date_from, date_to } = req.params;
+        const { status, transactionType, date_from, date_to, user_id } = req.params;
         
         // Get query parameters
         const { 
@@ -272,7 +272,7 @@ const getAllTransactions = async (req, res) => {
             search, 
             transaction_type,
             payment_method,
-            user_id,
+            user_id: query_user_id,
             amount_min,
             amount_max,
             created_date_from,
@@ -328,9 +328,10 @@ const getAllTransactions = async (req, res) => {
             }
         }
 
-        // Add user_id filter
-        if (user_id) {
-            query.user_id = parseInt(user_id);
+        // Add user_id filter (priority: URL param > query param)
+        const userIdFilter = user_id || query_user_id;
+        if (userIdFilter) {
+            query.user_id = parseInt(userIdFilter);
         }
 
         // Add amount range filter
@@ -569,4 +570,225 @@ const updateTransaction = async (req, res) => {
     }
 };
 
-module.exports = { createTransaction, createTransactionByAdmin, getTransactionById, getAllTransactions, updateTransaction }; 
+const getTransactionsbyauth = async (req, res) => {
+    try {
+        // Get authenticated user ID from middleware
+        const authenticatedUserId = req.user.user_id;
+        
+        if (!authenticatedUserId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated',
+                status: 401
+            });
+        }
+
+        // Get query parameters
+        const { 
+            page = 1, 
+            limit = 10, 
+            search, 
+            transaction_type,
+            payment_method,
+            amount_min,
+            amount_max,
+            created_date_from,
+            created_date_to,
+            transaction_date_from,
+            transaction_date_to,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        const skip = (page - 1) * limit;
+
+        // Build query - filter by authenticated user's ID
+        const query = { user_id: authenticatedUserId };
+
+        // Add transaction_type filter
+        if (transaction_type) {
+            if (Array.isArray(transaction_type)) {
+                query.transactionType = { $in: transaction_type };
+            } else if (typeof transaction_type === 'string' && transaction_type.includes(',')) {
+                const typeArray = transaction_type.split(',').map(t => t.trim());
+                query.transactionType = { $in: typeArray };
+            } else {
+                query.transactionType = transaction_type;
+            }
+        }
+
+        // Add payment_method filter
+        if (payment_method) {
+            if (Array.isArray(payment_method)) {
+                query.payment_method = { $in: payment_method };
+            } else if (typeof payment_method === 'string' && payment_method.includes(',')) {
+                const methodArray = payment_method.split(',').map(m => m.trim());
+                query.payment_method = { $in: methodArray };
+            } else {
+                query.payment_method = payment_method;
+            }
+        }
+
+        // Add amount range filter
+        if (amount_min !== undefined || amount_max !== undefined) {
+            query.amount = {};
+            if (amount_min !== undefined) {
+                query.amount.$gte = parseFloat(amount_min);
+            }
+            if (amount_max !== undefined) {
+                query.amount.$lte = parseFloat(amount_max);
+            }
+        }
+
+        // Add date range filters
+        if (created_date_from || created_date_to) {
+            query.created_at = {};
+            if (created_date_from) {
+                query.created_at.$gte = new Date(created_date_from);
+            }
+            if (created_date_to) {
+                query.created_at.$lt = new Date(new Date(created_date_to).getTime() + 24 * 60 * 60 * 1000);
+            }
+        }
+
+        // Add transaction_date range filter
+        if (transaction_date_from || transaction_date_to) {
+            query.transaction_date = {};
+            if (transaction_date_from) {
+                query.transaction_date.$gte = new Date(transaction_date_from);
+            }
+            if (transaction_date_to) {
+                query.transaction_date.$lt = new Date(new Date(transaction_date_to).getTime() + 24 * 60 * 60 * 1000);
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get transactions with pagination and filters
+        const transactions = await Transaction.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalTransactions = await Transaction.countDocuments(query);
+        
+        // Get user details for the authenticated user
+        const user = await User.findOne(
+            { user_id: authenticatedUserId }, 
+            { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, status: 1, _id: 0 }
+        );
+        
+        // Get all unique bank IDs from transactions
+        const bankIds = [...new Set(transactions.map(t => t.bank_id).filter(id => id))];
+        
+        // Fetch bank details for all bank IDs
+        let bankMap = {};
+        if (bankIds.length > 0) {
+            const AdvisorBankAccountDetails = require('../models/Advisor_bankAccountDetails.model');
+            const banks = await AdvisorBankAccountDetails.find(
+                { AccountDetails_id: { $in: bankIds } },
+                { AccountDetails_id: 1, holdername: 1, bank_name: 1, account_no: 1, ifsc_code: 1, _id: 0 }
+            );
+            banks.forEach(b => { bankMap[b.AccountDetails_id] = b; });
+        }
+        
+        // Map transactions to include user and bank details
+        let transactionsWithDetails = transactions.map(transaction => {
+            const transactionObj = transaction.toObject();
+            return {
+                ...transactionObj,
+                user: user ? {
+                    user_id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    mobile: user.mobile,
+                    role_id: user.role_id,
+                    status: user.status
+                } : null,
+                bank_details: transaction.bank_id && bankMap[transaction.bank_id] ? {
+                    AccountDetails_id: bankMap[transaction.bank_id].AccountDetails_id,
+                    holdername: bankMap[transaction.bank_id].holdername,
+                    bank_name: bankMap[transaction.bank_id].bank_name,
+                    account_no: bankMap[transaction.bank_id].account_no,
+                    ifsc_code: bankMap[transaction.bank_id].ifsc_code
+                } : null
+            };
+        });
+
+        // Apply search filter if provided
+        if (search) {
+            transactionsWithDetails = transactionsWithDetails.filter(transaction => {
+                const searchLower = search.toLowerCase();
+                const searchTerm = search.toString();
+                return (
+                    (transaction.user && (
+                        transaction.user.name?.toLowerCase().includes(searchLower) ||
+                        transaction.user.email?.toLowerCase().includes(searchLower) ||
+                        transaction.user.mobile?.includes(searchTerm)
+                    )) ||
+                    (transaction.bank_details && 
+                        transaction.bank_details.holdername?.toLowerCase().includes(searchLower)
+                    ) ||
+                    transaction.amount?.toString().includes(searchTerm) ||
+                    transaction.status?.toLowerCase().includes(searchLower) ||
+                    transaction.transactionType?.toLowerCase().includes(searchLower) ||
+                    transaction.payment_method?.toLowerCase().includes(searchLower) ||
+                    transaction.reference_number?.toLowerCase().includes(searchLower) ||
+                    transaction.TRANSACTION_ID?.toString().includes(searchTerm) ||
+                    (transaction.created_at && 
+                        transaction.created_at.toISOString().split('T')[0].includes(searchTerm)
+                    ) ||
+                    (transaction.transaction_date && 
+                        transaction.transaction_date.toISOString().split('T')[0].includes(searchTerm)
+                    )
+                );
+            });
+        }
+
+        // Get available filter options for this user's transactions
+        const userTransactions = await Transaction.find({ user_id: authenticatedUserId }, { status: 1, transactionType: 1, payment_method: 1, _id: 0 });
+        const availableStatuses = [...new Set(userTransactions.map(t => t.status))];
+        const availableTransactionTypes = [...new Set(userTransactions.map(t => t.transactionType))];
+        const availablePaymentMethods = [...new Set(userTransactions.map(t => t.payment_method))];
+
+        return res.status(200).json({ 
+            success: true,
+            message: 'User transactions retrieved successfully',
+            data: {
+                transactions: transactionsWithDetails,
+                user: {
+                    user_id: user.user_id,
+                    name: user.name,
+                    email: user.email,
+                    mobile: user.mobile,
+                    role_id: user.role_id
+                },
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalTransactions / limit),
+                    total_items: totalTransactions,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_statuses: availableStatuses,
+                    available_transaction_types: availableTransactionTypes,
+                    available_payment_methods: availablePaymentMethods
+                }
+            },
+            status: 200 
+        });
+    } catch (error) {
+        console.error('Get user transactions error:', error);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500 
+        });
+    }
+};
+
+module.exports = { createTransaction, createTransactionByAdmin, getTransactionById, getAllTransactions, updateTransaction, getTransactionsbyauth }; 
