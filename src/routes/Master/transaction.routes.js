@@ -6,9 +6,9 @@ const { auth } = require('../../middleware/authMiddleware');
 router.post('/', auth, createTransaction);
 // Admin recharge user wallet
 router.post('/admin-recharge', auth, createTransactionByAdmin);
+router.get('/my-transactions', auth, getTransactionsbyauth);
 router.get('/:id', auth, getTransactionById);
 router.get('/', auth, getAllTransactions);
-router.get('/my-transactions', auth, getTransactionsbyauth);
 router.put('/', auth, updateTransaction);
 
 // Get transactions with filters as URL parameters
