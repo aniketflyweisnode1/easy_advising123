@@ -94,6 +94,16 @@ console.log( choose_slot,choose_day)
     });
     await newUser.save();
 
+    // Create wallet for the new user with balance = 0
+    await Wallet.create({
+      user_id: [newUser.user_id],
+      role_id: newUser.role_id, // Default role_id if not provided (assuming 3 is user role)
+      amount: 0,
+      status: 1,
+      created_At: new Date(),
+      updated_At: new Date()
+    });
+
     // If package_id is set, create a PackageSubscription entry for this user
     if (package_id) {
       await PackageSubscription.create({
