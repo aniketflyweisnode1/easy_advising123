@@ -1539,13 +1539,13 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Check if admin is trying to update themselves
-    if (parseInt(user_id) === adminId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Admin cannot update their own account through this endpoint'
-      });
-    }
+    // // Check if admin is trying to update themselves
+    // if (parseInt(user_id) === adminId) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Admin cannot update their own account through this endpoint'
+    //   });
+    // }
 
     // Find the user to be updated
     const userToUpdate = await User.findOne({ user_id: parseInt(user_id) });
