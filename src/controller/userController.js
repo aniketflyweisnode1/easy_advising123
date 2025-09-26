@@ -835,7 +835,10 @@ const getAdvisorList = async (req, res) => {
       message: 'Advisors retrieved successfully',
       data: {
         advisors: advisors.map(advisor => ({
+          // Primary ID
           user_id: advisor.user_id,
+          
+          // Basic Information
           name: advisor.name,
           email: advisor.email,
           mobile: advisor.mobile,
@@ -843,34 +846,67 @@ const getAdvisorList = async (req, res) => {
           DOB: advisor.DOB,
           address: advisor.address,
           pincode: advisor.pincode,
-          language: advisor.language,
-          rating: advisor.rating,
-          experience_year: advisor.experience_year,
-          skill: advisor.skill,
-          description_Bio: advisor.description_Bio,
+          
+          // ID References
+          role_id: advisor.role_id,
+          created_by: advisor.created_by,
+          updated_by: advisor.updated_by,
+          
+          // Location IDs
           state: advisor.state,
           city: advisor.city,
-          IntroductionVideo: advisor.IntroductionVideo,
+          
+          // Professional IDs
           Current_Designation: advisor.Current_Designation,
           current_company_name: advisor.current_company_name,
-          expertise_offer: advisor.expertise_offer,
+          package_id: advisor.package_id,
+          
+          // Category and Subcategory IDs
           Category: advisor.Category,
           Subcategory: advisor.Subcategory,
+          
+          // Skill and Language IDs
+          skill: advisor.skill,
+          language: advisor.language,
+          
+          // Professional Information
+          rating: advisor.rating,
+          experience_year: advisor.experience_year,
+          description_Bio: advisor.description_Bio,
+          expertise_offer: advisor.expertise_offer,
+          IntroductionVideo: advisor.IntroductionVideo,
+          
+          // Rates
           chat_Rate: advisor.chat_Rate,
+          audio_Rate: advisor.audio_Rate,
           voiceCall_Rate: advisor.voiceCall_Rate,
-          package_id: advisor.package_id,
+          
+          // Documents and Social Links
           supporting_Document: advisor.supporting_Document,
           social_linkdin_link: advisor.social_linkdin_link,
           social_instagorm_link: advisor.social_instagorm_link,
           social_twitter_link: advisor.social_twitter_link,
           social_facebook_link: advisor.social_facebook_link,
+          
+          // Schedule and Availability
           choose_slot: advisor.choose_slot,
           choose_day: advisor.choose_day,
           instant_call: advisor.instant_call,
           applyslots_remainingDays: advisor.applyslots_remainingDays,
+          vacation_status: advisor.vacation_status,
+          vacation: advisor.vacation,
+          
+          // Status and Permissions
           status: advisor.status,
           login_permission_status: advisor.login_permission_status,
           user_online: advisor.user_online,
+          suspended_reason: advisor.suspended_reason,
+          
+          // Terms and Firebase
+          AgreeTermsCondition: advisor.AgreeTermsCondition,
+          firebase_token: advisor.firebase_token,
+          
+          // Timestamps
           created_at: advisor.created_at,
           updated_on: advisor.updated_on
         })),
