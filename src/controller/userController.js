@@ -810,7 +810,7 @@ const getAdvisorList = async (req, res) => {
         model: 'Language', 
         localField: 'language', 
         foreignField: 'language_id',
-        select: 'language_id language_name'
+        select: 'language_id name'
       })
       .sort(sortObj)
       .skip(skip)
