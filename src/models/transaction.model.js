@@ -16,7 +16,9 @@ const TransactionSchema = new mongoose.Schema({
   created_at: { type: Date, default: Date.now },
   created_by: { type: Number, ref: 'User', required: true },
   updated_at: { type: Date },
-  bank_id: { type: Number, ref: 'AdvisorBankAccountDetails' }
+  bank_id: { type: Number, ref: 'AdvisorBankAccountDetails' },
+  isDownloaded: { type: Boolean, default: false },
+  fileDownlodedPath: { type: String, default: null },
 }, {
   collection: 'transactions',
 });

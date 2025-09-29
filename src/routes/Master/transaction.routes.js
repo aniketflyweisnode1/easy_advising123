@@ -1,6 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { createTransaction, createTransactionByAdmin, getTransactionById, getAllTransactions, updateTransaction, getTransactionsbyauth } = require('../../controller/transaction.controller');
+const { 
+    createTransaction, 
+    createTransactionByAdmin, 
+    getTransactionById, 
+    getAllTransactions, 
+    updateTransaction, 
+    getTransactionsbyauth,
+    updateIsDownloaded,
+    updateFileDownloadedPath,
+    updateDownloadStatus
+} = require('../../controller/transaction.controller');
 const { auth } = require('../../middleware/authMiddleware');
 
 router.post('/', auth, createTransaction);
@@ -10,6 +20,10 @@ router.get('/my-transactions', auth, getTransactionsbyauth);
 router.get('/:id', auth, getTransactionById);
 router.get('/', auth, getAllTransactions);
 router.put('/', auth, updateTransaction);
+
+// New download-related routes
+router.put('/update-is-downloaded', auth, updateIsDownloaded);
+router.put('/update-file-path', auth, updateFileDownloadedPath);
 
 // Get transactions with filters as URL parameters
 // Basic route with status only

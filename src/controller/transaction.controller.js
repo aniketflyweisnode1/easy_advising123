@@ -791,4 +791,224 @@ const getTransactionsbyauth = async (req, res) => {
     }
 };
 
-module.exports = { createTransaction, createTransactionByAdmin, getTransactionById, getAllTransactions, updateTransaction, getTransactionsbyauth }; 
+// Update isDownloaded status for a transaction
+const updateIsDownloaded = async (req, res) => {
+    try {
+        const { transaction_id, isDownloaded } = req.body;
+
+        // Validate input
+        if (!transaction_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'transaction_id is required',
+                status: 400
+            });
+        }
+
+        if (isDownloaded === undefined || typeof isDownloaded !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'isDownloaded field is required and must be a boolean value',
+                status: 400
+            });
+        }
+
+        // Check if transaction exists
+        const transaction = await Transaction.findOne({ TRANSACTION_ID: parseInt(transaction_id) });
+        if (!transaction) {
+            return res.status(404).json({
+                success: false,
+                message: 'Transaction not found',
+                status: 404
+            });
+        }
+
+        // Update the isDownloaded field
+        const updatedTransaction = await Transaction.findOneAndUpdate(
+            { TRANSACTION_ID: parseInt(transaction_id) },
+            { 
+                isDownloaded: isDownloaded,
+                updated_at: new Date()
+            },
+            { new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Transaction download status updated successfully',
+            transaction: {
+                TRANSACTION_ID: updatedTransaction.TRANSACTION_ID,
+                user_id: updatedTransaction.user_id,
+                isDownloaded: updatedTransaction.isDownloaded,
+                updated_at: updatedTransaction.updated_at
+            },
+            status: 200
+        });
+
+    } catch (error) {
+        console.error('Update isDownloaded error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
+// Update fileDownloadedPath for a transaction
+const updateFileDownloadedPath = async (req, res) => {
+    try {
+        const { transaction_id, fileDownlodedPath } = req.body;
+
+        // Validate input
+        if (!transaction_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'transaction_id is required',
+                status: 400
+            });
+        }
+
+        if (fileDownlodedPath === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'fileDownlodedPath field is required',
+                status: 400
+            });
+        }
+
+        // Check if transaction exists
+        const transaction = await Transaction.findOne({ TRANSACTION_ID: parseInt(transaction_id) });
+        if (!transaction) {
+            return res.status(404).json({
+                success: false,
+                message: 'Transaction not found',
+                status: 404
+            });
+        }
+
+        // Update the fileDownlodedPath field
+        const updatedTransaction = await Transaction.findOneAndUpdate(
+            { TRANSACTION_ID: parseInt(transaction_id) },
+            { 
+                fileDownlodedPath: fileDownlodedPath,
+                updated_at: new Date()
+            },
+            { new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Transaction file download path updated successfully',
+            transaction: {
+                TRANSACTION_ID: updatedTransaction.TRANSACTION_ID,
+                user_id: updatedTransaction.user_id,
+                fileDownlodedPath: updatedTransaction.fileDownlodedPath,
+                updated_at: updatedTransaction.updated_at
+            },
+            status: 200
+        });
+
+    } catch (error) {
+        console.error('Update fileDownloadedPath error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
+// Update both isDownloaded and fileDownlodedPath for a transaction
+const updateDownloadStatus = async (req, res) => {
+    try {
+        const { transaction_id, isDownloaded, fileDownlodedPath } = req.body;
+
+        // Validate input
+        if (!transaction_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'transaction_id is required',
+                status: 400
+            });
+        }
+
+        if (isDownloaded === undefined && fileDownlodedPath === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least one field (isDownloaded or fileDownlodedPath) is required',
+                status: 400
+            });
+        }
+
+        if (isDownloaded !== undefined && typeof isDownloaded !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'isDownloaded must be a boolean value',
+                status: 400
+            });
+        }
+
+        // Check if transaction exists
+        const transaction = await Transaction.findOne({ TRANSACTION_ID: parseInt(transaction_id) });
+        if (!transaction) {
+            return res.status(404).json({
+                success: false,
+                message: 'Transaction not found',
+                status: 404
+            });
+        }
+
+        // Build update object
+        const updateData = { updated_at: new Date() };
+        if (isDownloaded !== undefined) {
+            updateData.isDownloaded = isDownloaded;
+        }
+        if (fileDownlodedPath !== undefined) {
+            updateData.fileDownlodedPath = fileDownlodedPath;
+        }
+
+        // Update the transaction
+        const updatedTransaction = await Transaction.findOneAndUpdate(
+            { TRANSACTION_ID: parseInt(transaction_id) },
+            updateData,
+            { new: true }
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Transaction download status updated successfully',
+            transaction: {
+                TRANSACTION_ID: updatedTransaction.TRANSACTION_ID,
+                user_id: updatedTransaction.user_id,
+                isDownloaded: updatedTransaction.isDownloaded,
+                fileDownlodedPath: updatedTransaction.fileDownlodedPath,
+                updated_at: updatedTransaction.updated_at
+            },
+            status: 200
+        });
+
+    } catch (error) {
+        console.error('Update download status error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
+module.exports = { 
+    createTransaction, 
+    createTransactionByAdmin, 
+    getTransactionById, 
+    getAllTransactions, 
+    updateTransaction, 
+    getTransactionsbyauth,
+    updateIsDownloaded,
+    updateFileDownloadedPath,
+    updateDownloadStatus
+}; 
