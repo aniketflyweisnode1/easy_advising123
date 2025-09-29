@@ -22,6 +22,7 @@ router.get('/', auth, getAllTransactions);
 router.put('/', auth, updateTransaction);
 
 // New download-related routes
+router.put('/update-download-status', auth, updateDownloadStatus);
 router.put('/update-is-downloaded', auth, updateIsDownloaded);
 router.put('/update-file-path', auth, updateFileDownloadedPath);
 
