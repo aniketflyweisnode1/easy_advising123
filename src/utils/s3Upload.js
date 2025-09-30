@@ -4,14 +4,14 @@ const mime = require('mime-types');
 
 
 
-// const KeId = "AKIA455B2ZFDHIMVQZ4U";
-// const SKey = "Ty00K8ma0FPM2CQMcbbDM3cAqaXYhMWryNrBDTOX";
-// const Reg = "ap-south-1";
+const KeId = "AKIA455B2ZFDHIMVQZ4U";
+const SKey = "Ty00K8ma0FPM2CQMcbbDM3cAqaXYhMWryNrBDTOX";
+const Reg = "ap-south-1";
 
 const s3 = new AWS.S3({
-  accessKeyId: "",
-  secretAccessKey: "",
-  region: ""
+  accessKeyId: KeId,
+  secretAccessKey: SKey,
+  region: Reg
 });
 
 /**
