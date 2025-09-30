@@ -4,9 +4,9 @@ const mime = require('mime-types');
 
 // Configure AWS SDK (ensure your credentials are set in env or config)
 const s3 = new AWS.S3({
-  accessKeyId: "AKIA455B2ZFDHIMVQZ4U",
-  secretAccessKey: "Ty00K8ma0FPM2CQMcbbDM3cAqaXYhMWryNrBDTOX",
-  region: "ap-south-1"
+  accessKeyId: 'AKIA455B2ZFDHIMVQZ4U',
+  secretAccessKey: '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',
+  region: 'ap-south-1'
 });
 
 /**
