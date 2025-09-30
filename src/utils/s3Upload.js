@@ -1,12 +1,13 @@
 const AWS = require('aws-sdk');
 const path = require('path');
 const mime = require('mime-types');
+const { KeyId, SecretKey, Region } = require('../config/s3');
 
 // Configure AWS SDK (ensure your credentials are set in env or config)
 const s3 = new AWS.S3({
-  accessKeyId: 'AKIA455B2ZFDHIMVQZ4U',
-  secretAccessKey: 'Ty00K8ma0FPM2CQMcbbDM3cAqaXYhMWryNrBDTOX',
-  region: 'ap-south-1'
+  accessKeyId: KeyId,
+  secretAccessKey: SecretKey,
+  region: Region
 });
 
 /**
@@ -38,8 +39,7 @@ async function uploadToS3(fileStream, fileName) {
   };
   
   const result = await s3.upload(params).promise();
-  console.log('Upload result:', result);
-  return result; // Returns the full S3 URL
+  return result; // Returns the full S3 upload result
 }
 
 /**

@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect("mongodb+srv://react2:react2@cluster0.zkqiyhe.mongodb.net/easy_advising");
