@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+const KeyId = "AKIA455B2ZFDHIMVQZ4U";
+const SecretKey = "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";
+const Region = "ap-south-1";
+
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect("mongodb+srv://react2:react2@cluster0.zkqiyhe.mongodb.net/easy_advising");

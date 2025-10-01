@@ -255,11 +255,12 @@ const getAllScheduleCalls = async (req, res) => {
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
         // Get schedules with filters and pagination
+        console.log(query);
         const schedules = await ScheduleCall.find(query)
             .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
-
+console.log(schedules);
         // Get total count
         const totalSchedules = await ScheduleCall.countDocuments(query);
 

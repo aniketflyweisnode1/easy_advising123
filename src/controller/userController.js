@@ -953,6 +953,12 @@ const getAdviserById = async (req, res) => {
     if (!advisor) {
       return res.status(404).json({ message: 'Advisor not found', status: 404 });
     }
+
+    // Get subscription details
+    const PackageSubscription = require('../models/package_subscription.model');
+    const subscriptions = await PackageSubscription.find({ subscribe_by: Number(advisor_id) })
+      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name description price duration' })
+      .sort({ created_at: -1 }); // Latest subscription first
     
     // Reviews
     const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) });
@@ -1011,6 +1017,7 @@ const getAdviserById = async (req, res) => {
       transactions,
       subscribers,
       packages,
+      subscriptions, // Enhanced subscription details with populated package info
       callTypes: allCallTypes,
       status: 200
     });
