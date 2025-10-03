@@ -21,6 +21,13 @@ const createTransaction = async (req, res) => {
             req.body.bank_id = undefined;
         }
 
+        // Set PaymentDetails_id if provided
+        if (req.body.PaymentDetails_id) {
+            req.body.PaymentDetails_id = req.body.PaymentDetails_id;
+        } else {
+            req.body.PaymentDetails_id = null;
+        }
+
         // Calculate GST for Recharge transactions
         if (req.body.transactionType === 'Recharge') {
             const baseAmount = Number(req.body.amount);
@@ -225,6 +232,16 @@ const getTransactionById = async (req, res) => {
             );
         }
 
+        // Get payment details if PaymentDetails_id exists
+        let paymentDetails = null;
+        if (transaction.PaymentDetails_id) {
+            const PaymentDetails = require('../models/payment_details.model');
+            paymentDetails = await PaymentDetails.findOne(
+                { PaymentDetails_id: transaction.PaymentDetails_id },
+                { PaymentDetails_id: 1, UPI_id: 1, Bankname: 1, accountno: 1, ifsccode: 1, branchname: 1, appToapp: 1, QRpay: 1, Status: 1, _id: 0 }
+            );
+        }
+
         const transactionWithDetails = {
             ...transaction.toObject(),
             user: user ? {
@@ -242,6 +259,17 @@ const getTransactionById = async (req, res) => {
                 holdername: bankDetails.holdername,
                 bank_name: bankDetails.bank_name,
                 account_no: bankDetails.account_no
+            } : null,
+            payment_details: paymentDetails ? {
+                PaymentDetails_id: paymentDetails.PaymentDetails_id,
+                UPI_id: paymentDetails.UPI_id,
+                Bankname: paymentDetails.Bankname,
+                accountno: paymentDetails.accountno,
+                ifsccode: paymentDetails.ifsccode,
+                branchname: paymentDetails.branchname,
+                appToapp: paymentDetails.appToapp,
+                QRpay: paymentDetails.QRpay,
+                Status: paymentDetails.Status
             } : null
         };
 
@@ -393,6 +421,9 @@ const getAllTransactions = async (req, res) => {
         // Get all unique bank IDs
         const bankIds = [...new Set(transactions.map(t => t.bank_id).filter(id => id))];
         
+        // Get all unique payment details IDs
+        const paymentDetailsIds = [...new Set(transactions.map(t => t.PaymentDetails_id).filter(id => id))];
+        
         // Fetch user details for all user IDs
         const users = await User.find(
             { user_id: { $in: userIds } }, 
@@ -410,6 +441,17 @@ const getAllTransactions = async (req, res) => {
                 { AccountDetails_id: 1, holdername: 1, bank_name: 1, account_no: 1, ifsc_code: 1, _id: 0 }
             );
             banks.forEach(b => { bankMap[b.AccountDetails_id] = b; });
+        }
+
+        // Fetch payment details for all payment details IDs
+        let paymentDetailsMap = {};
+        if (paymentDetailsIds.length > 0) {
+            const PaymentDetails = require('../models/payment_details.model');
+            const paymentDetailsArray = await PaymentDetails.find(
+                { PaymentDetails_id: { $in: paymentDetailsIds } },
+                { PaymentDetails_id: 1, UPI_id: 1, Bankname: 1, accountno: 1, ifsccode: 1, branchname: 1, appToapp: 1, QRpay: 1, Status: 1, _id: 0 }
+            );
+            paymentDetailsArray.forEach(pd => { paymentDetailsMap[pd.PaymentDetails_id] = pd; });
         }
         
         // Map transactions to include user and bank details
@@ -437,6 +479,17 @@ const getAllTransactions = async (req, res) => {
                     bank_name: bankMap[transaction.bank_id].bank_name,
                     account_no: bankMap[transaction.bank_id].account_no,
                     ifsc_code: bankMap[transaction.bank_id].ifsc_code
+                } : null,
+                payment_details: transaction.PaymentDetails_id && paymentDetailsMap[transaction.PaymentDetails_id] ? {
+                    PaymentDetails_id: paymentDetailsMap[transaction.PaymentDetails_id].PaymentDetails_id,
+                    UPI_id: paymentDetailsMap[transaction.PaymentDetails_id].UPI_id,
+                    Bankname: paymentDetailsMap[transaction.PaymentDetails_id].Bankname,
+                    accountno: paymentDetailsMap[transaction.PaymentDetails_id].accountno,
+                    ifsccode: paymentDetailsMap[transaction.PaymentDetails_id].ifsccode,
+                    branchname: paymentDetailsMap[transaction.PaymentDetails_id].branchname,
+                    appToapp: paymentDetailsMap[transaction.PaymentDetails_id].appToapp,
+                    QRpay: paymentDetailsMap[transaction.PaymentDetails_id].QRpay,
+                    Status: paymentDetailsMap[transaction.PaymentDetails_id].Status
                 } : null
             };
         });
@@ -459,6 +512,13 @@ const getAllTransactions = async (req, res) => {
                     (transaction.bank_details && 
                         transaction.bank_details.holdername?.toLowerCase().includes(searchLower)
                     ) ||
+                    (transaction.payment_details && (
+                        transaction.payment_details.UPI_id?.toLowerCase().includes(searchLower) ||
+                        transaction.payment_details.Bankname?.toLowerCase().includes(searchLower) ||
+                        transaction.payment_details.accountno?.includes(searchTerm) ||
+                        transaction.payment_details.ifsccode?.toLowerCase().includes(searchLower) ||
+                        transaction.payment_details.branchname?.toLowerCase().includes(searchLower)
+                    )) ||
                     transaction.amount?.toString().includes(searchTerm) ||
                     transaction.status?.toLowerCase().includes(searchLower) ||
                     transaction.transactionType?.toLowerCase().includes(searchLower) ||
@@ -684,6 +744,9 @@ const getTransactionsbyauth = async (req, res) => {
         // Get all unique bank IDs from transactions
         const bankIds = [...new Set(transactions.map(t => t.bank_id).filter(id => id))];
         
+        // Get all unique payment details IDs from transactions
+        const paymentDetailsIds = [...new Set(transactions.map(t => t.PaymentDetails_id).filter(id => id))];
+        
         // Fetch bank details for all bank IDs
         let bankMap = {};
         if (bankIds.length > 0) {
@@ -693,6 +756,17 @@ const getTransactionsbyauth = async (req, res) => {
                 { AccountDetails_id: 1, holdername: 1, bank_name: 1, account_no: 1, ifsc_code: 1, _id: 0 }
             );
             banks.forEach(b => { bankMap[b.AccountDetails_id] = b; });
+        }
+
+        // Fetch payment details for all payment details IDs
+        let paymentDetailsMap = {};
+        if (paymentDetailsIds.length > 0) {
+            const PaymentDetails = require('../models/payment_details.model');
+            const paymentDetailsArray = await PaymentDetails.find(
+                { PaymentDetails_id: { $in: paymentDetailsIds } },
+                { PaymentDetails_id: 1, UPI_id: 1, Bankname: 1, accountno: 1, ifsccode: 1, branchname: 1, appToapp: 1, QRpay: 1, Status: 1, _id: 0 }
+            );
+            paymentDetailsArray.forEach(pd => { paymentDetailsMap[pd.PaymentDetails_id] = pd; });
         }
         
         // Map transactions to include user and bank details
@@ -714,6 +788,17 @@ const getTransactionsbyauth = async (req, res) => {
                     bank_name: bankMap[transaction.bank_id].bank_name,
                     account_no: bankMap[transaction.bank_id].account_no,
                     ifsc_code: bankMap[transaction.bank_id].ifsc_code
+                } : null,
+                payment_details: transaction.PaymentDetails_id && paymentDetailsMap[transaction.PaymentDetails_id] ? {
+                    PaymentDetails_id: paymentDetailsMap[transaction.PaymentDetails_id].PaymentDetails_id,
+                    UPI_id: paymentDetailsMap[transaction.PaymentDetails_id].UPI_id,
+                    Bankname: paymentDetailsMap[transaction.PaymentDetails_id].Bankname,
+                    accountno: paymentDetailsMap[transaction.PaymentDetails_id].accountno,
+                    ifsccode: paymentDetailsMap[transaction.PaymentDetails_id].ifsccode,
+                    branchname: paymentDetailsMap[transaction.PaymentDetails_id].branchname,
+                    appToapp: paymentDetailsMap[transaction.PaymentDetails_id].appToapp,
+                    QRpay: paymentDetailsMap[transaction.PaymentDetails_id].QRpay,
+                    Status: paymentDetailsMap[transaction.PaymentDetails_id].Status
                 } : null
             };
         });
@@ -732,6 +817,13 @@ const getTransactionsbyauth = async (req, res) => {
                     (transaction.bank_details && 
                         transaction.bank_details.holdername?.toLowerCase().includes(searchLower)
                     ) ||
+                    (transaction.payment_details && (
+                        transaction.payment_details.UPI_id?.toLowerCase().includes(searchLower) ||
+                        transaction.payment_details.Bankname?.toLowerCase().includes(searchLower) ||
+                        transaction.payment_details.accountno?.includes(searchTerm) ||
+                        transaction.payment_details.ifsccode?.toLowerCase().includes(searchLower) ||
+                        transaction.payment_details.branchname?.toLowerCase().includes(searchLower)
+                    )) ||
                     transaction.amount?.toString().includes(searchTerm) ||
                     transaction.status?.toLowerCase().includes(searchLower) ||
                     transaction.transactionType?.toLowerCase().includes(searchLower) ||
