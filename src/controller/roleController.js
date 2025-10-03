@@ -88,17 +88,7 @@ const updateRole = async (req, res) => {
       }
     }
 
-    // Validate permissions if provided
-    if (permissions !== undefined) {
-      const validationResult = validatePermissions(permissions);
-      if (!validationResult.isValid) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid permissions format',
-          errors: validationResult.errors
-        });
-      }
-    }
+  
 
     // Update role
     const updateData = {
