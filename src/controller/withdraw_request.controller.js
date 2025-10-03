@@ -193,7 +193,7 @@ const getWithdrawRequestById = async (req, res) => {
 const getAllWithdrawRequests = async (req, res) => {
   try {
     // Get URL parameters
-    const { last_status, date_from, date_to } = req.params;
+    const { date_from, date_to } = req.params;
     
     // Get query parameters
     const { 
@@ -209,6 +209,7 @@ const getAllWithdrawRequests = async (req, res) => {
       updated_date_to,
       amount_min,
       amount_max,
+      last_status,
       sort_by = 'created_at',
       sort_order = 'desc'
     } = req.query;
@@ -221,9 +222,9 @@ const getAllWithdrawRequests = async (req, res) => {
     // Add status filter
     if (status !== undefined) {
       let statusValue;
-      if (status === 'true' || status === true) {
+      if (status == true) {
         statusValue = 1;
-      } else if (status === 'false' || status === false) {
+      } else if (status == false) {
         statusValue = 0;
       } else {
         statusValue = parseInt(status);
