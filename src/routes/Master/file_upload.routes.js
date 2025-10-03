@@ -9,8 +9,8 @@ const router = express.Router();
 const s3Client = new S3Client({
   region: "ap-south-1",
   credentials: {
-    accessKeyId: "AKIA455B2ZFDHIMVQZ4U",
-    secretAccessKey: "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"
+    accessKeyId: "",
+    secretAccessKey: ""
   }
 });
 
