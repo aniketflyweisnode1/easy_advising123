@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema({
   role_id: {
     type: Number,
     ref: 'Role',
-    default: null
+    default: 1
   },
   login_permission_status: {
     type: Boolean,
@@ -140,13 +140,16 @@ const userSchema = new mongoose.Schema({
     ref: 'Subcategory'
   }],
   chat_Rate: {
-    type: Number
+    type: Number,
+    default: 0
   },
    audio_Rate: {
-    type: Number
+    type: Number,
+    default: 0
   },
-  voiceCall_Rate: {
-    type: Number
+  VideoCall_rate: {
+    type: Number,
+    default: 0
   },
   package_id: {
     type: Number,

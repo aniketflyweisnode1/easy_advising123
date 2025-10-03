@@ -4,7 +4,7 @@ const User = require('../models/User.model');
 // Create role (with auth)
 const createRole = async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, permissions } = req.body;
     const created_by = req.user.user_id;
 
     // Validate required fields
@@ -27,6 +27,7 @@ const createRole = async (req, res) => {
     // Create new role
     const newRole = new Role({
       name,
+      permissions: permissions || [],
       description: description || '',
       created_by,
       updated_by: created_by
@@ -40,6 +41,7 @@ const createRole = async (req, res) => {
       data: {
         role_id: newRole.role_id,
         name: newRole.name,
+        permissions: newRole.permissions,
         description: newRole.description,
         status: newRole.status,
         created_by: newRole.created_by,

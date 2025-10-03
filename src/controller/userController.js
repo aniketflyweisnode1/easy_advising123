@@ -32,7 +32,8 @@ const registerUser = async (req, res) => {
       Category,
       Subcategory,
       chat_Rate,
-      voiceCall_Rate,
+      audio_Rate,
+      VideoCall_rate,
       package_id,
       firebase_token ,
       supporting_Document,
@@ -45,7 +46,7 @@ const registerUser = async (req, res) => {
       instant_call,
       applyslots_remainingDays
     } = req.body;
-console.log( choose_slot,choose_day)
+// console.log( choose_slot,choose_day)
     if (!name || !mobile) {
       return res.status(400).json({ success: false, message: 'name and mobile are required.' });
     }
@@ -79,7 +80,8 @@ console.log( choose_slot,choose_day)
       Category,
       Subcategory,
       chat_Rate,
-      voiceCall_Rate,
+      audio_Rate,
+      VideoCall_rate,
       package_id,
       supporting_Document,
       social_linkdin_link,
@@ -879,7 +881,7 @@ const getAdvisorList = async (req, res) => {
           // Rates
           chat_Rate: advisor.chat_Rate,
           audio_Rate: advisor.audio_Rate,
-          voiceCall_Rate: advisor.voiceCall_Rate,
+          VideoCall_rate: advisor.VideoCall_rate,
           
           // Documents and Social Links
           supporting_Document: advisor.supporting_Document,
@@ -938,6 +940,10 @@ const getAdviserById = async (req, res) => {
   try {
     const { advisor_id } = req.params;
     
+    // Import models at the top to avoid initialization issues
+    const Package = require('../models/package.model');
+    const PackageSubscription = require('../models/package_subscription.model');
+    
     // Advisor details with populated fields
     const advisor = await User.findOne({ user_id: Number(advisor_id), role_id: 2 })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name description' })
@@ -947,19 +953,51 @@ const getAdviserById = async (req, res) => {
       .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
       .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
-      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name description price duration' });
+      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' });
     
     if (!advisor) {
       return res.status(404).json({ message: 'Advisor not found', status: 404 });
     }
 
+    // Manually populate advisor's package details
+    const advisorPackage = advisor.package_id ? await Package.findOne({ package_id: advisor.package_id }) : null;
+    const advisorWithPackage = {
+      ...advisor.toObject(),
+      package_details: advisorPackage ? {
+        package_id: advisorPackage.package_id,
+        package_name: advisorPackage.packege_name,
+        description: advisorPackage.description,
+        price: advisorPackage.price,
+        duration: advisorPackage.duration,
+        minute: advisorPackage.minute,
+        Schedule: advisorPackage.Schedule
+      } : null
+    };
+
     // Get subscription details
-    const PackageSubscription = require('../models/package_subscription.model');
     const subscriptions = await PackageSubscription.find({ subscribe_by: Number(advisor_id) })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name description price duration' })
       .sort({ created_at: -1 }); // Latest subscription first
     
+    // Manually populate package details to avoid ObjectId/Number cast issues
+    const subscriptionsWithPackages = await Promise.all(
+      subscriptions.map(async (subscription) => {
+        const packageDetails = await Package.findOne({ package_id: subscription.package_id });
+        return {
+          ...subscription.toObject(),
+          package_details: packageDetails ? {
+            package_id: packageDetails.package_id,
+            package_name: packageDetails.packege_name,
+            description: packageDetails.description,
+            price: packageDetails.price,
+            duration: packageDetails.duration,
+            minute: packageDetails.minute,
+            Schedule: packageDetails.Schedule
+          } : null
+        };
+      })
+    );
+    
+    // console.log(subscriptionsWithPackages);
     // Reviews
     const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) });
     
@@ -998,26 +1036,46 @@ const getAdviserById = async (req, res) => {
     // Transactions
     const transactions = await require('../models/transaction.model').find({ user_id: Number(advisor_id) });
     
-    // Subscriber list
-    const subscribers = await require('../models/package_subscription.model').find({ subscribe_by: Number(advisor_id) });
+    // Subscriber list with created_by user details
+    const subscribersRaw = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) });
+   console.log("subscribersRaw _>>>", subscribersRaw);
+    // Get unique created_by user IDs from subscribers
+    const subscriberUserIds = [...new Set(subscribersRaw.map(sub => sub.created_by))];
+   
+    // Fetch user details for created_by users
+    const subscriberUsers = await User.find(
+      { user_id: { $in: subscriberUserIds } },
+      { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, _id: 0 }
+    );
     
-    // Packages (from advisor.package_id and from subscriptions)
-    const packageIds = [advisor.package_id].filter(Boolean);
-    const subPackageIds = subscribers.map(sub => sub.package_id).filter(Boolean);
-    const allPackageIds = Array.from(new Set([...packageIds, ...subPackageIds]));
-    const packages = allPackageIds.length > 0 ? await require('../models/package.model').find({ package_id: { $in: allPackageIds } }) : [];
+    // Create a map for quick lookup
+    const subscriberUserMap = {};
+    subscriberUsers.forEach(u => { subscriberUserMap[u.user_id] = u; });
+    
+    // Enhance subscribers with created_by user details
+    const subscribers = subscribersRaw.map(subscriber => {
+      const subscriberObj = subscriber.toObject();
+      return {
+        ...subscriberObj,
+        created_by_user: subscriberUserMap[subscriber.created_by] || null
+      };
+    });
+   
+    // Wallet information
+    const Wallet = require('../models/wallet.model');
+    const wallet = await Wallet.findOne({ user_id: Number(advisor_id) });
     
     // Call types (all)
     const allCallTypes = await CallType.find();
     
     return res.status(200).json({
-      advisor,
+      advisor: advisorWithPackage, // Advisor with populated package details
       reviews,
       appointments: appointmentsWithDetails,
       transactions,
       subscribers,
-      packages,
-      subscriptions, // Enhanced subscription details with populated package info
+      subscriptions: subscriptionsWithPackages, // Enhanced subscription details with populated package info
+      wallet, // Wallet information
       callTypes: allCallTypes,
       status: 200
     });
