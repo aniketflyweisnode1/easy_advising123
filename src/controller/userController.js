@@ -704,7 +704,7 @@ const getAdvisorList = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = { role_id: 2 };
+    const query = { role_id: 1};
 
     // Add search functionality
     if (search) {
