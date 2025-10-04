@@ -37,7 +37,7 @@ const createScheduleCall = async (req, res) => {
 
                 if (!callType) {
                     return res.status(404).json({
-                        message: 'Call type not found for this adviser',
+                        message: 'Call type not found Create Advisor call Type First',
                         status: 400
                     });
                 }
