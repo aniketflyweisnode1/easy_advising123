@@ -145,6 +145,16 @@ const getCategoryById = async (req, res) => {
   }
 };
 
+const getAll = async (req, res) => {
+  try {
+    const categories = await Category.find();
+    res.status(200).json({ success: true, data: categories });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 const getAllCategories = async (req, res) => {
   try {
     const { 
@@ -267,5 +277,6 @@ module.exports = {
   createCategory,
   updateCategory,
   getCategoryById,
-  getAllCategories
+  getAllCategories,
+  getAll
 }; 

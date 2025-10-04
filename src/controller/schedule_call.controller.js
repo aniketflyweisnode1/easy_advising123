@@ -9,6 +9,7 @@ const createScheduleCall = async (req, res) => {
     try {
         const data = req.body;
         data.created_by = req.user.user_id;
+        console.log(data.created_by);
         const activeSubscription = await PackageSubscription.findOne({
             subscribe_by: data.created_by,
             Expire_status: false,
