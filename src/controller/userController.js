@@ -464,7 +464,7 @@ const getAllUserFullDetails = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || '';
-    const role_id = req.query.role_id ? parseInt(req.query.role_id) : null;
+    const role_id = 1;
     
     // Debug logging
     console.log('getAllUserFullDetails - Query params:', {
