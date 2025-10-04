@@ -6,7 +6,7 @@ const { advisorDashboard } = require('../../controller/advisor_dashboard.control
 const { getAdvisorNotifications } = require('../../controller/advisor_notification.controller');
 const { advisorWallet } = require('../../controller/advisor_wall.controller');
 
-// Get all advisors (role_id = 2) 2025-07-15
+// Get users by role (default: advisors role_id = 2) 2025-07-15
 router.get('/getAdvisorList', auth, getAdvisorList);
 
 // Advisor dashboard API 2025-07-17

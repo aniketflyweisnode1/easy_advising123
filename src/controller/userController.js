@@ -457,14 +457,6 @@ const getUserFullDetails = async (req, res) => {
 
 // Get all users full details with pagination and search
 const getAllUserFullDetails = async (req, res) => {
-/**
-page (optional): Page number (default: 1)
-limit (optional): Items per page (default: 10)
-search (optional): Search term for name/email/mobile
-role_id (optional): Filter by user role
-status (optional): Filter by user status
-The API now provides powerful pagination and search capabilities for efficient data management!
- */
 
 
   try {
@@ -473,6 +465,12 @@ The API now provides powerful pagination and search capabilities for efficient d
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || '';
     const role_id = req.query.role_id ? parseInt(req.query.role_id) : null;
+    
+    // Debug logging
+    console.log('getAllUserFullDetails - Query params:', {
+      page, limit, search, role_id, status: req.query.status
+    });
+    
     // Handle status parsing with proper validation
     let status = null;
     if (req.query.status !== undefined && req.query.status !== null && req.query.status !== '') {
@@ -512,6 +510,9 @@ The API now provides powerful pagination and search capabilities for efficient d
     if (status !== null) {
       searchQuery.status = status;
     }
+    
+    // Debug logging - show final search query
+    console.log('getAllUserFullDetails - Final search query:', JSON.stringify(searchQuery, null, 2));
     
     // Get total count for pagination
     const totalUsers = await User.countDocuments(searchQuery);
@@ -683,13 +684,14 @@ The API now provides powerful pagination and search capabilities for efficient d
   }
 };
 
-// Get all advisors (role_id = 2)
+// Get users by role with filtering capabilities
 const getAdvisorList = async (req, res) => {
   try {
     const { 
       page = 1, 
       limit = 10, 
       search, 
+      role_id = 2, // Default to advisors (role_id = 2)
       category_id, 
       subcategory_id, 
       status, 
@@ -704,7 +706,12 @@ const getAdvisorList = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = { role_id: 1};
+    const query = { role_id: parseInt(role_id) };
+    
+    // Debug logging
+    console.log('getAdvisorList - Query params:', {
+      page, limit, search, role_id, category_id, subcategory_id, status
+    });
 
     // Add search functionality
     if (search) {
@@ -834,9 +841,9 @@ const getAdvisorList = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Advisors retrieved successfully',
+      message: `Users with role_id ${role_id} retrieved successfully`,
       data: {
-        advisors: advisors.map(advisor => ({
+        users: advisors.map(advisor => ({
           // Primary ID
           user_id: advisor.user_id,
           
