@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createCategory,  updateCategory, getCategoryById, getAllCategories, getAll } = require('../../controller/category.controller.js');
+const { createCategory,  updateCategory, getCategoryById, getAllCategories, getAll, getCategoryAll } = require('../../controller/category.controller.js');
 const { auth } = require('../../utils/jwtUtils.js');
 
 
@@ -17,5 +17,7 @@ router.get('/:category_id', getCategoryById);
 router.get('/', getAllCategories);
 
 router.get('/all', getAll);
+
+router.get('/Categoryall', getCategoryAll);
 
 module.exports = router; 

@@ -197,6 +197,14 @@ const getSubcategoryById = async (req, res) => {
   }
 };
 
+const getAllSubcategoriesAll = async (req, res) => {
+  try {
+    const subcategories = await Subcategory.find();
+    res.status(200).json({ success: true, data: subcategories });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 const getAllSubcategories = async (req, res) => {
   try {
     const { 
@@ -379,5 +387,6 @@ module.exports = {
   updateSubcategory,
   getSubcategoryById,
   getAllSubcategories,
-  getSubcategoriesByCategoryId
+  getSubcategoriesByCategoryId,
+  getAllSubcategoriesAll
 }; 

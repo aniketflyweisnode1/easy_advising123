@@ -5,7 +5,8 @@ const {
   updateSubcategory, 
   getSubcategoryById, 
   getAllSubcategories,
-  getSubcategoriesByCategoryId
+  getSubcategoriesByCategoryId,
+  getAllSubcategoriesAll
 } =  require('../../controller/subcategory.controller.js');
 const { auth } =  require('../../utils/jwtUtils.js');
 
@@ -25,5 +26,8 @@ router.get('/', getAllSubcategories);
 
 // Created: 2025-07-05
 router.get('/by-category/:category_id', getSubcategoriesByCategoryId);
+
+// Created: 2025-07-05
+router.get('/Subcategoriesall', getAllSubcategoriesAll);
 
 module.exports = router; 
