@@ -10,18 +10,71 @@ const packageSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  price: {
+
+  //Chat
+  Chat_price: {
     type: Number
   },
-  minute: {
+  Chat_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Schedule: {
+  Chat_Schedule: {
     type: Number,
     default: 0,
     min: 0
+  },
+  Chat_discription: {
+    type: String
+  },
+
+  //Audio
+  Audio_price: {
+    type: Number
+  },
+  Audio_minute: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  Audio_Schedule: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  Audio_discription: {
+    type: String
+  },
+
+  //video
+  Video_price: {
+    type: Number
+  },
+  Video_minute: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  Video_Schedule: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  Video_discription: {
+    type: String
+  },
+
+  approve_status: {
+    type: Boolean,
+    default: false
+  },
+  approve_by: {
+    type: Number,
+    ref: 'User'
+  },
+  approve_at: {
+    type: Date
   },
   status: {
     type: Number,

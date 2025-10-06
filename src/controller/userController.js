@@ -27,6 +27,8 @@ const registerUser = async (req, res) => {
       city,
       IntroductionVideo,
       Current_Designation,
+      Current_Designation_Name,
+      Current_Company_Name,
       current_company_name,
       expertise_offer,
       Category,
@@ -75,6 +77,8 @@ const registerUser = async (req, res) => {
       city,
       IntroductionVideo,
       Current_Designation,
+      Current_Designation_Name,
+      Current_Company_Name,
       current_company_name,
       expertise_offer,
       Category,
@@ -794,7 +798,9 @@ const getAdvisorList = async (req, res) => {
         { email: { $regex: search, $options: 'i' } },
         { mobile: { $regex: search, $options: 'i' } },
         { expertise_offer: { $regex: search, $options: 'i' } },
-        { description_Bio: { $regex: search, $options: 'i' } }
+        { description_Bio: { $regex: search, $options: 'i' } },
+        { Current_Designation_Name: { $regex: search, $options: 'i' } },
+        { Current_Company_Name: { $regex: search, $options: 'i' } }
       ];
 
       // If search is a number, also search by company_id and designation_id
@@ -940,6 +946,8 @@ const getAdvisorList = async (req, res) => {
           
           // Professional IDs
           Current_Designation: advisor.Current_Designation,
+          Current_Designation_Name: advisor.Current_Designation_Name,
+          Current_Company_Name: advisor.Current_Company_Name,
           current_company_name: advisor.current_company_name,
           package_id: advisor.package_id,
           

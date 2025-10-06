@@ -39,6 +39,7 @@ const fileUploadRoutes = require('./Master/file_upload.routes');
 const bank = require('./Advisor/Advisor_bankAccountDetails.routes');
 const agoraRoutes = require('./agora.routes');
 const paymentDetailsRoutes = require('./Master/payment_details.routes');
+const adminPackageApprovalRoutes = require('./Admin/package_approval.routes');
 
 function routes(app) {
 
@@ -83,6 +84,7 @@ function routes(app) {
     app.use('/api/file-upload', fileUploadRoutes);
     app.use('/api/agora', agoraRoutes);
     app.use('/api/payment-details', paymentDetailsRoutes);
+    app.use('/api/admin/package-approval', adminPackageApprovalRoutes);
 }
 
 module.exports = routes;
