@@ -9,7 +9,8 @@ const {
     getTransactionsbyauth,
     updateIsDownloaded,
     updateFileDownloadedPath,
-    updateDownloadStatus
+    updateDownloadStatus,
+    getTransactionsByAdvisorId
 } = require('../../controller/transaction.controller');
 const { auth } = require('../../middleware/authMiddleware');
 
@@ -17,6 +18,10 @@ router.post('/', auth, createTransaction);
 // Admin recharge user wallet
 router.post('/admin-recharge', auth, createTransactionByAdmin);
 router.get('/my-transactions', auth, getTransactionsbyauth);
+
+// Get transactions by advisor ID - must be before /:id to avoid conflicts
+router.get('/advisor/:advisor_id', auth, getTransactionsByAdvisorId);
+
 router.get('/:id', auth, getTransactionById);
 router.get('/', auth, getAllTransactions);
 router.put('/', auth, updateTransaction);

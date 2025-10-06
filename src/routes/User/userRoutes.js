@@ -23,7 +23,7 @@ router.patch('/Userstatus', auth, updateUserStatus);
 router.patch('/user-online', auth, updateUserOnlineStatus);
 
 // Get all employees (excluding role_id 1, 2, 3)
-router.get('/getallemployees', auth, getAllEmployees);
+router.get('/getallemployees', getAllEmployees);
 
 // Update user (Admin function)
 router.put('/update', auth, updateUser);

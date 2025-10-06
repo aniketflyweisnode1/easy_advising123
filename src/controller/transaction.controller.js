@@ -1093,6 +1093,307 @@ const updateDownloadStatus = async (req, res) => {
     }
 };
 
+// Get transactions by advisor ID with comprehensive details
+const getTransactionsByAdvisorId = async (req, res) => {
+    try {
+        const { advisor_id } = req.params;
+        
+        // Validate advisor_id
+        if (!advisor_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Advisor ID is required',
+                status: 400
+            });
+        }
+
+        // Get query parameters
+        const { 
+            page = 1, 
+            limit = 10, 
+            search, 
+            transaction_type,
+            status: transaction_status,
+            payment_method,
+            amount_min,
+            amount_max,
+            created_date_from,
+            created_date_to,
+            transaction_date_from,
+            transaction_date_to,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        // Verify advisor exists and is an advisor (role_id = 2)
+        const advisor = await User.findOne({ user_id: Number(advisor_id), role_id: 2 });
+        if (!advisor) {
+            return res.status(404).json({
+                success: false,
+                message: 'Advisor not found',
+                status: 404
+            });
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        // Build query - filter by advisor's user_id
+        const query = { user_id: Number(advisor_id) };
+
+        // Add transaction_type filter
+        if (transaction_type) {
+            if (Array.isArray(transaction_type)) {
+                query.transactionType = { $in: transaction_type };
+            } else if (typeof transaction_type === 'string' && transaction_type.includes(',')) {
+                const typeArray = transaction_type.split(',').map(t => t.trim());
+                query.transactionType = { $in: typeArray };
+            } else {
+                query.transactionType = transaction_type;
+            }
+        }
+
+        // Add status filter
+        if (transaction_status) {
+            if (Array.isArray(transaction_status)) {
+                query.status = { $in: transaction_status };
+            } else if (typeof transaction_status === 'string' && transaction_status.includes(',')) {
+                const statusArray = transaction_status.split(',').map(s => s.trim());
+                query.status = { $in: statusArray };
+            } else {
+                query.status = transaction_status;
+            }
+        }
+
+        // Add payment_method filter
+        if (payment_method) {
+            if (Array.isArray(payment_method)) {
+                query.payment_method = { $in: payment_method };
+            } else if (typeof payment_method === 'string' && payment_method.includes(',')) {
+                const methodArray = payment_method.split(',').map(m => m.trim());
+                query.payment_method = { $in: methodArray };
+            } else {
+                query.payment_method = payment_method;
+            }
+        }
+
+        // Add amount range filter
+        if (amount_min !== undefined || amount_max !== undefined) {
+            query.amount = {};
+            if (amount_min !== undefined) {
+                query.amount.$gte = parseFloat(amount_min);
+            }
+            if (amount_max !== undefined) {
+                query.amount.$lte = parseFloat(amount_max);
+            }
+        }
+
+        // Add date range filters
+        if (created_date_from || created_date_to) {
+            query.created_at = {};
+            if (created_date_from) {
+                query.created_at.$gte = new Date(created_date_from);
+            }
+            if (created_date_to) {
+                query.created_at.$lt = new Date(new Date(created_date_to).getTime() + 24 * 60 * 60 * 1000);
+            }
+        }
+
+        // Add transaction_date range filter
+        if (transaction_date_from || transaction_date_to) {
+            query.transaction_date = {};
+            if (transaction_date_from) {
+                query.transaction_date.$gte = new Date(transaction_date_from);
+            }
+            if (transaction_date_to) {
+                query.transaction_date.$lt = new Date(new Date(transaction_date_to).getTime() + 24 * 60 * 60 * 1000);
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get transactions with pagination and filters
+        const transactions = await Transaction.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalTransactions = await Transaction.countDocuments(query);
+
+        // Get all unique created_by user IDs from transactions
+        const createdByUserIds = [...new Set(transactions.map(t => t.created_by))];
+        
+        // Get all unique bank IDs
+        const bankIds = [...new Set(transactions.map(t => t.bank_id).filter(id => id))];
+        
+        // Get all unique payment details IDs
+        const paymentDetailsIds = [...new Set(transactions.map(t => t.PaymentDetails_id).filter(id => id))];
+        
+        // Fetch created_by user details
+        const createdByUsers = await User.find(
+            { user_id: { $in: createdByUserIds } }, 
+            { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, _id: 0 }
+        );
+        const createdByUserMap = {};
+        createdByUsers.forEach(u => { createdByUserMap[u.user_id] = u; });
+        
+        // Fetch bank details for all bank IDs
+        let bankMap = {};
+        if (bankIds.length > 0) {
+            const AdvisorBankAccountDetails = require('../models/Advisor_bankAccountDetails.model');
+            const banks = await AdvisorBankAccountDetails.find(
+                { bankAccount_id: { $in: bankIds } },
+                { bankAccount_id: 1, account_holder_name: 1, bank_name: 1, account_number: 1, ifsc_code: 1, _id: 0 }
+            );
+            banks.forEach(b => { bankMap[b.bankAccount_id] = b; });
+        }
+
+        // Fetch payment details for all payment details IDs
+        let paymentDetailsMap = {};
+        if (paymentDetailsIds.length > 0) {
+            const PaymentDetails = require('../models/payment_details.model');
+            const paymentDetailsArray = await PaymentDetails.find(
+                { paymentDetails_id: { $in: paymentDetailsIds } },
+                { paymentDetails_id: 1, payment_type: 1, upi_id: 1, qr_code: 1, _id: 0 }
+            );
+            paymentDetailsArray.forEach(pd => { paymentDetailsMap[pd.paymentDetails_id] = pd; });
+        }
+        
+        // Map transactions to include comprehensive details
+        const transactionsWithDetails = transactions.map(transaction => {
+            const transactionObj = transaction.toObject();
+            return {
+                ...transactionObj,
+                advisor_details: {
+                    user_id: advisor.user_id,
+                    name: advisor.name,
+                    email: advisor.email,
+                    mobile: advisor.mobile,
+                    role_id: advisor.role_id
+                },
+                created_by_details: createdByUserMap[transaction.created_by] ? {
+                    user_id: createdByUserMap[transaction.created_by].user_id,
+                    name: createdByUserMap[transaction.created_by].name,
+                    email: createdByUserMap[transaction.created_by].email,
+                    mobile: createdByUserMap[transaction.created_by].mobile,
+                    role_id: createdByUserMap[transaction.created_by].role_id
+                } : null,
+                bank_account_details: transaction.bank_id && bankMap[transaction.bank_id] ? {
+                    bankAccount_id: bankMap[transaction.bank_id].bankAccount_id,
+                    account_holder_name: bankMap[transaction.bank_id].account_holder_name,
+                    bank_name: bankMap[transaction.bank_id].bank_name,
+                    account_number: bankMap[transaction.bank_id].account_number,
+                    ifsc_code: bankMap[transaction.bank_id].ifsc_code
+                } : null,
+                payment_details: transaction.PaymentDetails_id && paymentDetailsMap[transaction.PaymentDetails_id] ? {
+                    paymentDetails_id: paymentDetailsMap[transaction.PaymentDetails_id].paymentDetails_id,
+                    payment_type: paymentDetailsMap[transaction.PaymentDetails_id].payment_type,
+                    upi_id: paymentDetailsMap[transaction.PaymentDetails_id].upi_id,
+                    qr_code: paymentDetailsMap[transaction.PaymentDetails_id].qr_code
+                } : null
+            };
+        });
+
+        // Calculate transaction summary for advisor
+        const allAdvisorTransactions = await Transaction.find({ user_id: Number(advisor_id) });
+        const transactionSummary = {
+            total_transactions: allAdvisorTransactions.length,
+            total_amount: allAdvisorTransactions.reduce((sum, txn) => sum + (txn.amount || 0), 0),
+            total_gst: allAdvisorTransactions.reduce((sum, txn) => sum + (txn.TotalGST || 0), 0),
+            by_status: {
+                pending: allAdvisorTransactions.filter(txn => txn.status === 'pending').length,
+                completed: allAdvisorTransactions.filter(txn => txn.status === 'completed').length,
+                failed: allAdvisorTransactions.filter(txn => txn.status === 'failed').length
+            },
+            by_type: allAdvisorTransactions.reduce((acc, txn) => {
+                acc[txn.transactionType] = (acc[txn.transactionType] || 0) + 1;
+                return acc;
+            }, {}),
+            earnings: {
+                total_call_earnings: allAdvisorTransactions
+                    .filter(txn => txn.transactionType === 'Call')
+                    .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+                total_package_earnings: allAdvisorTransactions
+                    .filter(txn => txn.transactionType === 'Package_Buy')
+                    .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+                total_deposits: allAdvisorTransactions
+                    .filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType))
+                    .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+                total_withdrawals: allAdvisorTransactions
+                    .filter(txn => txn.transactionType === 'withdraw')
+                    .reduce((sum, txn) => sum + (txn.amount || 0), 0)
+            },
+            call_transactions: allAdvisorTransactions.filter(txn => txn.transactionType === 'Call').length,
+            withdrawal_transactions: allAdvisorTransactions.filter(txn => txn.transactionType === 'withdraw').length,
+            deposit_transactions: allAdvisorTransactions.filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType)).length
+        };
+
+        // Get available filter options for this advisor's transactions
+        const availableStatuses = [...new Set(allAdvisorTransactions.map(t => t.status))];
+        const availableTransactionTypes = [...new Set(allAdvisorTransactions.map(t => t.transactionType))];
+        const availablePaymentMethods = [...new Set(allAdvisorTransactions.map(t => t.payment_method))];
+
+        // Calculate pagination info
+        const totalPages = Math.ceil(totalTransactions / parseInt(limit));
+        const hasNextPage = parseInt(page) < totalPages;
+        const hasPrevPage = parseInt(page) > 1;
+
+        // Get wallet information
+        const wallet = await Wallet.findOne({ user_id: Number(advisor_id) });
+
+        return res.status(200).json({ 
+            success: true,
+            message: `Transactions for advisor ${advisor_id} retrieved successfully`,
+            data: {
+                advisor: {
+                    user_id: advisor.user_id,
+                    name: advisor.name,
+                    email: advisor.email,
+                    mobile: advisor.mobile,
+                    role_id: advisor.role_id,
+                    rating: advisor.rating,
+                    experience_year: advisor.experience_year
+                },
+                transactions: transactionsWithDetails,
+                transaction_summary: transactionSummary,
+                wallet: wallet ? {
+                    user_id: wallet.user_id,
+                    amount: wallet.amount,
+                    status: wallet.status,
+                    created_At: wallet.created_At,
+                    updated_At: wallet.updated_At
+                } : null,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: totalPages,
+                    total_transactions: totalTransactions,
+                    limit: parseInt(limit),
+                    has_next_page: hasNextPage,
+                    has_prev_page: hasPrevPage,
+                    next_page: hasNextPage ? parseInt(page) + 1 : null,
+                    prev_page: hasPrevPage ? parseInt(page) - 1 : null
+                },
+                filters: {
+                    available_statuses: availableStatuses,
+                    available_transaction_types: availableTransactionTypes,
+                    available_payment_methods: availablePaymentMethods
+                }
+            },
+            status: 200 
+        });
+    } catch (error) {
+        console.error('Get transactions by advisor ID error:', error);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500 
+        });
+    }
+};
+
 module.exports = { 
     createTransaction, 
     createTransactionByAdmin, 
@@ -1102,5 +1403,6 @@ module.exports = {
     getTransactionsbyauth,
     updateIsDownloaded,
     updateFileDownloadedPath,
-    updateDownloadStatus
+    updateDownloadStatus,
+    getTransactionsByAdvisorId
 }; 

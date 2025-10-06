@@ -380,28 +380,93 @@ const getUserFullDetails = async (req, res) => {
     });
 
     // Wallet: all transactions where user_id is user
-    const userTransaction = await Transaction.find({ user_id: Number(user_id) });
+    const userTransaction = await Transaction.find({ user_id: Number(user_id) }).sort({ created_at: -1 });
 
     // Get user details for transactions (created_by)
     const transactionUserIds = [...new Set(userTransaction.map(txn => txn.created_by))];
-    const transactionUsers = await User.find(
-      { user_id: { $in: transactionUserIds } }, 
-      { user_id: 1, name: 1, _id: 0 }
-    );
+    
+    // Get bank account IDs and payment details IDs from transactions
+    const bankIds = [...new Set(userTransaction.map(txn => txn.bank_id).filter(id => id))];
+    const paymentDetailsIds = [...new Set(userTransaction.map(txn => txn.PaymentDetails_id).filter(id => id))];
+    
+    // Fetch all related data in parallel
+    const [transactionUsers, bankAccounts, paymentDetails] = await Promise.all([
+      User.find(
+        { user_id: { $in: transactionUserIds } }, 
+        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+      ),
+      bankIds.length > 0 ? require('../models/Advisor_bankAccountDetails.model').find(
+        { bankAccount_id: { $in: bankIds } }
+      ) : Promise.resolve([]),
+      paymentDetailsIds.length > 0 ? require('../models/payment_details.model').find(
+        { paymentDetails_id: { $in: paymentDetailsIds } }
+      ) : Promise.resolve([])
+    ]);
+    
+    // Create maps for efficient lookup
     const transactionUserMap = {};
     transactionUsers.forEach(u => { transactionUserMap[u.user_id] = u; });
+    
+    const bankAccountMap = {};
+    bankAccounts.forEach(b => { bankAccountMap[b.bankAccount_id] = b; });
+    
+    const paymentDetailsMap = {};
+    paymentDetails.forEach(p => { paymentDetailsMap[p.paymentDetails_id] = p; });
 
-    // Map transactions with user details
+    // Map transactions with comprehensive details
     const transactionsWithDetails = userTransaction.map(transaction => {
       const transactionObj = transaction.toObject();
       return {
         ...transactionObj,
         created_by_details: transactionUserMap[transaction.created_by] ? {
           user_id: transactionUserMap[transaction.created_by].user_id,
-          name: transactionUserMap[transaction.created_by].name
+          name: transactionUserMap[transaction.created_by].name,
+          email: transactionUserMap[transaction.created_by].email,
+          mobile: transactionUserMap[transaction.created_by].mobile
+        } : null,
+        bank_account_details: transaction.bank_id && bankAccountMap[transaction.bank_id] ? {
+          bankAccount_id: bankAccountMap[transaction.bank_id].bankAccount_id,
+          bank_name: bankAccountMap[transaction.bank_id].bank_name,
+          account_number: bankAccountMap[transaction.bank_id].account_number,
+          account_holder_name: bankAccountMap[transaction.bank_id].account_holder_name,
+          ifsc_code: bankAccountMap[transaction.bank_id].ifsc_code
+        } : null,
+        payment_details: transaction.PaymentDetails_id && paymentDetailsMap[transaction.PaymentDetails_id] ? {
+          paymentDetails_id: paymentDetailsMap[transaction.PaymentDetails_id].paymentDetails_id,
+          payment_type: paymentDetailsMap[transaction.PaymentDetails_id].payment_type,
+          upi_id: paymentDetailsMap[transaction.PaymentDetails_id].upi_id,
+          qr_code: paymentDetailsMap[transaction.PaymentDetails_id].qr_code
         } : null
       };
     });
+    
+    // Calculate transaction summary
+    const transactionSummary = {
+      total_transactions: transactionsWithDetails.length,
+      total_amount: userTransaction.reduce((sum, txn) => sum + (txn.amount || 0), 0),
+      total_gst: userTransaction.reduce((sum, txn) => sum + (txn.TotalGST || 0), 0),
+      by_status: {
+        pending: userTransaction.filter(txn => txn.status === 'pending').length,
+        completed: userTransaction.filter(txn => txn.status === 'completed').length,
+        failed: userTransaction.filter(txn => txn.status === 'failed').length
+      },
+      by_type: userTransaction.reduce((acc, txn) => {
+        acc[txn.transactionType] = (acc[txn.transactionType] || 0) + 1;
+        return acc;
+      }, {}),
+      total_deposits: userTransaction
+        .filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType))
+        .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+      total_withdrawals: userTransaction
+        .filter(txn => txn.transactionType === 'withdraw')
+        .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+      total_call_payments: userTransaction
+        .filter(txn => txn.transactionType === 'Call')
+        .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+      total_package_purchases: userTransaction
+        .filter(txn => txn.transactionType === 'Package_Buy')
+        .reduce((sum, txn) => sum + (txn.amount || 0), 0)
+    };
 
     // Wallet balance
     const wallet = await Wallet.findOne({ user_id: Number(user_id) });
@@ -435,8 +500,16 @@ const getUserFullDetails = async (req, res) => {
         } : null
       },
       appointments: appointmentsWithDetails,
-      userTransaction: transactionsWithDetails,
+      transactions: transactionsWithDetails,
+      transaction_summary: transactionSummary,
       wallet_balance,
+      wallet_details: wallet ? {
+        user_id: wallet.user_id,
+        amount: wallet.amount,
+        status: wallet.status,
+        created_At: wallet.created_At,
+        updated_At: wallet.updated_At
+      } : null,
       package_subscriptions: subscriptionsWithDetails,
       counts: {
         total_appointments: appointmentsWithDetails.length,
@@ -1040,8 +1113,97 @@ const getAdviserById = async (req, res) => {
       };
     });
     
-    // Transactions
-    const transactions = await require('../models/transaction.model').find({ user_id: Number(advisor_id) });
+    // Transactions with comprehensive details
+    const transactions = await Transaction.find({ user_id: Number(advisor_id) }).sort({ created_at: -1 });
+    
+    // Get bank account IDs, payment details IDs, and created_by IDs from transactions
+    const transactionBankIds = [...new Set(transactions.map(txn => txn.bank_id).filter(id => id))];
+    const transactionPaymentDetailsIds = [...new Set(transactions.map(txn => txn.PaymentDetails_id).filter(id => id))];
+    const transactionUserIds = [...new Set(transactions.map(txn => txn.created_by))];
+    
+    // Fetch all related data in parallel
+    const [transactionUsers, transactionBankAccounts, transactionPaymentDetails] = await Promise.all([
+      User.find(
+        { user_id: { $in: transactionUserIds } }, 
+        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+      ),
+      transactionBankIds.length > 0 ? require('../models/Advisor_bankAccountDetails.model').find(
+        { bankAccount_id: { $in: transactionBankIds } }
+      ) : Promise.resolve([]),
+      transactionPaymentDetailsIds.length > 0 ? require('../models/payment_details.model').find(
+        { paymentDetails_id: { $in: transactionPaymentDetailsIds } }
+      ) : Promise.resolve([])
+    ]);
+    
+    // Create maps for efficient lookup
+    const transactionUserMap = {};
+    transactionUsers.forEach(u => { transactionUserMap[u.user_id] = u; });
+    
+    const transactionBankAccountMap = {};
+    transactionBankAccounts.forEach(b => { transactionBankAccountMap[b.bankAccount_id] = b; });
+    
+    const transactionPaymentDetailsMap = {};
+    transactionPaymentDetails.forEach(p => { transactionPaymentDetailsMap[p.paymentDetails_id] = p; });
+
+    // Map transactions with comprehensive details
+    const transactionsWithDetails = transactions.map(transaction => {
+      const transactionObj = transaction.toObject();
+      return {
+        ...transactionObj,
+        created_by_details: transactionUserMap[transaction.created_by] ? {
+          user_id: transactionUserMap[transaction.created_by].user_id,
+          name: transactionUserMap[transaction.created_by].name,
+          email: transactionUserMap[transaction.created_by].email,
+          mobile: transactionUserMap[transaction.created_by].mobile
+        } : null,
+        bank_account_details: transaction.bank_id && transactionBankAccountMap[transaction.bank_id] ? {
+          bankAccount_id: transactionBankAccountMap[transaction.bank_id].bankAccount_id,
+          bank_name: transactionBankAccountMap[transaction.bank_id].bank_name,
+          account_number: transactionBankAccountMap[transaction.bank_id].account_number,
+          account_holder_name: transactionBankAccountMap[transaction.bank_id].account_holder_name,
+          ifsc_code: transactionBankAccountMap[transaction.bank_id].ifsc_code
+        } : null,
+        payment_details: transaction.PaymentDetails_id && transactionPaymentDetailsMap[transaction.PaymentDetails_id] ? {
+          paymentDetails_id: transactionPaymentDetailsMap[transaction.PaymentDetails_id].paymentDetails_id,
+          payment_type: transactionPaymentDetailsMap[transaction.PaymentDetails_id].payment_type,
+          upi_id: transactionPaymentDetailsMap[transaction.PaymentDetails_id].upi_id,
+          qr_code: transactionPaymentDetailsMap[transaction.PaymentDetails_id].qr_code
+        } : null
+      };
+    });
+    
+    // Calculate transaction summary for advisor
+    const transactionSummary = {
+      total_transactions: transactionsWithDetails.length,
+      total_amount: transactions.reduce((sum, txn) => sum + (txn.amount || 0), 0),
+      total_gst: transactions.reduce((sum, txn) => sum + (txn.TotalGST || 0), 0),
+      by_status: {
+        pending: transactions.filter(txn => txn.status === 'pending').length,
+        completed: transactions.filter(txn => txn.status === 'completed').length,
+        failed: transactions.filter(txn => txn.status === 'failed').length
+      },
+      by_type: transactions.reduce((acc, txn) => {
+        acc[txn.transactionType] = (acc[txn.transactionType] || 0) + 1;
+        return acc;
+      }, {}),
+      earnings: {
+        total_call_earnings: transactions
+          .filter(txn => txn.transactionType === 'Call')
+          .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+        total_package_earnings: transactions
+          .filter(txn => txn.transactionType === 'Package_Buy')
+          .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+        total_deposits: transactions
+          .filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType))
+          .reduce((sum, txn) => sum + (txn.amount || 0), 0),
+        total_withdrawals: transactions
+          .filter(txn => txn.transactionType === 'withdraw')
+          .reduce((sum, txn) => sum + (txn.amount || 0), 0)
+      },
+      call_transactions: transactions.filter(txn => txn.transactionType === 'Call').length,
+      withdrawal_transactions: transactions.filter(txn => txn.transactionType === 'withdraw').length,
+      deposit_transactions: transactions.filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType)).length
+    };
     
     // Subscriber list with created_by user details
     const subscribersRaw = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) });
@@ -1075,14 +1237,70 @@ const getAdviserById = async (req, res) => {
     // Call types (all)
     const allCallTypes = await CallType.find();
     
+    // Package and Pricing details
+    const Package_and_pricing = {
+      call_rates: {
+        chat_Rate: advisor.chat_Rate || 0,
+        audio_Rate: advisor.audio_Rate || 0,
+        VideoCall_rate: advisor.VideoCall_rate || 0
+      },
+      current_package: advisorPackage ? {
+        package_id: advisorPackage.package_id,
+        package_name: advisorPackage.packege_name,
+        description: advisorPackage.description,
+        price: advisorPackage.price,
+        duration: advisorPackage.duration,
+        minute: advisorPackage.minute,
+        Schedule: advisorPackage.Schedule
+      } : null,
+      active_subscriptions: subscriptionsWithPackages.filter(sub => sub.status === 'Actived'),
+      total_subscriptions: subscriptionsWithPackages.length,
+      subscription_revenue: subscriptionsWithPackages.reduce((sum, sub) => {
+        const pkg = sub.package_details;
+        return sum + (pkg ? (pkg.price || 0) : 0);
+      }, 0),
+      call_types_available: allCallTypes.map(ct => ({
+        call_type_id: ct.call_type_id,
+        mode_name: ct.mode_name,
+        price_per_minute: ct.price_per_minute,
+        adviser_commission: ct.adviser_commission,
+        admin_commission: ct.admin_commission
+      })),
+      pricing_summary: {
+        min_rate: Math.min(
+          advisor.chat_Rate || Infinity,
+          advisor.audio_Rate || Infinity,
+          advisor.VideoCall_rate || Infinity
+        ) === Infinity ? 0 : Math.min(
+          advisor.chat_Rate || Infinity,
+          advisor.audio_Rate || Infinity,
+          advisor.VideoCall_rate || Infinity
+        ),
+        max_rate: Math.max(
+          advisor.chat_Rate || 0,
+          advisor.audio_Rate || 0,
+          advisor.VideoCall_rate || 0
+        ),
+        average_rate: ((advisor.chat_Rate || 0) + (advisor.audio_Rate || 0) + (advisor.VideoCall_rate || 0)) / 3
+      }
+    };
+    
     return res.status(200).json({
       advisor: advisorWithPackage, // Advisor with populated package details
       reviews,
       appointments: appointmentsWithDetails,
-      transactions,
+      transactions: transactionsWithDetails, // Enhanced transactions with bank, payment, and user details
+      transaction_summary: transactionSummary, // Transaction summary with earnings breakdown
+      Package_and_pricing, // Comprehensive package and pricing information
       subscribers,
       subscriptions: subscriptionsWithPackages, // Enhanced subscription details with populated package info
-      wallet, // Wallet information
+      wallet: wallet ? {
+        user_id: wallet.user_id,
+        amount: wallet.amount,
+        status: wallet.status,
+        created_At: wallet.created_At,
+        updated_At: wallet.updated_At
+      } : null, // Wallet information
       callTypes: allCallTypes,
       status: 200
     });
@@ -1531,42 +1749,11 @@ const updateUserOnlineStatus = async (req, res) => {
   }
 };
 
-// Get all employees (excluding role_id 1, 2, 3)
+// Get all employees (team list) - flexible role filtering
 const getAllEmployees = async (req, res) => {
   try {
-    // Get query parameters for pagination and search
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const search = req.query.search || '';
-    
-    // Calculate skip value for pagination
-    const skip = (page - 1) * limit;
-    
-    // Build search query - exclude role_id 1, 2, 3
-    let searchQuery = {
-      $and: [
-        { role_id: { $ne: 1 } }, // Not equal to 1 (Admin)
-        { role_id: { $ne: 2 } }, // Not equal to 2 (Advisor)
-        { role_id: { $ne: 3 } }  // Not equal to 3
-      ]
-    };
-    
-    // Add search functionality
-    if (search) {
-      searchQuery.$and.push({
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { mobile: { $regex: search, $options: 'i' } }
-        ]
-      });
-    }
-    
-    // Get total count for pagination
-    const totalEmployees = await User.countDocuments(searchQuery);
-    
     // Get employees with pagination and search, with populated fields
-    const employees = await User.find(searchQuery)
+    const employees = await User.find({ role_id : { $nin: [1, 2, 3] } })
       .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id', select: 'skill_id skill_name' })
       .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
@@ -1576,49 +1763,16 @@ const getAllEmployees = async (req, res) => {
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
       .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name' })
-      .skip(skip)
-      .limit(limit)
+      .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id name' })
       .sort({ created_at: -1 }); // Sort by newest first
     
-    // Get role details for each employee
-    const Role = require('../models/role.model');
-    const employeesWithRoles = await Promise.all(
-      employees.map(async (employee) => {
-        const role = await Role.findOne({ role_id: employee.role_id });
-        return {
-          ...employee.toObject(),
-          role_details: role ? {
-            role_id: role.role_id,
-            role_name: role.name,
-            description: role.description
-          } : null
-        };
-      })
-    );
-    
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalEmployees / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
+   
     
     return res.status(200).json({
       success: true,
-      message: 'Employees retrieved successfully',
-      data: employeesWithRoles,
-      pagination: {
-        current_page: page,
-        total_pages: totalPages,
-        total_employees: totalEmployees,
-        limit: limit,
-        has_next_page: hasNextPage,
-        has_prev_page: hasPrevPage,
-        next_page: hasNextPage ? page + 1 : null,
-        prev_page: hasPrevPage ? page - 1 : null
-      },
-      filters: {
-        search: search,
-        excluded_roles: [1, 2, 3]
-      },
+      message: 'Team members retrieved successfully',
+      data: employees,
+     
       status: 200
     });
     

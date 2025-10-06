@@ -26,7 +26,7 @@ const createNotificationShare = async (req, res) => {
 // Create notification share by role_id
 const createNotificationShareByRole = async (req, res) => {
     try {
-        const { notification_id, blog_id, role_id, viewbyUser, status } = req.body;
+        const { notification_id, blog_id, role_id } = req.body;
         const created_by = req.user?.user_id;
 
         // Validate required fields
@@ -70,8 +70,8 @@ const createNotificationShareByRole = async (req, res) => {
             notification_id: parseInt(notification_id),
             blog_id: parseInt(blog_id),
             user_id: user_ids,
-            viewbyUser: viewbyUser || 0,
-            status: status !== undefined ? status : 1,
+            viewbyUser: 0,
+            status:  1,
             created_by: created_by
         };
 

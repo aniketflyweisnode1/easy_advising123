@@ -121,4 +121,130 @@ const getAllReviews = async (req, res) => {
   }
 };
 
-module.exports = { createReview, updateReview, getReviewById, getAllReviews }; 
+// Get reviews by advisor ID with pagination and filters
+const getReviewsByAdvisorId = async (req, res) => {
+  try {
+    const { advisor_id } = req.params;
+    const { 
+      page = 1, 
+      limit = 10, 
+      status,
+      sort_by = 'created_at',
+      sort_order = 'desc'
+    } = req.query;
+
+    // Validate advisor_id
+    if (!advisor_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Advisor ID is required'
+      });
+    }
+
+    // Build query
+    const query = { user_id: Number(advisor_id) };
+
+    // Add status filter if provided
+    if (status !== undefined) {
+      query.status = parseInt(status);
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+    // Get reviews with pagination
+    const reviews = await Reviews.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const totalReviews = await Reviews.countDocuments(query);
+
+    // Get all unique user IDs from reviews (advisor and reviewers)
+    const userIds = [...new Set([
+      Number(advisor_id),
+      ...reviews.map(r => r.created_by)
+    ])];
+
+    // Fetch user details for all user IDs
+    const users = await User.find(
+      { user_id: { $in: userIds } },
+      { user_id: 1, name: 1, email: 1, mobile: 1, profile_image: 1, rating: 1, _id: 0 }
+    );
+    const userMap = {};
+    users.forEach(u => { userMap[u.user_id] = u; });
+
+    // Get advisor details
+    const advisorDetails = userMap[Number(advisor_id)] || null;
+
+    // Map reviews to include user details
+    const reviewsWithDetails = reviews.map(review => {
+      const reviewObj = review.toObject();
+      return {
+        ...reviewObj,
+        advisor_details: advisorDetails ? {
+          user_id: advisorDetails.user_id,
+          name: advisorDetails.name,
+          email: advisorDetails.email,
+          mobile: advisorDetails.mobile,
+          profile_image: advisorDetails.profile_image,
+          rating: advisorDetails.rating
+        } : null,
+        reviewer_details: userMap[review.created_by] ? {
+          user_id: userMap[review.created_by].user_id,
+          name: userMap[review.created_by].name,
+          email: userMap[review.created_by].email,
+          mobile: userMap[review.created_by].mobile
+        } : null
+      };
+    });
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalReviews / parseInt(limit));
+    const hasNextPage = parseInt(page) < totalPages;
+    const hasPrevPage = parseInt(page) > 1;
+
+    // Calculate review statistics
+    const reviewStats = {
+      total_reviews: totalReviews,
+      active_reviews: await Reviews.countDocuments({ ...query, status: 1 }),
+      inactive_reviews: await Reviews.countDocuments({ ...query, status: 0 })
+    };
+
+    res.status(200).json({
+      success: true,
+      message: `Reviews for advisor ${advisor_id} retrieved successfully`,
+      data: {
+        advisor: advisorDetails,
+        reviews: reviewsWithDetails,
+        statistics: reviewStats,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: totalPages,
+          total_reviews: totalReviews,
+          limit: parseInt(limit),
+          has_next_page: hasNextPage,
+          has_prev_page: hasPrevPage,
+          next_page: hasNextPage ? parseInt(page) + 1 : null,
+          prev_page: hasPrevPage ? parseInt(page) - 1 : null
+        }
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Get reviews by advisor ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { createReview, updateReview, getReviewById, getAllReviews, getReviewsByAdvisorId }; 
