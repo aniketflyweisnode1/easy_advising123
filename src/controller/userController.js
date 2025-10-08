@@ -900,13 +900,13 @@ const getAdvisorList = async (req, res) => {
         foreignField: 'language_id',
         select: 'language_id name'
       })
-      .populate({ 
-        path: 'package_id', 
-        model: 'Package', 
-        localField: 'package_id', 
-        foreignField: 'package_id',
-        select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status'
-      })
+      // .populate({ 
+      //   path: 'package_id', 
+      //   model: 'Package', 
+      //   localField: 'package_id', 
+      //   foreignField: 'package_id',
+      //   select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status'
+      // })
       .sort(sortObj)
       .skip(skip)
       .limit(parseInt(limit));
