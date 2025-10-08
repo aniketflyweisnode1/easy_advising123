@@ -155,7 +155,49 @@ const updateScheduleCall = async (req, res) => {
 const getScheduleCallById = async (req, res) => {
     try {
         const { schedule_id } = req.params;
-        const schedule = await ScheduleCall.findOne({ schedule_id });
+        const schedule = await ScheduleCall.findOne({ schedule_id })
+            .populate({ 
+                path: 'advisor_id', 
+                model: 'User', 
+                localField: 'advisor_id', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'created_by', 
+                model: 'User', 
+                localField: 'created_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'updated_by', 
+                model: 'User', 
+                localField: 'updated_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id' 
+            })
+            .populate({ 
+                path: 'skills_id', 
+                model: 'Skill', 
+                localField: 'skills_id', 
+                foreignField: 'skill_id', 
+                select: 'skill_id skill_name description use_count' 
+            })
+            .populate({ 
+                path: 'call_type_id', 
+                model: 'CallType', 
+                localField: 'call_type_id', 
+                foreignField: 'call_type_id', 
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            })
+            .populate({ 
+                path: 'package_Subscription_id', 
+                model: 'PackageSubscription', 
+                localField: 'package_Subscription_id', 
+                foreignField: 'PkSubscription_id', 
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            });
         if (!schedule) {
             return res.status(404).json({ message: 'Schedule call not found', status: 404 });
         }
@@ -255,9 +297,51 @@ const getAllScheduleCalls = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-        // Get schedules with filters and pagination
+        // Get schedules with filters and pagination - with all IDs populated
         console.log(query);
         const schedules = await ScheduleCall.find(query)
+            .populate({ 
+                path: 'advisor_id', 
+                model: 'User', 
+                localField: 'advisor_id', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'created_by', 
+                model: 'User', 
+                localField: 'created_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'updated_by', 
+                model: 'User', 
+                localField: 'updated_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id' 
+            })
+            .populate({ 
+                path: 'skills_id', 
+                model: 'Skill', 
+                localField: 'skills_id', 
+                foreignField: 'skill_id', 
+                select: 'skill_id skill_name description use_count' 
+            })
+            .populate({ 
+                path: 'call_type_id', 
+                model: 'CallType', 
+                localField: 'call_type_id', 
+                foreignField: 'call_type_id', 
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            })
+            .populate({ 
+                path: 'package_Subscription_id', 
+                model: 'PackageSubscription', 
+                localField: 'package_Subscription_id', 
+                foreignField: 'PkSubscription_id', 
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            })
             .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
@@ -265,25 +349,12 @@ console.log(schedules);
         // Get total count
         const totalSchedules = await ScheduleCall.countDocuments(query);
 
-        // Get all unique user ids from schedules (advisor_id and created_by)
-        const advisorIds = [...new Set(schedules.map(schedule => schedule.advisor_id))];
-        const creatorIds = [...new Set(schedules.map(schedule => schedule.created_by))];
-        const allUserIds = [...new Set([...advisorIds, ...creatorIds])];
-
-        // Fetch user details for all user ids
-        const users = await User.find(
-            { user_id: { $in: allUserIds } }, 
-            { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-        );
-        const userMap = {};
-        users.forEach(u => { userMap[u.user_id] = u; });
-
         // If name search is provided, filter by user names
         let filteredSchedules = schedules;
         if (search || advisor_name || creator_name) {
             filteredSchedules = schedules.filter(schedule => {
-                const advisor = userMap[schedule.advisor_id];
-                const creator = userMap[schedule.created_by];
+                const advisor = schedule.advisor_id;
+                const creator = schedule.created_by;
                 
                 let matchesSearch = true;
                 let matchesAdvisorName = true;
@@ -313,38 +384,6 @@ console.log(schedules);
             });
         }
 
-        // Get unique skill IDs and call type IDs for population
-        const skillIds = [...new Set(schedules.map(s => s.skills_id))];
-        const callTypeIds = [...new Set(schedules.map(s => s.call_type_id))];
-
-        // Fetch skill and call type details
-        const Skill = require('../models/skill.model');
-        const CallType = require('../models/call_type.model');
-        
-        const skills = await Skill.find(
-            { skill_id: { $in: skillIds } },
-            { skill_id: 1, skill_name: 1, description: 1, _id: 0 }
-        );
-        const skillMap = {};
-        skills.forEach(s => { skillMap[s.skill_id] = s; });
-
-        const callTypes = await CallType.find(
-            { call_type_id: { $in: callTypeIds } },
-            { call_type_id: 1, call_type_name: 1, description: 1, _id: 0 }
-        );
-        const callTypeMap = {};
-        callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
-
-        // Map schedules to include populated data
-        const schedulesWithDetails = filteredSchedules.map(schedule => {
-            const scheduleObj = schedule.toObject();
-            scheduleObj.advisor = userMap[schedule.advisor_id] || null;
-            scheduleObj.creator = userMap[schedule.created_by] || null;
-            scheduleObj.skill = skillMap[schedule.skills_id] || null;
-            scheduleObj.call_type_details = callTypeMap[schedule.call_type_id] || null;
-            return scheduleObj;
-        });
-
         // Get available call statuses for filter options
         const availableCallStatuses = ['Panding', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing'];
 
@@ -352,7 +391,7 @@ console.log(schedules);
             success: true,
             message: 'Schedule calls retrieved successfully',
             data: {
-                schedules: schedulesWithDetails,
+                schedules: filteredSchedules,
                 pagination: {
                     current_page: parseInt(page),
                     total_pages: Math.ceil(totalSchedules / limit),
@@ -361,8 +400,7 @@ console.log(schedules);
                 },
                 filters: {
                     available_call_statuses: availableCallStatuses,
-                    available_schedule_types: ['Schedule', 'Instant'],
-                    available_call_types: Object.values(callTypeMap)
+                    available_schedule_types: ['Schedule', 'Instant']
                 }
             },
             status: 200
@@ -383,7 +421,49 @@ console.log(schedules);
 const getScheduleCallsByCreator = async (req, res) => {
     try {
         const creatorId = req.user.user_id;
-        const schedules = await ScheduleCall.find({ created_by: creatorId });
+        const schedules = await ScheduleCall.find({ created_by: creatorId })
+            .populate({ 
+                path: 'advisor_id', 
+                model: 'User', 
+                localField: 'advisor_id', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'created_by', 
+                model: 'User', 
+                localField: 'created_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'updated_by', 
+                model: 'User', 
+                localField: 'updated_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id' 
+            })
+            .populate({ 
+                path: 'skills_id', 
+                model: 'Skill', 
+                localField: 'skills_id', 
+                foreignField: 'skill_id', 
+                select: 'skill_id skill_name description use_count' 
+            })
+            .populate({ 
+                path: 'call_type_id', 
+                model: 'CallType', 
+                localField: 'call_type_id', 
+                foreignField: 'call_type_id', 
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            })
+            .populate({ 
+                path: 'package_Subscription_id', 
+                model: 'PackageSubscription', 
+                localField: 'package_Subscription_id', 
+                foreignField: 'PkSubscription_id', 
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            });
         res.status(200).json({ schedules, status: 200 });
     } catch (error) {
         res.status(500).json({ message: error.message || error, status: 500 });
@@ -394,7 +474,49 @@ const getScheduleCallsByCreator = async (req, res) => {
 const getScheduleCallsByAdvisor = async (req, res) => {
     try {
         const { advisor_id } = req.params;
-        const schedules = await ScheduleCall.find({ advisor_id });
+        const schedules = await ScheduleCall.find({ advisor_id })
+            .populate({ 
+                path: 'advisor_id', 
+                model: 'User', 
+                localField: 'advisor_id', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'created_by', 
+                model: 'User', 
+                localField: 'created_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'updated_by', 
+                model: 'User', 
+                localField: 'updated_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id' 
+            })
+            .populate({ 
+                path: 'skills_id', 
+                model: 'Skill', 
+                localField: 'skills_id', 
+                foreignField: 'skill_id', 
+                select: 'skill_id skill_name description use_count' 
+            })
+            .populate({ 
+                path: 'call_type_id', 
+                model: 'CallType', 
+                localField: 'call_type_id', 
+                foreignField: 'call_type_id', 
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            })
+            .populate({ 
+                path: 'package_Subscription_id', 
+                model: 'PackageSubscription', 
+                localField: 'package_Subscription_id', 
+                foreignField: 'PkSubscription_id', 
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            });
         res.status(200).json({ schedules, status: 200 });
     } catch (error) {
         res.status(500).json({ message: error.message || error, status: 500 });
@@ -495,8 +617,50 @@ const getScheduleCallsByType = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-        // Get schedules with filters and pagination
+        // Get schedules with filters and pagination - with all IDs populated
         const schedules = await ScheduleCall.find(query)
+            .populate({ 
+                path: 'advisor_id', 
+                model: 'User', 
+                localField: 'advisor_id', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'created_by', 
+                model: 'User', 
+                localField: 'created_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id profile_image' 
+            })
+            .populate({ 
+                path: 'updated_by', 
+                model: 'User', 
+                localField: 'updated_by', 
+                foreignField: 'user_id', 
+                select: 'user_id name email mobile role_id' 
+            })
+            .populate({ 
+                path: 'skills_id', 
+                model: 'Skill', 
+                localField: 'skills_id', 
+                foreignField: 'skill_id', 
+                select: 'skill_id skill_name description use_count' 
+            })
+            .populate({ 
+                path: 'call_type_id', 
+                model: 'CallType', 
+                localField: 'call_type_id', 
+                foreignField: 'call_type_id', 
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            })
+            .populate({ 
+                path: 'package_Subscription_id', 
+                model: 'PackageSubscription', 
+                localField: 'package_Subscription_id', 
+                foreignField: 'PkSubscription_id', 
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            })
             .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
@@ -504,25 +668,12 @@ const getScheduleCallsByType = async (req, res) => {
         // Get total count
         const totalSchedules = await ScheduleCall.countDocuments(query);
 
-        // Get all unique user ids from schedules (advisor_id and created_by)
-        const advisorIds = [...new Set(schedules.map(schedule => schedule.advisor_id))];
-        const creatorIds = [...new Set(schedules.map(schedule => schedule.created_by))];
-        const allUserIds = [...new Set([...advisorIds, ...creatorIds])];
-
-        // Fetch user details for all user ids
-        const users = await User.find(
-            { user_id: { $in: allUserIds } }, 
-            { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-        );
-        const userMap = {};
-        users.forEach(u => { userMap[u.user_id] = u; });
-
         // If name search is provided, filter by user names
         let filteredSchedules = schedules;
         if (search || advisor_name || creator_name) {
             filteredSchedules = schedules.filter(schedule => {
-                const advisor = userMap[schedule.advisor_id];
-                const creator = userMap[schedule.created_by];
+                const advisor = schedule.advisor_id;
+                const creator = schedule.created_by;
                 
                 let matchesSearch = true;
                 let matchesAdvisorName = true;
@@ -552,38 +703,6 @@ const getScheduleCallsByType = async (req, res) => {
             });
         }
 
-        // Get unique skill IDs and call type IDs for population
-        const skillIds = [...new Set(schedules.map(s => s.skills_id))];
-        const callTypeIds = [...new Set(schedules.map(s => s.call_type_id))];
-
-        // Fetch skill and call type details
-        const Skill = require('../models/skill.model');
-        const CallType = require('../models/call_type.model');
-        
-        const skills = await Skill.find(
-            { skill_id: { $in: skillIds } },
-            { skill_id: 1, skill_name: 1, description: 1, _id: 0 }
-        );
-        const skillMap = {};
-        skills.forEach(s => { skillMap[s.skill_id] = s; });
-
-        const callTypes = await CallType.find(
-            { call_type_id: { $in: callTypeIds } },
-            { call_type_id: 1, call_type_name: 1, description: 1, _id: 0 }
-        );
-        const callTypeMap = {};
-        callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
-
-        // Map schedules to include populated data
-        const schedulesWithDetails = filteredSchedules.map(schedule => {
-            const scheduleObj = schedule.toObject();
-            scheduleObj.advisor = userMap[schedule.advisor_id] || null;
-            scheduleObj.creator = userMap[schedule.created_by] || null;
-            scheduleObj.skill = skillMap[schedule.skills_id] || null;
-            scheduleObj.call_type_details = callTypeMap[schedule.call_type_id] || null;
-            return scheduleObj;
-        });
-
         // Get available call statuses for filter options
         const availableCallStatuses = ['Panding', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing'];
 
@@ -592,7 +711,7 @@ const getScheduleCallsByType = async (req, res) => {
             message: `${schedule_type} schedule calls retrieved successfully`,
             data: {
                 schedule_type: schedule_type,
-                schedules: schedulesWithDetails,
+                schedules: filteredSchedules,
                 pagination: {
                     current_page: parseInt(page),
                     total_pages: Math.ceil(totalSchedules / limit),
@@ -600,8 +719,7 @@ const getScheduleCallsByType = async (req, res) => {
                     items_per_page: parseInt(limit)
                 },
                 filters: {
-                    available_call_statuses: availableCallStatuses,
-                    available_call_types: Object.values(callTypeMap)
+                    available_call_statuses: availableCallStatuses
                 }
             },
             status: 200

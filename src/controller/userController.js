@@ -1048,85 +1048,102 @@ const getAdviserById = async (req, res) => {
       .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
       .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
-      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' });
+      .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
+      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status' })
+      .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id role_name description' })
+      .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' })
+      .populate({ path: 'updated_by', model: 'User', localField: 'updated_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' });
     
     if (!advisor) {
       return res.status(404).json({ message: 'Advisor not found', status: 404 });
     }
 
-    // Manually populate advisor's package details
-    const advisorPackage = advisor.package_id ? await Package.findOne({ package_id: advisor.package_id }) : null;
-    const advisorWithPackage = {
-      ...advisor.toObject(),
-      package_details: advisorPackage ? {
-        package_id: advisorPackage.package_id,
-        package_name: advisorPackage.packege_name,
-        description: advisorPackage.description,
-        price: advisorPackage.price,
-        duration: advisorPackage.duration,
-        minute: advisorPackage.minute,
-        Schedule: advisorPackage.Schedule
-      } : null
-    };
-
-    // Get subscription details
+    // Get subscription details with populated package and user references
     const subscriptions = await PackageSubscription.find({ subscribe_by: Number(advisor_id) })
+      .populate({ 
+        path: 'package_id', 
+        model: 'Package', 
+        localField: 'package_id', 
+        foreignField: 'package_id', 
+        select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status' 
+      })
+      .populate({ 
+        path: 'subscribe_by', 
+        model: 'User', 
+        localField: 'subscribe_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'approve_by', 
+        model: 'User', 
+        localField: 'approve_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
       .sort({ created_at: -1 }); // Latest subscription first
     
-    // Manually populate package details to avoid ObjectId/Number cast issues
-    const subscriptionsWithPackages = await Promise.all(
-      subscriptions.map(async (subscription) => {
-        const packageDetails = await Package.findOne({ package_id: subscription.package_id });
-        return {
-          ...subscription.toObject(),
-          package_details: packageDetails ? {
-            package_id: packageDetails.package_id,
-            package_name: packageDetails.packege_name,
-            description: packageDetails.description,
-            price: packageDetails.price,
-            duration: packageDetails.duration,
-            minute: packageDetails.minute,
-            Schedule: packageDetails.Schedule
-          } : null
-        };
-      })
-    );
-    
-    // console.log(subscriptionsWithPackages);
     // Reviews
     const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) });
     
-         // Appointments with enhanced details
-     const appointments = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) });
-     
-     // Get call type details for appointments
-     const callTypeIds = [...new Set(appointments.map(apt => apt.call_type_id))];
-     const appointmentCallTypes = callTypeIds.length > 0 ? await CallType.find({ call_type_id: { $in: callTypeIds } }) : [];
-     const callTypeMap = {};
-     appointmentCallTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
-     
-     // Map appointments with duration info and call type details
-     const appointmentsWithDetails = appointments.map(appointment => {
-             const appointmentObj = appointment.toObject();
-       return {
-         ...appointmentObj,
-         call_type_details: callTypeMap[appointment.call_type_id] ? {
-           call_type_id: callTypeMap[appointment.call_type_id].call_type_id,
-           mode_name: callTypeMap[appointment.call_type_id].mode_name,
-           price_per_minute: callTypeMap[appointment.call_type_id].price_per_minute,
-           adviser_commission: callTypeMap[appointment.call_type_id].adviser_commission,
-           admin_commission: callTypeMap[appointment.call_type_id].admin_commission
-         } : null,
-         duration_info: {
-          Call_duration: appointment.Call_duration || null,
-          perminRate: appointment.perminRate || null,
-          Amount: appointment.Amount || null,
-          duration_minutes: appointment.Call_duration || 0,
-          total_amount: appointment.Amount || 0,
-          rate_per_minute: appointment.perminRate || 0
-        }
-      };
-    });
+    // Appointments with populated fields
+    const appointments = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) })
+      .populate({ 
+        path: 'advisor_id', 
+        model: 'User', 
+        localField: 'advisor_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id profile_image' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id profile_image' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'skills_id', 
+        model: 'Skill', 
+        localField: 'skills_id', 
+        foreignField: 'skill_id', 
+        select: 'skill_id skill_name description use_count' 
+      })
+      .populate({ 
+        path: 'call_type_id', 
+        model: 'CallType', 
+        localField: 'call_type_id', 
+        foreignField: 'call_type_id', 
+        select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+      })
+      .populate({ 
+        path: 'package_Subscription_id', 
+        model: 'PackageSubscription', 
+        localField: 'package_Subscription_id', 
+        foreignField: 'PkSubscription_id', 
+        select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+      });
     
     // Transactions with comprehensive details
     const transactions = await Transaction.find({ user_id: Number(advisor_id) }).sort({ created_at: -1 });
