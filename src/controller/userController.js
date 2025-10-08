@@ -900,6 +900,13 @@ const getAdvisorList = async (req, res) => {
         foreignField: 'language_id',
         select: 'language_id name'
       })
+      .populate({ 
+        path: 'package_id', 
+        model: 'Package', 
+        localField: 'package_id', 
+        foreignField: 'package_id',
+        select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Audio_price Audio_minute Audio_Schedule Video_price Video_minute Video_Schedule status'
+      })
       .sort(sortObj)
       .skip(skip)
       .limit(parseInt(limit));
