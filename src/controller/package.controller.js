@@ -2,7 +2,22 @@ const Package = require('../models/package.model');
 
 const createPackage = async (req, res) => {
   try {
-    const { packege_name, price, minute, Schedule, discription, status } = req.body;
+    const { 
+      packege_name, 
+      Chat_price, 
+      Chat_minute, 
+      Chat_Schedule, 
+      Chat_discription,
+      Audio_price, 
+      Audio_minute, 
+      Audio_Schedule, 
+      Audio_discription,
+      Video_price, 
+      Video_minute, 
+      Video_Schedule, 
+      Video_discription,
+      status 
+    } = req.body;
     
     // Validate required fields
     if (!packege_name) {
@@ -15,10 +30,21 @@ const createPackage = async (req, res) => {
     // Create package with all fields
     const packageObj = new Package({
       packege_name,
-      price: price || 0,
-      minute: minute || 0,
-      Schedule: Schedule || 0,
-      discription: discription || '',
+      // Chat fields
+      Chat_price: Chat_price || 0,
+      Chat_minute: Chat_minute || 0,
+      Chat_Schedule: Chat_Schedule || 0,
+      Chat_discription: Chat_discription || '',
+      // Audio fields
+      Audio_price: Audio_price || 0,
+      Audio_minute: Audio_minute || 0,
+      Audio_Schedule: Audio_Schedule || 0,
+      Audio_discription: Audio_discription || '',
+      // Video fields
+      Video_price: Video_price || 0,
+      Video_minute: Video_minute || 0,
+      Video_Schedule: Video_Schedule || 0,
+      Video_discription: Video_discription || '',
       status: status !== undefined ? status : 1,
       created_by: req.user.user_id
     });
@@ -40,7 +66,23 @@ const createPackage = async (req, res) => {
 
 const updatePackage = async (req, res) => {
   try {
-    const { package_id, packege_name, price, minute, Schedule, discription, status } = req.body;
+    const { 
+      package_id, 
+      packege_name, 
+      Chat_price, 
+      Chat_minute, 
+      Chat_Schedule, 
+      Chat_discription,
+      Audio_price, 
+      Audio_minute, 
+      Audio_Schedule, 
+      Audio_discription,
+      Video_price, 
+      Video_minute, 
+      Video_Schedule, 
+      Video_discription,
+      status 
+    } = req.body;
     
     // Validate package_id
     if (!package_id) {
@@ -67,10 +109,25 @@ const updatePackage = async (req, res) => {
     
     // Only update fields that are provided
     if (packege_name !== undefined) updateData.packege_name = packege_name;
-    if (price !== undefined) updateData.price = price;
-    if (minute !== undefined) updateData.minute = minute;
-    if (Schedule !== undefined) updateData.Schedule = Schedule;
-    if (discription !== undefined) updateData.discription = discription;
+    
+    // Chat fields
+    if (Chat_price !== undefined) updateData.Chat_price = Chat_price;
+    if (Chat_minute !== undefined) updateData.Chat_minute = Chat_minute;
+    if (Chat_Schedule !== undefined) updateData.Chat_Schedule = Chat_Schedule;
+    if (Chat_discription !== undefined) updateData.Chat_discription = Chat_discription;
+    
+    // Audio fields
+    if (Audio_price !== undefined) updateData.Audio_price = Audio_price;
+    if (Audio_minute !== undefined) updateData.Audio_minute = Audio_minute;
+    if (Audio_Schedule !== undefined) updateData.Audio_Schedule = Audio_Schedule;
+    if (Audio_discription !== undefined) updateData.Audio_discription = Audio_discription;
+    
+    // Video fields
+    if (Video_price !== undefined) updateData.Video_price = Video_price;
+    if (Video_minute !== undefined) updateData.Video_minute = Video_minute;
+    if (Video_Schedule !== undefined) updateData.Video_Schedule = Video_Schedule;
+    if (Video_discription !== undefined) updateData.Video_discription = Video_discription;
+    
     if (status !== undefined) updateData.status = status;
     
     // Update package

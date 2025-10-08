@@ -905,7 +905,7 @@ const getAdvisorList = async (req, res) => {
         model: 'Package', 
         localField: 'package_id', 
         foreignField: 'package_id',
-        select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Audio_price Audio_minute Audio_Schedule Video_price Video_minute Video_Schedule status'
+        select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status'
       })
       .sort(sortObj)
       .skip(skip)
