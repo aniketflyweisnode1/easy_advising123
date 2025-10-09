@@ -1097,8 +1097,29 @@ const getAdviserById = async (req, res) => {
       })
       .sort({ created_at: -1 }); // Latest subscription first
     
-    // Reviews
-    const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) });
+    // Reviews with populated user references
+    const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) })
+      .populate({ 
+        path: 'user_id', 
+        model: 'User', 
+        localField: 'user_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id profile_image' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     
     // Appointments with populated fields
     const appointments = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) })
@@ -1276,20 +1297,12 @@ const getAdviserById = async (req, res) => {
         audio_Rate: advisor.audio_Rate || 0,
         VideoCall_rate: advisor.VideoCall_rate || 0
       },
-      current_package: advisorPackage ? {
-        package_id: advisorPackage.package_id,
-        package_name: advisorPackage.packege_name,
-        description: advisorPackage.description,
-        price: advisorPackage.price,
-        duration: advisorPackage.duration,
-        minute: advisorPackage.minute,
-        Schedule: advisorPackage.Schedule
-      } : null,
-      active_subscriptions: subscriptionsWithPackages.filter(sub => sub.status === 'Actived'),
-      total_subscriptions: subscriptionsWithPackages.length,
-      subscription_revenue: subscriptionsWithPackages.reduce((sum, sub) => {
-        const pkg = sub.package_details;
-        return sum + (pkg ? (pkg.price || 0) : 0);
+      current_package: advisor.package_id || null,
+      active_subscriptions: subscriptions.filter(sub => sub.status === 'Actived'),
+      total_subscriptions: subscriptions.length,
+      subscription_revenue: subscriptions.reduce((sum, sub) => {
+        const pkg = sub.package_id;
+        return sum + (pkg ? (pkg.Chat_price || pkg.Audio_price || pkg.Video_price || 0) : 0);
       }, 0),
       call_types_available: allCallTypes.map(ct => ({
         call_type_id: ct.call_type_id,
@@ -1318,14 +1331,14 @@ const getAdviserById = async (req, res) => {
     };
     
     return res.status(200).json({
-      advisor: advisorWithPackage, // Advisor with populated package details
+      advisor: advisor, // Advisor with populated package details
       reviews,
-      appointments: appointmentsWithDetails,
+      appointments: appointments,
       transactions: transactionsWithDetails, // Enhanced transactions with bank, payment, and user details
       transaction_summary: transactionSummary, // Transaction summary with earnings breakdown
       Package_and_pricing, // Comprehensive package and pricing information
       subscribers,
-      subscriptions: subscriptionsWithPackages, // Enhanced subscription details with populated package info
+      subscriptions: subscriptions, // Enhanced subscription details with populated package info
       wallet: wallet ? {
         user_id: wallet.user_id,
         amount: wallet.amount,
