@@ -14,7 +14,6 @@ const notificationShareSchema = new mongoose.Schema({
   blog_id: {
     type: Number,
     ref: 'Blog',
-    required: true
   },
   user_id: [{
     type: Number,
