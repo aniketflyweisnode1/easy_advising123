@@ -1258,95 +1258,121 @@ const getAdviserById = async (req, res) => {
       deposit_transactions: transactions.filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType)).length
     };
     
-    // Subscriber list with created_by user details
-    const subscribersRaw = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) });
-   console.log("subscribersRaw _>>>", subscribersRaw);
-    // Get unique created_by user IDs from subscribers
-    const subscriberUserIds = [...new Set(subscribersRaw.map(sub => sub.created_by))];
-   
-    // Fetch user details for created_by users
-    const subscriberUsers = await User.find(
-      { user_id: { $in: subscriberUserIds } },
-      { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, _id: 0 }
-    );
-    
-    // Create a map for quick lookup
-    const subscriberUserMap = {};
-    subscriberUsers.forEach(u => { subscriberUserMap[u.user_id] = u; });
-    
-    // Enhance subscribers with created_by user details
-    const subscribers = subscribersRaw.map(subscriber => {
-      const subscriberObj = subscriber.toObject();
-      return {
-        ...subscriberObj,
-        created_by_user: subscriberUserMap[subscriber.created_by] || null
-      };
-    });
-   
-    // Wallet information
+    // Subscriber list - get users who subscribed to advisor's package
+    let subscribers = [];
+  
+    // Wallet information with populated references
     const Wallet = require('../models/wallet.model');
-    const wallet = await Wallet.findOne({ user_id: Number(advisor_id) });
+    const wallet = await Wallet.findOne({ user_id: Number(advisor_id) })
+      .populate({ 
+        path: 'user_id', 
+        model: 'User', 
+        localField: 'user_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'role_id', 
+        model: 'Role', 
+        localField: 'role_id', 
+        foreignField: 'role_id', 
+        select: 'role_id role_name description' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     
-    // Call types (all)
-    const allCallTypes = await CallType.find();
+    const adviserPackage = await Package.findOne({ adviser_id: Number(advisor_id) });
+    if (adviserPackage && adviserPackage.package_id) {
+      // Find all package subscriptions for this package
+      const packageSubscriptions = await PackageSubscription.find({ 
+        package_id: adviserPackage.package_id 
+      })
+        .populate({ 
+          path: 'package_id', 
+          model: 'Package', 
+          localField: 'package_id', 
+          foreignField: 'package_id', 
+          select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Audio_price Audio_minute Audio_Schedule Video_price Video_minute Video_Schedule status' 
+        })
+        .populate({ 
+          path: 'subscribe_by', 
+          model: 'User', 
+          localField: 'subscribe_by', 
+          foreignField: 'user_id', 
+          select: 'user_id name email mobile role_id profile_image' 
+        })
+        .populate({ 
+          path: 'created_by', 
+          model: 'User', 
+          localField: 'created_by', 
+          foreignField: 'user_id', 
+          select: 'user_id name email mobile role_id' 
+        })
+        .populate({ 
+          path: 'updated_by', 
+          model: 'User', 
+          localField: 'updated_by', 
+          foreignField: 'user_id', 
+          select: 'user_id name email mobile role_id' 
+        })
+        .sort({ created_at: -1 });
+      
+      subscribers = packageSubscriptions;
+    }
+   
+    // Call types by advisor with populated user references
+    const allCallTypes = await CallType.find({ adviser_id: Number(advisor_id) })
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     
-    // Package and Pricing details
+    // Package and Pricing details - only call types and package by advisor_id
     const Package_and_pricing = {
-      call_rates: {
-        chat_Rate: advisor.chat_Rate || 0,
-        audio_Rate: advisor.audio_Rate || 0,
-        VideoCall_rate: advisor.VideoCall_rate || 0
-      },
-      current_package: advisor.package_id || null,
-      active_subscriptions: subscriptions.filter(sub => sub.status === 'Actived'),
-      total_subscriptions: subscriptions.length,
-      subscription_revenue: subscriptions.reduce((sum, sub) => {
-        const pkg = sub.package_id;
-        return sum + (pkg ? (pkg.Chat_price || pkg.Audio_price || pkg.Video_price || 0) : 0);
-      }, 0),
-      call_types_available: allCallTypes.map(ct => ({
-        call_type_id: ct.call_type_id,
-        mode_name: ct.mode_name,
-        price_per_minute: ct.price_per_minute,
-        adviser_commission: ct.adviser_commission,
-        admin_commission: ct.admin_commission
-      })),
-      pricing_summary: {
-        min_rate: Math.min(
-          advisor.chat_Rate || Infinity,
-          advisor.audio_Rate || Infinity,
-          advisor.VideoCall_rate || Infinity
-        ) === Infinity ? 0 : Math.min(
-          advisor.chat_Rate || Infinity,
-          advisor.audio_Rate || Infinity,
-          advisor.VideoCall_rate || Infinity
-        ),
-        max_rate: Math.max(
-          advisor.chat_Rate || 0,
-          advisor.audio_Rate || 0,
-          advisor.VideoCall_rate || 0
-        ),
-        average_rate: ((advisor.chat_Rate || 0) + (advisor.audio_Rate || 0) + (advisor.VideoCall_rate || 0)) / 3
-      }
+      call_types_Commission: allCallTypes,
+      Adviser_package:  adviserPackage || null
+    };
+    
+    // Subscriber statistics
+    const subscriber_summary = {
+      total_subscribers: subscribers.length,
+      active_subscribers: subscribers.filter(sub => sub.Subscription_status === 'Actived').length,
+      pending_subscribers: subscribers.filter(sub => sub.Subscription_status === 'Panding').length,
+      expired_subscribers: subscribers.filter(sub => sub.Subscription_status === 'Expired').length
     };
     
     return res.status(200).json({
-      advisor: advisor, // Advisor with populated package details
-      reviews,
-      appointments: appointments,
+      advisor: advisor, // Advisor with all populated references
+      reviews, // Reviews with populated user references
+      appointments: appointments, // Appointments with all populated references
       transactions: transactionsWithDetails, // Enhanced transactions with bank, payment, and user details
       transaction_summary: transactionSummary, // Transaction summary with earnings breakdown
-      Package_and_pricing, // Comprehensive package and pricing information
-      subscribers,
-      subscriptions: subscriptions, // Enhanced subscription details with populated package info
-      wallet: wallet ? {
-        user_id: wallet.user_id,
-        amount: wallet.amount,
-        status: wallet.status,
-        created_At: wallet.created_At,
-        updated_At: wallet.updated_At
-      } : null, // Wallet information
-      callTypes: allCallTypes,
+      Package_and_pricing, // Package and call types by advisor_id
+      subscribers, // Package subscribers with populated user and package details
+      subscriptions: subscriptions, // Subscriptions with populated package and user references
+      wallet: wallet || null, // Wallet with populated references
       status: 200
     });
   } catch (error) {

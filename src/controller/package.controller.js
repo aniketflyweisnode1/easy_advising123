@@ -18,7 +18,13 @@ const createPackage = async (req, res) => {
       Video_discription,
       status 
     } = req.body;
-    
+    let adviser_id;
+    if(req.body.adviser_id){
+      adviser_id = req.body.adviser_id;
+    }
+    else{
+      adviser_id = req.user.user_id;
+    }
     // Validate required fields
     if (!packege_name) {
       return res.status(400).json({ 
@@ -30,6 +36,7 @@ const createPackage = async (req, res) => {
     // Create package with all fields
     const packageObj = new Package({
       packege_name,
+      adviser_id, 
       // Chat fields
       Chat_price: Chat_price || 0,
       Chat_minute: Chat_minute || 0,
@@ -51,10 +58,27 @@ const createPackage = async (req, res) => {
     
     await packageObj.save();
     
+    // Populate the created package with user references
+    const populatedPackage = await Package.findOne({ package_id: packageObj.package_id })
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
+    
     res.status(201).json({ 
       success: true, 
       message: 'Package created successfully',
-      data: packageObj 
+      data: populatedPackage 
     });
   } catch (error) {
     res.status(500).json({ 
@@ -92,12 +116,32 @@ const updatePackage = async (req, res) => {
       });
     }
     
-    // Check if package exists
-    const existingPackage = await Package.findOne({ package_id });
+    // Check if package exists and belongs to the authenticated adviser
+    const existingPackage = await Package.findOne({ 
+      package_id
+    }).populate({ 
+      path: 'adviser_id', 
+      model: 'User', 
+      localField: 'adviser_id', 
+      foreignField: 'user_id', 
+      select: 'user_id name email mobile role_id' 
+    }).populate({ 
+      path: 'created_by', 
+      model: 'User', 
+      localField: 'created_by', 
+      foreignField: 'user_id', 
+      select: 'user_id name email mobile role_id' 
+    }).populate({ 
+      path: 'updated_by', 
+      model: 'User', 
+      localField: 'updated_by', 
+      foreignField: 'user_id', 
+      select: 'user_id name email mobile role_id' 
+    });
     if (!existingPackage) {
       return res.status(404).json({ 
         success: false, 
-        message: 'Package not found' 
+        message: 'Package not found or you do not have permission to update it' 
       });
     }
     
@@ -132,10 +176,38 @@ const updatePackage = async (req, res) => {
     
     // Update package
     const packageObj = await Package.findOneAndUpdate(
-      { package_id }, 
+      { package_id, adviser_id: req.user.user_id }, 
       updateData, 
       { new: true, runValidators: true }
-    );
+    )
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'approve_by', 
+        model: 'User', 
+        localField: 'approve_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     
     res.status(200).json({ 
       success: true, 
@@ -154,7 +226,39 @@ const getPackageById = async (req, res) => {
   try {
     const { package_id } = req.params;
     
-    const packageObj = await Package.findOne({ package_id });
+    // Get package by ID and adviser_id from authenticated user
+    const packageObj = await Package.findOne({ 
+      package_id, 
+      adviser_id: req.user.user_id 
+    })
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'approve_by', 
+        model: 'User', 
+        localField: 'approve_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
     
     if (!packageObj) {
       return res.status(404).json({ 
@@ -181,8 +285,11 @@ const getAllPackages = async (req, res) => {
     // Get query parameters for filtering
     const { status, sort_by = 'created_at', sort_order = 'desc' } = req.query;
     
-    // Build query
-    const query = {};
+    // Build query - filter by authenticated user's adviser_id
+    const query = {
+      adviser_id: req.user.user_id
+    };
+    
     if (status !== undefined) {
       query.status = parseInt(status);
     }
@@ -191,8 +298,37 @@ const getAllPackages = async (req, res) => {
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
     
-    // Get all packages
-    const packages = await Package.find(query).sort(sortObj);
+    // Get all packages for the authenticated adviser with populated references
+    const packages = await Package.find(query)
+      .populate({ 
+        path: 'adviser_id', 
+        model: 'User', 
+        localField: 'adviser_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'approve_by', 
+        model: 'User', 
+        localField: 'approve_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .sort(sortObj);
     
     // Get statistics
     const stats = {

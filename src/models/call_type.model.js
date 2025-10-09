@@ -27,6 +27,10 @@ const callTypeSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  approval_status: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: Number,
     default: 1

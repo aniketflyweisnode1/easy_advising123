@@ -6,6 +6,11 @@ const packageSchema = new mongoose.Schema({
     type: Number,
     unique: true
   },
+  adviser_id: {
+    type: Number,
+    ref: 'User',
+    required: true
+  },
   packege_name: {
     type: String,
     required: true
