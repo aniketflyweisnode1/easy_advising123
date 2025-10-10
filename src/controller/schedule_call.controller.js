@@ -4,6 +4,7 @@ const Wallet = require('../models/wallet.model.js');
 const CallType = require('../models/call_type.model.js');
 const PackageSubscription = require('../models/package_subscription.model.js');
 const User = require('../models/User.model');
+
 // Create Schedule Call
 const createScheduleCall = async (req, res) => {
     try {
@@ -35,12 +36,13 @@ const createScheduleCall = async (req, res) => {
                     call_type_id: data.call_type_id,
                     adviser_id: data.advisor_id
                 });
-
                 if (!callType) {
                     return res.status(404).json({
                         message: 'Call type not found Create Advisor call Type First',
                         status: 400
                     });
+                }else{
+                    data.perminRate = callType.price_per_minute;
                 }
 
                 // Calculate minimum balance required based on schedule type
@@ -118,7 +120,6 @@ const createScheduleCall = async (req, res) => {
                 data.remaining_schedule = activeSubscription.Remaining_Schedule;
             }
         }
-
         const schedule = new ScheduleCall(data);
         await schedule.save();
         res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
@@ -738,7 +739,7 @@ const getScheduleCallsByType = async (req, res) => {
 // End Call and Process Payment
 const endCall = async (req, res) => {
     try {
-        const { schedule_id, call_duration, callStatus } = req.body;
+        const { schedule_id, Call_duration, callStatus } = req.body;
         const userId = req.user.user_id;
 
         if (!schedule_id) {
@@ -757,16 +758,8 @@ const endCall = async (req, res) => {
             });
         }
 
-        // Check if call_duration is provided or if Call_duration already exists
-        if (!call_duration && !scheduleCall.Call_duration) {
-            return res.status(400).json({
-                message: 'Either call_duration parameter or existing Call_duration is required',
-                status: 400
-            });
-        }
-
         // Validate call duration if provided (should be positive and reasonable)
-        if (call_duration && (call_duration <= 0 || call_duration > 86400)) { // Max 24 hours in seconds
+        if (Call_duration && (Call_duration <= 0 || Call_duration > 86400)) { // Max 24 hours in seconds
             return res.status(400).json({
                 message: 'Call duration must be between 1 second and 24 hours',
                 status: 400
@@ -791,29 +784,38 @@ const endCall = async (req, res) => {
         }
 
         // Check if Call_duration already exists in the schedule call
-        let finalCallDuration = call_duration;
+        let finalCallDuration = Call_duration;
         let durationInMinutes;
 
-        if (scheduleCall.Call_duration && scheduleCall.Call_duration > 0) {
-            // Use existing Call_duration if available
-            finalCallDuration = scheduleCall.Call_duration;
-            durationInMinutes = Math.ceil(finalCallDuration / 60); // Convert seconds to minutes and round up
-
-            // Validate that provided call_duration is not significantly less than existing Call_duration
-            if (call_duration < finalCallDuration * 0.8) { // Allow 20% tolerance
-                return res.status(400).json({
-                    message: `Provided call duration (${call_duration}s) is significantly less than existing Call_duration (${finalCallDuration}s)`,
-                    status: 400
-                });
-            }
-        } else {
-            // Use the provided call_duration parameter
-            durationInMinutes = Math.ceil(call_duration / 60); // Convert seconds to minutes and round up
-        }
+       
 
         // Calculate call amount based on duration
-        const totalAmount = durationInMinutes * callType.price_per_minute;
-
+        console.log("print durationInMinutes",Call_duration);
+        console.log("print callType.price_per_minute",callType.price_per_minute);
+        
+        // Validate price_per_minute
+        const pricePerMinute = parseFloat(callType.price_per_minute);
+        if (isNaN(pricePerMinute) || pricePerMinute < 0) {
+            return res.status(400).json({
+                message: 'Invalid price_per_minute in call type',
+                call_type_id: scheduleCall.call_type_id,
+                price_per_minute: callType.price_per_minute,
+                status: 400
+            });
+        }
+        
+        const totalAmount = parseFloat(Call_duration) * pricePerMinute;
+        console.log("print totalAmount",totalAmount);
+        
+        // Validate totalAmount
+        if (isNaN(totalAmount) || totalAmount < 0) {
+            return res.status(400).json({
+                message: 'Invalid amount calculation',
+                call_duration: call_duration,
+                price_per_minute: pricePerMinute,
+                status: 400
+            });
+        }
         // Check if this is a package subscription call
         if (scheduleCall.package_Subscription_id && scheduleCall.package_Subscription_id > 0) {
             // For package subscription calls, only update specific fields without payment processing
@@ -821,13 +823,13 @@ const endCall = async (req, res) => {
                 { schedule_id },
                 {
                     Call_duration: finalCallDuration,
-                    perminRate: callType.price_per_minute,
+                    perminRate: pricePerMinute,
                     Amount: totalAmount,
                     summary_type: 'Succeeded',
                     summary_status: 1,
                     updated_by: userId,
                     updated_at: new Date(),
-                    callStatus: callStatus || scheduleCall.callStatus
+                    callStatus: callStatus 
                 },
                 { new: true, runValidators: true }
             );
@@ -842,13 +844,15 @@ const endCall = async (req, res) => {
 
         // If call status is not Completed, only update schedule call without payment processing
         if (scheduleCall.callStatus !== 'Completed') {
+         console.log("print callStatus",callStatus);
             // Update schedule call with duration and amount (without changing callStatus)
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
                 {
                     Call_duration: finalCallDuration,
-                    perminRate: callType.price_per_minute,
+                    perminRate: pricePerMinute,
                     Amount: totalAmount,
+                    callStatus: callStatus,
                     updated_by: userId,
                     updated_at: new Date()
                 },
@@ -891,7 +895,7 @@ const endCall = async (req, res) => {
                 {
                     callStatus: callStatus || 'Completed',
                     Call_duration: finalCallDuration,
-                    perminRate: callType.price_per_minute,
+                    perminRate: pricePerMinute,
                     Amount: totalAmount,
                     updated_by: userId,
                     updated_at: new Date()

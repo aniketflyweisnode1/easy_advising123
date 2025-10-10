@@ -2,22 +2,81 @@ const User = require('../models/User.model');
 const ScheduleCall = require('../models/schedule_call.model');
 const PackageSubscription = require('../models/package_subscription.model');
 const Category = require('../models/category.model');
+const CallTypeModel = require('../models/call_type.model');
 
 // Helper to get earnings by call type
-async function getCallEarnings(advisorId, callType = null) {
+async function getCallEarnings(advisorId, callTypes) {
+  // Get all call types for this advisor
+  const advisorCallTypes = await CallTypeModel.find({ adviser_id: advisorId });
+  // console.log("advisorCallTypes", advisorCallTypes);
+  
+  // Extract mode_names from advisor's call types
+  const advisorModeNames = advisorCallTypes.map(ct => ct.call_type_id);
+  // console.log("advisorModeNames", advisorModeNames);
+  
+  // Build match query for schedule calls
   const match = { advisor_id: advisorId };
-  if (callType) {
-    match.call_type = callType;
+  
+  // If specific call types provided, filter by them
+  if (callTypes && Array.isArray(callTypes)) {
+    match.call_type_id = { $in: advisorModeNames };
+  } else if (advisorModeNames.length > 0) {
+    // Filter by advisor's available mode_names
+    match.call_type_id = { $in: advisorModeNames };
   }
+  
+  // console.log("match query", match);
+  
   const calls = await ScheduleCall.find(match);
+  // console.log("Found calls", calls.length);
+  
   let chat_earning = 0, audio_earning = 0, video_earning = 0, total_earning = 0;
+  let chat_count = 0, audio_count = 0, video_count = 0, total_count = 0;
+  
+  // Create a map of call_type_id to mode_name for matching
+  const callTypeMap = {};
+  advisorCallTypes.forEach(ct => {
+    callTypeMap[ct.call_type_id] = ct.mode_name;
+  });
+  
   for (const call of calls) {
-    if (call.call_type === 'CHAT') chat_earning += call.Amount || 0;
-    if (call.call_type === 'AUDIO') audio_earning += call.Amount || 0;
-    if (call.call_type === 'VIDEO') video_earning += call.Amount || 0;
-    total_earning += call.Amount || 0;
+    const amount = call.Amount || 0;
+    
+    // Get mode_name from call_type_id if available
+    const modeName = callTypeMap[call.call_type_id];
+    
+    if (modeName === 'Chat') {
+      chat_earning += amount;
+      chat_count++;
+    } else if (modeName === 'Audio') {
+      audio_earning += amount;
+      audio_count++;
+    } else if (modeName === 'Video') {
+      video_earning += amount;
+      video_count++;
+    }
+    
+    total_earning += amount;
+    total_count++;
   }
-  return { chat_earning, audio_earning, video_earning, total_earning };
+    console.log("chat_earning",chat_earning);
+    console.log("audio_earning",audio_earning);
+    console.log("video_earning",video_earning);
+    console.log("total_earning",total_earning);
+    console.log("chat_count",chat_count);
+    console.log("audio_count",audio_count);
+    console.log("video_count",video_count);
+  return { 
+    chat_earning, 
+    audio_earning, 
+    video_earning, 
+    total_earning,
+    chat_count,
+    audio_count,
+    video_count,
+    total_count,
+    available_call_types: advisorModeNames
+  };
 }
 
 // Helper to get package earnings
@@ -35,7 +94,8 @@ const getAdviserEarning = async (req, res) => {
     const results = [];
     for (const adviser of advisers) {
       const category = adviser.Category && adviser.Category.length > 0 ? await Category.findOne({ category_id: adviser.Category[0] }) : null;
-      const callEarnings = await getCallEarnings(adviser.user_id);
+      const callEarnings = await getCallEarnings(adviser.user_id, ['Chat', 'Audio', 'Video']);
+      console.log("callEarnings",callEarnings);
       const package_earning = await getPackageEarning(adviser.user_id);
       results.push({
         adviser_id: adviser.user_id,
@@ -45,10 +105,19 @@ const getAdviserEarning = async (req, res) => {
         chat_earning: callEarnings.chat_earning,
         audio_earning: callEarnings.audio_earning,
         video_earning: callEarnings.video_earning,
+        chat_count: callEarnings.chat_count,
+        audio_count: callEarnings.audio_count,
+        video_count: callEarnings.video_count,
+        total_count: callEarnings.total_count,
+        // available_call_types: callEarnings.available_call_types,
         package_earning
       });
     }
-    return res.status(200).json({ earnings: results, status: 200 });
+    return res.status(200).json({ 
+      success: true,
+      earnings: results, 
+      status: 200 
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
   }
@@ -125,15 +194,37 @@ const filterByCallTypeEarning = async (req, res) => {
         
         const calls = await ScheduleCall.find(match);
         let chat_earning = 0, audio_earning = 0, video_earning = 0, total_earning = 0;
+        let chat_count = 0, audio_count = 0, video_count = 0, total_count = 0;
+        
         for (const call of calls) {
-          if (call.call_type === 'CHAT') chat_earning += call.Amount || 0;
-          if (call.call_type === 'AUDIO') audio_earning += call.Amount || 0;
-          if (call.call_type === 'VIDEO') video_earning += call.Amount || 0;
-          total_earning += call.Amount || 0;
+          const amount = call.Amount || 0;
+          
+          if (call.call_type === 'Chat') {
+            chat_earning += amount;
+            chat_count++;
+          } else if (call.call_type === 'Audio') {
+            audio_earning += amount;
+            audio_count++;
+          } else if (call.call_type === 'VIDEO') {
+            video_earning += amount;
+            video_count++;
+          }
+          
+          total_earning += amount;
+          total_count++;
         }
-        callEarnings = { chat_earning, audio_earning, video_earning, total_earning };
+        callEarnings = { 
+          chat_earning, 
+          audio_earning, 
+          video_earning, 
+          total_earning,
+          chat_count,
+          audio_count,
+          video_count,
+          total_count
+        };
       } else {
-        callEarnings = await getCallEarnings(adviser.user_id, call_type);
+        callEarnings = await getCallEarnings(adviser.user_id, call_type ? [call_type] : null);
       }
 
       const package_earning = await getPackageEarning(adviser.user_id);
@@ -149,6 +240,11 @@ const filterByCallTypeEarning = async (req, res) => {
         chat_earning: callEarnings.chat_earning,
         audio_earning: callEarnings.audio_earning,
         video_earning: callEarnings.video_earning,
+        chat_count: callEarnings.chat_count,
+        audio_count: callEarnings.audio_count,
+        video_count: callEarnings.video_count,
+        total_count: callEarnings.total_count,
+        available_call_types: callEarnings.available_call_types,
         package_earning,
         rating: adviser.rating,
         experience_year: adviser.experience_year,
@@ -283,15 +379,37 @@ const filterByCategoryEarning = async (req, res) => {
         
         const calls = await ScheduleCall.find(match);
         let chat_earning = 0, audio_earning = 0, video_earning = 0, total_earning = 0;
+        let chat_count = 0, audio_count = 0, video_count = 0, total_count = 0;
+        
         for (const call of calls) {
-          if (call.call_type === 'CHAT') chat_earning += call.Amount || 0;
-          if (call.call_type === 'AUDIO') audio_earning += call.Amount || 0;
-          if (call.call_type === 'VIDEO') video_earning += call.Amount || 0;
-          total_earning += call.Amount || 0;
+          const amount = call.Amount || 0;
+          
+          if (call.call_type === 'Chat') {
+            chat_earning += amount;
+            chat_count++;
+          } else if (call.call_type === 'Audio') {
+            audio_earning += amount;
+            audio_count++;
+          } else if (call.call_type === 'Video') {
+            video_earning += amount;
+            video_count++;
+          }
+          
+          total_earning += amount;
+          total_count++;
         }
-        callEarnings = { chat_earning, audio_earning, video_earning, total_earning };
+        callEarnings = { 
+          chat_earning, 
+          audio_earning, 
+          video_earning, 
+          total_earning,
+          chat_count,
+          audio_count,
+          video_count,
+          total_count
+        };
       } else {
-        callEarnings = await getCallEarnings(adviser.user_id);
+          callEarnings = await getCallEarnings(adviser.user_id, ['Chat', 'Audio', 'Video']);
       }
 
       const package_earning = await getPackageEarning(adviser.user_id);
@@ -307,6 +425,11 @@ const filterByCategoryEarning = async (req, res) => {
         chat_earning: callEarnings.chat_earning,
         audio_earning: callEarnings.audio_earning,
         video_earning: callEarnings.video_earning,
+        chat_count: callEarnings.chat_count,
+        audio_count: callEarnings.audio_count,
+        video_count: callEarnings.video_count,
+        total_count: callEarnings.total_count,
+        available_call_types: callEarnings.available_call_types,
         package_earning,
         rating: adviser.rating,
         experience_year: adviser.experience_year,
