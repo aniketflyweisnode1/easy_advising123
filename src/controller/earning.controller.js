@@ -556,7 +556,7 @@ const getEarningsByAdvisorId = async (req, res) => {
         user_email: call.created_by ? call.created_by.email : null,
         user_mobile: call.created_by ? call.created_by.mobile : null,
         datetime: call.date || call.created_at,
-        call_type: callType.mode_name,
+        call_type_id: callType.mode_name,
         price: call.perminRate || 0,
         duration: call.Call_duration || 0,
         total_earning: amount,
