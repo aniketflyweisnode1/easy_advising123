@@ -5,7 +5,7 @@ const { auth } = require('../../utils/jwtUtils');
 
 router.post('/', auth, createPackage);
 router.put('/', auth, updatePackage);
-router.get('/:package_id', getPackageById);
-router.get('/', getAllPackages);
+router.get('/:package_id', auth, getPackageById);
+router.get('/',  getAllPackages);
 
 module.exports = router; 

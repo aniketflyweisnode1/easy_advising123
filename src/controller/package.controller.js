@@ -286,9 +286,7 @@ const getAllPackages = async (req, res) => {
     const { status, sort_by = 'created_at', sort_order = 'desc' } = req.query;
     
     // Build query - filter by authenticated user's adviser_id
-    const query = {
-      adviser_id: req.user.user_id
-    };
+    const query = {};
     
     if (status !== undefined) {
       query.status = parseInt(status);
