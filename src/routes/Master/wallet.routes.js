@@ -1,22 +1,43 @@
 const express = require('express');
 const router = express.Router();
 const { auth } = require('../../utils/jwtUtils.js');
-const { getWallet, getWalletByAuth, updateWallet, getWalletByUserId, getAllWallet } = require('../../controller/wallet.controller.js');
+const { 
+    createWallet,
+    getWallet, 
+    updateWallet, 
+    getWalletByUserId, 
+    getAllWallet,
+    getWalletByAuth,
+    addMoney,
+    deductMoney,
+    deleteWallet
+} = require('../../controller/wallet.controller.js');
 
-// /:id - getwallet - Created: 2025-07-14
-router.get('/:id', auth, getWallet);
+// POST / - Create wallet
+router.post('/', auth, createWallet);
 
-// /:id - updatewallet - Created: 2025-07-14
-// router.put('/:id', auth, updateWallet);
+// GET / - Get all wallets
+router.get('/', auth, getAllWallet);
 
-
-// /auth/wallet - getwalletbyauth - Created: 2025-01-27
+// GET /auth/wallet - Get wallet by authenticated user
 router.get('/auth/wallet', auth, getWalletByAuth);
 
-// /user/:user_id - getwalletbyuserId - Created: 2025-07-14
+// GET /user/:user_id - Get wallet by user_id
 router.get('/user/:user_id', auth, getWalletByUserId);
 
-// / - getallwallet - Created: 2025-07-14
-router.get('/', auth, getAllWallet);
+// GET /:id - Get wallet by wallet_id
+router.get('/:id', auth, getWallet);
+
+// PUT /:id - Update wallet
+router.put('/:id', auth, updateWallet);
+
+// POST /add-money - Add money to wallet
+router.post('/add-money', auth, addMoney);
+
+// POST /deduct-money - Deduct money from wallet
+router.post('/deduct-money', auth, deductMoney);
+
+// DELETE /:id - Delete wallet
+router.delete('/:id', auth, deleteWallet);
 
 module.exports = router; 

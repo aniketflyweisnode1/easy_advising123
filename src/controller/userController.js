@@ -1058,28 +1058,21 @@ const getAdviserById = async (req, res) => {
       return res.status(404).json({ message: 'Advisor not found', status: 404 });
     }
 
-    // Get subscription details with populated package and user references
-    const subscriptions = await PackageSubscription.find({ subscribe_by: Number(advisor_id) })
+    // Get schedule calls for this advisor with all populated references
+    const subscriptions = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) })
       .populate({ 
-        path: 'package_id', 
-        model: 'Package', 
-        localField: 'package_id', 
-        foreignField: 'package_id', 
-        select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status' 
-      })
-      .populate({ 
-        path: 'subscribe_by', 
+        path: 'advisor_id', 
         model: 'User', 
-        localField: 'subscribe_by', 
+        localField: 'advisor_id', 
         foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+        select: 'user_id name email mobile role_id profile_image' 
       })
       .populate({ 
         path: 'created_by', 
         model: 'User', 
         localField: 'created_by', 
         foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+        select: 'user_id name email mobile role_id profile_image' 
       })
       .populate({ 
         path: 'updated_by', 
@@ -1089,13 +1082,27 @@ const getAdviserById = async (req, res) => {
         select: 'user_id name email mobile role_id' 
       })
       .populate({ 
-        path: 'approve_by', 
-        model: 'User', 
-        localField: 'approve_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+        path: 'skills_id', 
+        model: 'Skill', 
+        localField: 'skills_id', 
+        foreignField: 'skill_id', 
+        select: 'skill_id skill_name description use_count' 
       })
-      .sort({ created_at: -1 }); // Latest subscription first
+      .populate({ 
+        path: 'call_type_id', 
+        model: 'CallType', 
+        localField: 'call_type_id', 
+        foreignField: 'call_type_id', 
+        select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+      })
+      .populate({ 
+        path: 'package_Subscription_id', 
+        model: 'PackageSubscription', 
+        localField: 'package_Subscription_id', 
+        foreignField: 'PkSubscription_id', 
+        select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+      })
+      .sort({ created_at: -1 }); // Latest calls first
     
     // Reviews with populated user references
     const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) })
