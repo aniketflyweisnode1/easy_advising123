@@ -159,7 +159,7 @@ const userSchema = new mongoose.Schema({
   },
   package_id: {
     type: Number,
-    ref: 'Package'
+    ref: 'Advisor_Package'
   },
   supporting_Document: {
     type: String

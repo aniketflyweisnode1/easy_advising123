@@ -1,17 +1,22 @@
 const mongoose = require('mongoose');
 const AutoIncrement = require('mongoose-sequence')(mongoose);
 
-const packageSchema = new mongoose.Schema({
-  package_id: {
+const advisorPackageSchema = new mongoose.Schema({
+  Advisor_Package_id: {
     type: Number,
     unique: true
+  },
+  advisor_id: {
+    type: Number,
+    ref: 'User',
+    required: true
   },
   packege_name: {
     type: String,
     required: true
   },
-
-  //Chat
+  
+  // Chat fields
   Chat_minute: {
     type: Number,
     default: 0,
@@ -25,8 +30,12 @@ const packageSchema = new mongoose.Schema({
   Chat_discription: {
     type: String
   },
-
-  //Audio
+  Chat_price: {
+    type: Number,
+    default: 0
+  },
+  
+  // Audio fields
   Audio_minute: {
     type: Number,
     default: 0,
@@ -40,8 +49,12 @@ const packageSchema = new mongoose.Schema({
   Audio_discription: {
     type: String
   },
-
-  //video
+  Audio_price: {
+    type: Number,
+    default: 0
+  },
+  
+  // Video fields
   Video_minute: {
     type: Number,
     default: 0,
@@ -55,21 +68,14 @@ const packageSchema = new mongoose.Schema({
   Video_discription: {
     type: String
   },
-
-  approve_status: {
-    type: Boolean,
-    default: false
-  },
-  approve_by: {
+  Video_price: {
     type: Number,
-    ref: 'User'
+    default: 0
   },
-  approve_at: {
-    type: Date
-  },
+  
   status: {
-    type: Number,
-    default: 1
+    type: Boolean,
+    default: true
   },
   created_by: {
     type: Number,
@@ -87,10 +93,23 @@ const packageSchema = new mongoose.Schema({
   updated_at: {
     type: Date
   }
+}, {
+  timestamps: false
 });
 
-packageSchema.plugin(AutoIncrement, { inc_field: 'package_id' });
+advisorPackageSchema.plugin(AutoIncrement, { inc_field: 'Advisor_Package_id' });
 
-const Package = mongoose.model('Package', packageSchema);
+advisorPackageSchema.pre('save', function(next) {
+  this.updated_at = new Date();
+  next();
+});
 
-module.exports = Package; 
+advisorPackageSchema.pre('findOneAndUpdate', function(next) {
+  this.set({ updated_at: new Date() });
+  next();
+});
+
+const AdvisorPackage = mongoose.model('AdvisorPackage', advisorPackageSchema);
+
+module.exports = AdvisorPackage;
+

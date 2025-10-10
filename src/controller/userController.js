@@ -4,6 +4,7 @@ const Transaction = require('../models/transaction.model.js');
 const Package = require('../models/package.model.js');
 const Wallet = require('../models/wallet.model.js');
 const CallType = require('../models/call_type.model.js');
+const AdvisorPackage = require('../models/Advisor_Package.model.js');
 
 const registerUser = async (req, res) => {
   try {
@@ -36,7 +37,6 @@ const registerUser = async (req, res) => {
       chat_Rate,
       audio_Rate,
       VideoCall_rate,
-      package_id,
       firebase_token ,
       supporting_Document,
       social_linkdin_link,
@@ -86,7 +86,6 @@ const registerUser = async (req, res) => {
       chat_Rate,
       audio_Rate,
       VideoCall_rate,
-      package_id,
       supporting_Document,
       social_linkdin_link,
       social_instagorm_link,
@@ -110,16 +109,37 @@ const registerUser = async (req, res) => {
       updated_At: new Date()
     });
 
-    // If package_id is set, create a PackageSubscription entry for this user
-    if (package_id) {
-      await PackageSubscription.create({
-        package_id,
-        subscribe_by: newUser.user_id,
-        status: 'Actived',
+    const adminPackage = await Package.findOne();
+    // If role_id = 2 (Advisor), auto-create advisor package
+    if (newUser.role_id === 2) {
+      const advisorPackage = await AdvisorPackage.create({
+        advisor_id: newUser.user_id,
+        packege_name: adminPackage.packege_name,
+        Chat_minute: adminPackage.Chat_minute,
+        Chat_Schedule: adminPackage.Chat_Schedule,
+        Chat_discription: adminPackage.Chat_discription,
+        Chat_price: chat_Rate,
+        Audio_minute: adminPackage.Audio_minute,
+        Audio_Schedule: adminPackage.Audio_Schedule,
+        Audio_discription: adminPackage.Audio_discription,
+        Audio_price: audio_Rate,
+        Video_minute: adminPackage.Video_minute,
+        Video_Schedule: adminPackage.Video_Schedule,
+        Video_discription: adminPackage.Video_discription,
+        Video_price: VideoCall_rate,
+        status: true,
         created_by: newUser.user_id
       });
+
+      // Auto-set user's package_id to the newly created Advisor_Package_id
+      await User.findOneAndUpdate(
+        { user_id: newUser.user_id },
+        { package_id: advisorPackage.Advisor_Package_id },
+        { new: true }
+      );
     }
 
+  
     return res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -142,7 +162,7 @@ const getProfile = async (req, res) => {
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name' });
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_price Audio_minute Audio_Schedule Audio_price Video_minute Video_Schedule Video_price status' });
     
     if (!user) {
       return res.status(404).json({
@@ -278,7 +298,7 @@ const getUserFullDetails = async (req, res) => {
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name' });
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_price Audio_minute Audio_Schedule Audio_price Video_minute Video_Schedule Video_price status' });
 
     if (!user) {
       return res.status(404).json({ 
@@ -1049,7 +1069,7 @@ const getAdviserById = async (req, res) => {
       .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status' })
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_discription Chat_price Audio_minute Audio_Schedule Audio_discription Audio_price Video_minute Video_Schedule Video_discription Video_price status' })
       .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id role_name description' })
       .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' })
       .populate({ path: 'updated_by', model: 'User', localField: 'updated_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' });
@@ -1293,18 +1313,41 @@ const getAdviserById = async (req, res) => {
         select: 'user_id name email mobile role_id' 
       });
     
-    const adviserPackage = await Package.findOne({ adviser_id: Number(advisor_id) });
-    if (adviserPackage && adviserPackage.package_id) {
-      // Find all package subscriptions for this package
+    // Get advisor's package from AdvisorPackage model
+    const adviserPackage = await AdvisorPackage.findOne({ advisor_id: Number(advisor_id) })
+      .populate({ 
+        path: 'advisor_id', 
+        model: 'User', 
+        localField: 'advisor_id', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id profile_image' 
+      })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
+    
+    if (adviserPackage && adviserPackage.Advisor_Package_id) {
+      // Find all package subscriptions for this advisor package
       const packageSubscriptions = await PackageSubscription.find({ 
-        package_id: adviserPackage.package_id 
+        package_id: adviserPackage.Advisor_Package_id 
       })
         .populate({ 
           path: 'package_id', 
-          model: 'Package', 
+          model: 'AdvisorPackage', 
           localField: 'package_id', 
-          foreignField: 'package_id', 
-          select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Audio_price Audio_minute Audio_Schedule Video_price Video_minute Video_Schedule status' 
+          foreignField: 'Advisor_Package_id', 
+          select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_discription Chat_price Audio_minute Audio_Schedule Audio_discription Audio_price Video_minute Video_Schedule Video_discription Video_price status' 
         })
         .populate({ 
           path: 'subscribe_by', 
@@ -1840,7 +1883,7 @@ const getAllEmployees = async (req, res) => {
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
-      .populate({ path: 'package_id', model: 'Package', localField: 'package_id', foreignField: 'package_id', select: 'package_id package_name' })
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_price Audio_minute Audio_Schedule Audio_price Video_minute Video_Schedule Video_price status' })
       .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id name' })
       .sort({ created_at: -1 }); // Sort by newest first
     
