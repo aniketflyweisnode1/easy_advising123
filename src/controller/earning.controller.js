@@ -485,4 +485,163 @@ const filterByCategoryEarning = async (req, res) => {
   }
 };
 
-module.exports = { getAdviserEarning, filterByCallTypeEarning, filterByCategoryEarning }; 
+// Get Earnings by Advisor ID with detailed call information
+const getEarningsByAdvisorId = async (req, res) => {
+  try {
+    const { advisor_id } = req.params;
+    
+    // Validate advisor_id
+    if (!advisor_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'advisor_id is required',
+        status: 400
+      });
+    }
+    
+    // Find advisor
+    const adviser = await User.findOne({ user_id: Number(advisor_id), role_id: 2 });
+    
+    if (!adviser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Advisor not found',
+        status: 404
+      });
+    }
+    
+    // Get advisor's call types
+    const advisorCallTypes = await CallTypeModel.find({ adviser_id: Number(advisor_id) });
+    const callTypeIds = advisorCallTypes.map(ct => ct.call_type_id);
+    
+    // Create map for quick lookup
+    const callTypeMap = {};
+    advisorCallTypes.forEach(ct => {
+      callTypeMap[ct.call_type_id] = ct;
+    });
+    
+    // Get all schedule calls for this advisor
+    const scheduleCalls = await ScheduleCall.find({ 
+      advisor_id: Number(advisor_id),
+      call_type_id: { $in: callTypeIds },
+      callStatus: 'Completed'
+    })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile' 
+      })
+      .sort({ created_at: -1 });
+    
+    // Build detailed call earnings array
+    const detailedEarnings = [];
+    let totalAdvisorEarning = 0;
+    let totalAdminEarning = 0;
+    let totalEarning = 0;
+    
+    for (const call of scheduleCalls) {
+      const callType = callTypeMap[call.call_type_id];
+      
+      if (!callType) continue;
+      
+      const amount = call.Amount || 0;
+      const advisorCommission = (amount * (callType.adviser_commission || 0)) / 100;
+      const adminCommission = (amount * (callType.admin_commission || 0)) / 100;
+      
+      detailedEarnings.push({
+        schedule_id: call.schedule_id,
+        user_name: call.created_by ? call.created_by.name : 'Unknown',
+        user_email: call.created_by ? call.created_by.email : null,
+        user_mobile: call.created_by ? call.created_by.mobile : null,
+        datetime: call.date || call.created_at,
+        call_type: callType.mode_name,
+        price: call.perminRate || 0,
+        duration: call.Call_duration || 0,
+        total_earning: amount,
+        Advisor_earning: advisorCommission,
+        Admin_Earning: adminCommission,
+        callStatus: call.callStatus,
+        schedule_type: call.schedule_type
+      });
+      
+      totalAdvisorEarning += advisorCommission;
+      totalAdminEarning += adminCommission;
+      totalEarning += amount;
+    }
+    
+    // Get category details
+    const category = adviser.Category && adviser.Category.length > 0 
+      ? await Category.findOne({ category_id: adviser.Category[0] }) 
+      : null;
+    
+    // Get aggregated earnings
+    const callEarnings = await getCallEarnings(adviser.user_id, ['Chat', 'Audio', 'Video']);
+    const package_earning = await getPackageEarning(adviser.user_id);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Advisor earnings retrieved successfully',
+      data: {
+        advisor_info: {
+          adviser_id: adviser.user_id,
+          Advisername: adviser.name,
+          email: adviser.email,
+          mobile: adviser.mobile,
+          profile_image: adviser.profile_image,
+          category: category ? category.category_name : null,
+          category_id: category ? category.category_id : null,
+          rating: adviser.rating,
+          experience_year: adviser.experience_year,
+          status: adviser.status,
+          
+          // Total earnings by call type
+          total_Chat_earning: callEarnings.chat_earning,
+          total_Audio_earning: callEarnings.audio_earning,
+          total_Video_earning: callEarnings.video_earning,
+          total_earning: callEarnings.total_earning
+        },
+        
+        // Detailed call-by-call earnings
+        detailed_earnings: detailedEarnings,
+        
+        // Summary
+        summary: {
+          total_calls: detailedEarnings.length,
+          total_earning: totalEarning,
+          total_advisor_earning: totalAdvisorEarning,
+          total_admin_earning: totalAdminEarning,
+          
+          // Breakdown by call type
+          chat_earning: callEarnings.chat_earning,
+          audio_earning: callEarnings.audio_earning,
+          video_earning: callEarnings.video_earning,
+          
+          chat_count: callEarnings.chat_count,
+          audio_count: callEarnings.audio_count,
+          video_count: callEarnings.video_count,
+          
+          
+          package_earning
+        }
+      },
+      status: 200
+    });
+  } catch (error) {
+    console.error('Get earnings by advisor ID error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { 
+  getAdviserEarning, 
+  filterByCallTypeEarning, 
+  filterByCategoryEarning,
+  getEarningsByAdvisorId
+}; 
