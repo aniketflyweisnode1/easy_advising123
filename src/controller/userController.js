@@ -1343,13 +1343,6 @@ const getAdviserById = async (req, res) => {
         package_id: adviserPackage.Advisor_Package_id 
       })
         .populate({ 
-          path: 'package_id', 
-          model: 'AdvisorPackage', 
-          localField: 'package_id', 
-          foreignField: 'Advisor_Package_id', 
-          select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_discription Chat_price Audio_minute Audio_Schedule Audio_discription Audio_price Video_minute Video_Schedule Video_discription Video_price status' 
-        })
-        .populate({ 
           path: 'subscribe_by', 
           model: 'User', 
           localField: 'subscribe_by', 
@@ -1421,7 +1414,7 @@ const getAdviserById = async (req, res) => {
       transaction_summary: transactionSummary, // Transaction summary with earnings breakdown
       Package_and_pricing, // Package and call types by advisor_id
       subscribers, // Package subscribers with populated user and package details
-      subscriptions: subscriptions, // Subscriptions with populated package and user references
+    // subscriptions: subscriptions, // Subscriptions with populated package and user references
       wallet: wallet || null, // Wallet with populated references
       status: 200
     });

@@ -1,6 +1,7 @@
 const User = require('../models/User.model');
 const ScheduleCall = require('../models/schedule_call.model');
 const PackageSubscription = require('../models/package_subscription.model');
+const AdvisorPackage = require('../models/Advisor_Package.model');
 const Category = require('../models/category.model');
 const CallTypeModel = require('../models/call_type.model');
 
@@ -489,6 +490,7 @@ const filterByCategoryEarning = async (req, res) => {
 const getEarningsByAdvisorId = async (req, res) => {
   try {
     const { advisor_id } = req.params;
+    const { date_from, date_to } = req.query;
     
     // Validate advisor_id
     if (!advisor_id) {
@@ -520,11 +522,26 @@ const getEarningsByAdvisorId = async (req, res) => {
       callTypeMap[ct.call_type_id] = ct;
     });
     
-    // Get all schedule calls for this advisor
+    // Build date filter
+    let dateFilter = {};
+    if (date_from || date_to) {
+      dateFilter.date = {};
+      if (date_from) {
+        dateFilter.date.$gte = new Date(date_from);
+      }
+      if (date_to) {
+        const endDate = new Date(date_to);
+        endDate.setDate(endDate.getDate() + 1);
+        dateFilter.date.$lt = endDate;
+      }
+    }
+    
+    // Get all schedule calls for this advisor with date filter
     const scheduleCalls = await ScheduleCall.find({ 
       advisor_id: Number(advisor_id),
       call_type_id: { $in: callTypeIds },
-      callStatus: 'Completed'
+      callStatus: 'Completed',
+      ...dateFilter
     })
       .populate({ 
         path: 'created_by', 
@@ -580,6 +597,92 @@ const getEarningsByAdvisorId = async (req, res) => {
     const callEarnings = await getCallEarnings(adviser.user_id, ['Chat', 'Audio', 'Video']);
     const package_earning = await getPackageEarning(adviser.user_id);
     
+    // Get package-wise earnings with user details
+    let packageQuery = { subscribe_by: Number(advisor_id) };
+    
+    // Apply date filter to package subscriptions if provided
+    if (date_from || date_to) {
+      packageQuery.created_at = {};
+      if (date_from) {
+        packageQuery.created_at.$gte = new Date(date_from);
+      }
+      if (date_to) {
+        const endDate = new Date(date_to);
+        endDate.setDate(endDate.getDate() + 1);
+        packageQuery.created_at.$lt = endDate;
+      }
+    }
+    
+    const packageSubscriptions = await PackageSubscription.find(packageQuery)
+      .sort({ created_at: -1 });
+    
+    // Build detailed package earnings array
+    const packageWiseEarnings = [];
+    let totalPackageEarning = 0;
+    
+    for (const subscription of packageSubscriptions) {
+      // Get subscriber (user who subscribed to this advisor's package)
+      const subscriber = await User.findOne({ user_id: subscription.created_by });
+      
+      // Get advisor package details
+      const advisorPackage = await AdvisorPackage.findOne({ 
+        Advisor_Package_id: subscription.package_id 
+      });
+      
+      // Calculate package earning (sum of all prices)
+      let packageEarningAmount = 0;
+      if (advisorPackage) {
+        packageEarningAmount = (advisorPackage.Chat_price || 0) + 
+                               (advisorPackage.Audio_price || 0) + 
+                               (advisorPackage.Video_price || 0);
+      }
+      
+      packageWiseEarnings.push({
+        subscription_id: subscription.PkSubscription_id,
+        package_id: subscription.package_id,
+        package_name: advisorPackage ? advisorPackage.packege_name : null,
+        
+        // Package Details
+        package_details: advisorPackage ? {
+          Chat_minute: advisorPackage.Chat_minute,
+          Chat_Schedule: advisorPackage.Chat_Schedule,
+          Chat_price: advisorPackage.Chat_price,
+          Audio_minute: advisorPackage.Audio_minute,
+          Audio_Schedule: advisorPackage.Audio_Schedule,
+          Audio_price: advisorPackage.Audio_price,
+          Video_minute: advisorPackage.Video_minute,
+          Video_Schedule: advisorPackage.Video_Schedule,
+          Video_price: advisorPackage.Video_price,
+          total_price: packageEarningAmount
+        } : null,
+        
+        // Subscriber (User who bought the package) Details
+        subscriber_details: subscriber ? {
+          user_id: subscriber.user_id,
+          name: subscriber.name,
+          email: subscriber.email,
+          mobile: subscriber.mobile,
+          profile_image: subscriber.profile_image
+        } : null,
+        
+        // Subscription Status
+        subscription_status: subscription.Subscription_status,
+        expire_status: subscription.Expire_status,
+        expire_date: subscription.Expire_Date,
+        remaining_minute: subscription.Remaining_minute,
+        remaining_schedule: subscription.Remaining_Schedule,
+        
+        // Earning
+        package_earning: packageEarningAmount,
+        
+        // Timestamps
+        created_at: subscription.created_at,
+        updated_at: subscription.updated_at
+      });
+      
+      totalPackageEarning += packageEarningAmount;
+    }
+    
     return res.status(200).json({
       success: true,
       message: 'Advisor earnings retrieved successfully',
@@ -606,10 +709,14 @@ const getEarningsByAdvisorId = async (req, res) => {
         // Detailed call-by-call earnings
         detailed_earnings: detailedEarnings,
         
+        // Package-wise earnings with user details
+        package_wise_earnings: packageWiseEarnings,
+        
         // Summary
         summary: {
+          // Call earnings summary
           total_calls: detailedEarnings.length,
-          total_earning: totalEarning,
+          total_call_earning: totalEarning,
           total_advisor_earning: totalAdvisorEarning,
           total_admin_earning: totalAdminEarning,
           
@@ -622,8 +729,20 @@ const getEarningsByAdvisorId = async (req, res) => {
           audio_count: callEarnings.audio_count,
           video_count: callEarnings.video_count,
           
+          // Package earnings summary
+          total_package_subscriptions: packageWiseEarnings.length,
+          total_package_earning: totalPackageEarning,
+          active_subscriptions: packageWiseEarnings.filter(p => p.subscription_status === 'Actived').length,
+          expired_subscriptions: packageWiseEarnings.filter(p => p.subscription_status === 'Expired').length,
           
-          package_earning
+          // Grand total
+          grand_total_earning: totalEarning + totalPackageEarning
+        },
+        
+        // Applied filters
+        filters: {
+          date_from: date_from || null,
+          date_to: date_to || null
         }
       },
       status: 200
