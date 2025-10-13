@@ -1472,7 +1472,7 @@ const getAdminDashboard = async (req, res) => {
     // If no month/year provided, no date filter is applied (returns all data)
 
     // Counts with date filters
-    const totalUsers = await User.countDocuments({ role_id: { $ne: 1 } }); // All users except admin
+    const totalUsers = await User.countDocuments({ role_id: 1 }); // All users except admin
     const totalAdvisers = await User.countDocuments({ role_id: 2 });
     const withdrawRequests = await require('../models/withdraw_request.model').countDocuments(dateFilter);
     const pendingRequests = await require('../models/withdraw_request.model').countDocuments({ ...dateFilter, status: 0 });
