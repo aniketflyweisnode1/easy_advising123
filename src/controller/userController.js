@@ -171,10 +171,119 @@ const getProfile = async (req, res) => {
       });
     }
 
+    // Get package details based on user role
+    let packageDetails = {};
+    
+    // If user is an advisor (role_id = 2), get their advisor package details
+    if (user.role_id === 2) {
+      const advisorPackages = await AdvisorPackage.find({ advisor_id: user.user_id })
+        .sort({ created_at: -1 });
+      
+      // Get package subscriptions (users who subscribed to this advisor's packages)
+      const packageSubscriptions = await PackageSubscription.find({ subscribe_by: user.user_id })
+        .sort({ created_at: -1 });
+      
+      const subscriptionDetails = [];
+      for (const subscription of packageSubscriptions) {
+        const packageInfo = await AdvisorPackage.findOne({ 
+          Advisor_Package_id: subscription.package_id 
+        });
+        
+        const subscribedByUser = await User.findOne({ 
+          user_id: subscription.created_by 
+        }, 'user_id name email mobile profile_image');
+        
+        subscriptionDetails.push({
+          subscription_id: subscription.PkSubscription_id,
+          package_id: subscription.package_id,
+          package_name: packageInfo ? packageInfo.packege_name : null,
+          package_info: packageInfo ? {
+            Chat_minute: packageInfo.Chat_minute,
+            Chat_Schedule: packageInfo.Chat_Schedule,
+            Chat_price: packageInfo.Chat_price,
+            Audio_minute: packageInfo.Audio_minute,
+            Audio_Schedule: packageInfo.Audio_Schedule,
+            Audio_price: packageInfo.Audio_price,
+            Video_minute: packageInfo.Video_minute,
+            Video_Schedule: packageInfo.Video_Schedule,
+            Video_price: packageInfo.Video_price,
+            total_price: (packageInfo.Chat_price || 0) + (packageInfo.Audio_price || 0) + (packageInfo.Video_price || 0)
+          } : null,
+          subscribed_by: subscribedByUser,
+          subscription_status: subscription.Subscription_status,
+          expire_status: subscription.Expire_status,
+          expire_date: subscription.Expire_Date,
+          remaining_minute: subscription.Remaining_minute,
+          remaining_schedule: subscription.Remaining_Schedule,
+          created_at: subscription.created_at,
+          updated_at: subscription.updated_at
+        });
+      }
+      
+      packageDetails = {
+        advisor_packages: advisorPackages,
+        package_subscriptions: subscriptionDetails,
+        total_subscriptions: subscriptionDetails.length,
+        active_subscriptions: subscriptionDetails.filter(s => s.subscription_status === 'Actived').length,
+        expired_subscriptions: subscriptionDetails.filter(s => s.subscription_status === 'Expired').length
+      };
+    } else {
+      // For regular users, get packages they've subscribed to
+      const userSubscriptions = await PackageSubscription.find({ created_by: user.user_id })
+        .sort({ created_at: -1 });
+      
+      const subscriptionDetails = [];
+      for (const subscription of userSubscriptions) {
+        const packageInfo = await AdvisorPackage.findOne({ 
+          Advisor_Package_id: subscription.package_id 
+        });
+        
+        const advisor = await User.findOne({ 
+          user_id: subscription.subscribe_by 
+        }, 'user_id name email mobile profile_image Category rating experience_year');
+        
+        subscriptionDetails.push({
+          subscription_id: subscription.PkSubscription_id,
+          package_id: subscription.package_id,
+          package_name: packageInfo ? packageInfo.packege_name : null,
+          package_info: packageInfo ? {
+            Chat_minute: packageInfo.Chat_minute,
+            Chat_Schedule: packageInfo.Chat_Schedule,
+            Chat_price: packageInfo.Chat_price,
+            Audio_minute: packageInfo.Audio_minute,
+            Audio_Schedule: packageInfo.Audio_Schedule,
+            Audio_price: packageInfo.Audio_price,
+            Video_minute: packageInfo.Video_minute,
+            Video_Schedule: packageInfo.Video_Schedule,
+            Video_price: packageInfo.Video_price,
+            total_price: (packageInfo.Chat_price || 0) + (packageInfo.Audio_price || 0) + (packageInfo.Video_price || 0)
+          } : null,
+          advisor_info: advisor,
+          subscription_status: subscription.Subscription_status,
+          expire_status: subscription.Expire_status,
+          expire_date: subscription.Expire_Date,
+          remaining_minute: subscription.Remaining_minute,
+          remaining_schedule: subscription.Remaining_Schedule,
+          created_at: subscription.created_at,
+          updated_at: subscription.updated_at
+        });
+      }
+      
+      packageDetails = {
+        subscribed_packages: subscriptionDetails,
+        total_subscriptions: subscriptionDetails.length,
+        active_subscriptions: subscriptionDetails.filter(s => s.subscription_status === 'Actived').length,
+        expired_subscriptions: subscriptionDetails.filter(s => s.subscription_status === 'Expired').length
+      };
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Profile retrieved successfully',
-      data: user
+      data: {
+        ...user.toObject(),
+        package_details: packageDetails
+      }
     });
   } catch (error) {
     console.error('Get profile error:', error);
