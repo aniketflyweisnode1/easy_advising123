@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  
   AgreeTermsCondition: {
     type: Boolean,
     default: false
@@ -27,6 +28,10 @@ const userSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     sparse: true // allows multiple docs with null/undefined
+  },
+  user_img: {
+    type: String,
+    default: null
   },
   password: {
     type: String,

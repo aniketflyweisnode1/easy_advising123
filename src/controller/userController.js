@@ -46,7 +46,8 @@ const registerUser = async (req, res) => {
       choose_slot,
       choose_day,
       instant_call,
-      applyslots_remainingDays
+      applyslots_remainingDays,
+      user_img
     } = req.body;
 // console.log( choose_slot,choose_day)
     if (!name || !mobile) {
@@ -95,7 +96,8 @@ const registerUser = async (req, res) => {
       choose_day,
       firebase_token,
       instant_call,
-      applyslots_remainingDays
+      applyslots_remainingDays,
+      user_img
     });
     await newUser.save();
 
