@@ -1054,6 +1054,40 @@ const getAdvisorList = async (req, res) => {
       { category_id: 1, category_name: 1, description: 1, _id: 0 }
     );
 
+    // Get advisor IDs
+    const advisorIds = advisors.map(advisor => advisor.user_id);
+
+    // Fetch all package details for advisors
+    const allPackages = await AdvisorPackage.find({ advisor_id: { $in: advisorIds } });
+
+    // Fetch all reviews for advisors
+    const Review = require('../models/reviews.model');
+    const allReviews = await Review.find({ user_id: { $in: advisorIds } })
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile profile_image' 
+      });
+
+    // Create maps for efficient lookup
+    const packageMap = {};
+    allPackages.forEach(pkg => {
+      if (!packageMap[pkg.advisor_id]) {
+        packageMap[pkg.advisor_id] = [];
+      }
+      packageMap[pkg.advisor_id].push(pkg);
+    });
+
+    const reviewsMap = {};
+    allReviews.forEach(review => {
+      if (!reviewsMap[review.user_id]) {
+        reviewsMap[review.user_id] = [];
+      }
+      reviewsMap[review.user_id].push(review);
+    });
+
     return res.status(200).json({
       success: true,
       message: `Users with role_id ${role_id} retrieved successfully`,
@@ -1134,7 +1168,13 @@ const getAdvisorList = async (req, res) => {
           
           // Timestamps
           created_at: advisor.created_at,
-          updated_on: advisor.updated_on
+          updated_on: advisor.updated_on,
+
+          // Package Details
+          packageDetails: packageMap[advisor.user_id] || [],
+
+          // Reviews
+          reviews: reviewsMap[advisor.user_id] || []
         })),
         pagination: {
           current_page: parseInt(page),
