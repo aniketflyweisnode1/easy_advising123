@@ -174,8 +174,8 @@ const getProfile = async (req, res) => {
     const user = await User.findOne({ user_id: req.user.user_id })
       .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id', select: 'skill_id skill_name' })
-      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
-      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
+      //.populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
+      //.populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
@@ -419,13 +419,13 @@ const getUserFullDetails = async (req, res) => {
     const user = await User.findOne({ user_id: Number(user_id) })
       .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id', select: 'skill_id skill_name' })
-      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
-      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
+      //.populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
+      //.populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
-      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_price Audio_minute Audio_Schedule Audio_price Video_minute Video_Schedule Video_price status' });
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id Basic_packege_name Economy_packege_name Pro_packege_name Basic_minute Basic_Schedule Basic_discription Basic_price Economy_minute Economy_Schedule Economy_discription Economy_price Pro_minute Pro_Schedule Pro_discription Pro_price status' });
 
     if (!user) {
       return res.status(404).json({
@@ -1232,11 +1232,11 @@ const getAdviserById = async (req, res) => {
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name description category_id' })
       .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name code' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id', select: 'skill_id skill_name use_count' })
-      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
-      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
+      //.populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
+      //.populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
-      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_discription Chat_price Audio_minute Audio_Schedule Audio_discription Audio_price Video_minute Video_Schedule Video_discription Video_price status' })
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id Basic_packege_name Economy_packege_name Pro_packege_name Basic_minute Basic_Schedule Basic_discription Basic_price Economy_minute Economy_Schedule Economy_discription Economy_price Pro_minute Pro_Schedule Pro_discription Pro_price status' })
       .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id role_name description' })
       .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' })
       .populate({ path: 'updated_by', model: 'User', localField: 'updated_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' });
@@ -2037,13 +2037,13 @@ const getAllEmployees = async (req, res) => {
     const employees = await User.find({ role_id: { $nin: [1, 2, 3] } })
       .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name' })
       .populate({ path: 'skill', model: 'Skill', localField: 'skill', foreignField: 'skill_id', select: 'skill_id skill_name' })
-      .populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
-      .populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
+      //.populate({ path: 'state', model: 'State', localField: 'state', foreignField: 'state_id', select: 'state_id state_name' })
+      //.populate({ path: 'city', model: 'City', localField: 'city', foreignField: 'city_id', select: 'city_id city_name' })
       .populate({ path: 'Current_Designation', model: 'Designation', localField: 'Current_Designation', foreignField: 'designation_id', select: 'designation_id designation_name' })
       .populate({ path: 'current_company_name', model: 'Company', localField: 'current_company_name', foreignField: 'company_id', select: 'company_id company_name' })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
-      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_price Audio_minute Audio_Schedule Audio_price Video_minute Video_Schedule Video_price status' })
+      .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id Basic_packege_name Economy_packege_name Pro_packege_name Basic_minute Basic_Schedule Basic_discription Basic_price Economy_minute Economy_Schedule Economy_discription Economy_price Pro_minute Pro_Schedule Pro_discription Pro_price status' })
       .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id name' })
       .sort({ created_at: -1 }); // Sort by newest first
 
