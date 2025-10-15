@@ -37,6 +37,11 @@ const registerUser = async (req, res) => {
       chat_Rate,
       audio_Rate,
       VideoCall_rate,
+      pkg_chat_Rate,
+      pkg_audio_Rate,
+      pkg_VideoCall_rate,
+      
+
       firebase_token ,
       supporting_Document,
       social_linkdin_link,
@@ -120,15 +125,15 @@ const registerUser = async (req, res) => {
         Chat_minute: adminPackage.Chat_minute,
         Chat_Schedule: adminPackage.Chat_Schedule,
         Chat_discription: adminPackage.Chat_discription,
-        Chat_price: chat_Rate,
+        Chat_price: pkg_chat_Rate,
         Audio_minute: adminPackage.Audio_minute,
         Audio_Schedule: adminPackage.Audio_Schedule,
         Audio_discription: adminPackage.Audio_discription,
-        Audio_price: audio_Rate,
+        Audio_price: pkg_audio_Rate,
         Video_minute: adminPackage.Video_minute,
         Video_Schedule: adminPackage.Video_Schedule,
         Video_discription: adminPackage.Video_discription,
-        Video_price: VideoCall_rate,
+        Video_price: pkg_VideoCall_rate,
         status: true,
         created_by: newUser.user_id
       });

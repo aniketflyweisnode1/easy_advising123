@@ -115,12 +115,11 @@ const userSchema = new mongoose.Schema({
     type: String
   },
   state: {
-    type: Number,
-    ref: 'State'
+    type: String,
+    
   },
   city: {
-    type: Number,
-    ref: 'City'
+    type: String,
   },
   IntroductionVideo: {
     type: String
