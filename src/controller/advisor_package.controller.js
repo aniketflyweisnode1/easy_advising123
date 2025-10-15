@@ -6,18 +6,6 @@ const User = require('../models/User.model');
 const createAdvisorPackage = async (req, res) => {
   try {
     const {
-      Basic_packege_name,
-      Economy_packege_name,
-      Pro_packege_name,
-      Basic_minute,
-      Economy_minute,
-      Pro_minute,
-      Basic_Schedule,
-      Economy_Schedule,
-      Pro_Schedule,
-      Basic_discription,
-      Economy_discription,
-      Pro_discription,
       Basic_price,
       Economy_price,
       Pro_price,
@@ -53,7 +41,11 @@ const createAdvisorPackage = async (req, res) => {
         Pro_Schedule: packageDetails.Pro_Schedule,
         Basic_discription: packageDetails.Basic_discription,
         Economy_discription: packageDetails.Economy_discription,
-        Pro_discription: packageDetails.Pro_discription
+        Pro_discription: packageDetails.Pro_discription,
+        Basic_packageExpriyDays: packageDetails.Basic_packageExpriyDays,
+        Economy_packageExpriyDays: packageDetails.Economy_packageExpriyDays,
+        Pro_packageExpriyDays: packageDetails.Pro_packageExpriyDays
+
       };
     }
  
@@ -85,6 +77,9 @@ const createAdvisorPackage = async (req, res) => {
       Pro_Schedule: Pro_Schedule !== undefined ? Pro_Schedule : (packageData.Pro_Schedule || 0),
       Pro_discription: Pro_discription || packageData.Pro_discription || '',
       Pro_price: Pro_price || 0,
+      Basic_packageExpriyDays: Basic_packageExpriyDays || packageData.Basic_packageExpriyDays || 30,
+      Economy_packageExpriyDays: Economy_packageExpriyDays || packageData.Economy_packageExpriyDays || 60,
+      Pro_packageExpriyDays: Pro_packageExpriyDays || packageData.Pro_packageExpriyDays || 90,
       
       status: status !== undefined ? status : true,
       created_by: req.user.user_id
@@ -134,18 +129,6 @@ const updateAdvisorPackage = async (req, res) => {
   try {
     const { 
       Advisor_Package_id, 
-      Basic_packege_name,
-      Economy_packege_name,
-      Pro_packege_name,
-      Basic_minute,
-      Economy_minute,
-      Pro_minute,
-      Basic_Schedule,
-      Economy_Schedule,
-      Pro_Schedule,
-      Basic_discription,
-      Economy_discription,
-      Pro_discription,
       Basic_price,
       Economy_price,
       Pro_price,
@@ -175,28 +158,8 @@ const updateAdvisorPackage = async (req, res) => {
       updated_at: new Date()
     };
 
-    // Only update fields that are provided
-    // Package names
-    if (Basic_packege_name !== undefined) updateData.Basic_packege_name = Basic_packege_name;
-    if (Economy_packege_name !== undefined) updateData.Economy_packege_name = Economy_packege_name;
-    if (Pro_packege_name !== undefined) updateData.Pro_packege_name = Pro_packege_name;
-    
-    // Basic package fields
-    if (Basic_minute !== undefined) updateData.Basic_minute = Basic_minute;
-    if (Basic_Schedule !== undefined) updateData.Basic_Schedule = Basic_Schedule;
-    if (Basic_discription !== undefined) updateData.Basic_discription = Basic_discription;
     if (Basic_price !== undefined) updateData.Basic_price = Basic_price;
-    
-    // Economy package fields
-    if (Economy_minute !== undefined) updateData.Economy_minute = Economy_minute;
-    if (Economy_Schedule !== undefined) updateData.Economy_Schedule = Economy_Schedule;
-    if (Economy_discription !== undefined) updateData.Economy_discription = Economy_discription;
     if (Economy_price !== undefined) updateData.Economy_price = Economy_price;
-    
-    // Pro package fields
-    if (Pro_minute !== undefined) updateData.Pro_minute = Pro_minute;
-    if (Pro_Schedule !== undefined) updateData.Pro_Schedule = Pro_Schedule;
-    if (Pro_discription !== undefined) updateData.Pro_discription = Pro_discription;
     if (Pro_price !== undefined) updateData.Pro_price = Pro_price;
     
     // Status field

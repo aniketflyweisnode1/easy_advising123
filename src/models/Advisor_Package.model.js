@@ -44,6 +44,11 @@ const advisorPackageSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  Basic_packageExpriyDays: {
+    type: Number,
+    default: 30,
+    min: 1
+  },
   
   // Economy package fields
   Economy_minute: {
@@ -64,6 +69,11 @@ const advisorPackageSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  Economy_packageExpriyDays: {
+    type: Number,
+    default: 60,
+    min: 1
+  },
   
   // Pro package fields
   Pro_minute: {
@@ -83,6 +93,11 @@ const advisorPackageSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
+  },
+  Pro_packageExpriyDays: {
+    type: Number,
+    default: 90,
+    min: 1
   },
   
   status: {

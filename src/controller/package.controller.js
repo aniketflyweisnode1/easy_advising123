@@ -15,6 +15,9 @@ const createPackage = async (req, res) => {
       Basic_discription,
       Economy_discription,
       Pro_discription,
+      Basic_packageExpriyDays,
+      Economy_packageExpriyDays,
+      Pro_packageExpriyDays,
       status 
     } = req.body;
     
@@ -38,19 +41,21 @@ const createPackage = async (req, res) => {
       Basic_minute: Basic_minute || 0,
       Basic_Schedule: Basic_Schedule || 0,
       Basic_discription: Basic_discription || '',
+      Basic_packageExpriyDays: Basic_packageExpriyDays || 30,
       
       // Economy package fields
       Economy_minute: Economy_minute || 0,
       Economy_Schedule: Economy_Schedule || 0,
       Economy_discription: Economy_discription || '',
+      Economy_packageExpriyDays: Economy_packageExpriyDays || 60,
       
       // Pro package fields
       Pro_minute: Pro_minute || 0,
       Pro_Schedule: Pro_Schedule || 0,
       Pro_discription: Pro_discription || '',
+      Pro_packageExpriyDays: Pro_packageExpriyDays || 90,
       
-      // Status fields
-      approve_status: approve_status !== undefined ? approve_status : false,
+     
       status: status !== undefined ? status : 1,
       created_by: req.user.user_id
     });
@@ -103,6 +108,9 @@ const updatePackage = async (req, res) => {
       Basic_discription,
       Economy_discription,
       Pro_discription,
+      Basic_packageExpriyDays,
+      Economy_packageExpriyDays,
+      Pro_packageExpriyDays,
       approve_status,
       status 
     } = req.body;
@@ -140,16 +148,19 @@ const updatePackage = async (req, res) => {
     if (Basic_minute !== undefined) updateData.Basic_minute = Basic_minute;
     if (Basic_Schedule !== undefined) updateData.Basic_Schedule = Basic_Schedule;
     if (Basic_discription !== undefined) updateData.Basic_discription = Basic_discription;
+    if (Basic_packageExpriyDays !== undefined) updateData.Basic_packageExpriyDays = Basic_packageExpriyDays;
     
     // Economy package fields
     if (Economy_minute !== undefined) updateData.Economy_minute = Economy_minute;
     if (Economy_Schedule !== undefined) updateData.Economy_Schedule = Economy_Schedule;
     if (Economy_discription !== undefined) updateData.Economy_discription = Economy_discription;
+    if (Economy_packageExpriyDays !== undefined) updateData.Economy_packageExpriyDays = Economy_packageExpriyDays;
     
     // Pro package fields
     if (Pro_minute !== undefined) updateData.Pro_minute = Pro_minute;
     if (Pro_Schedule !== undefined) updateData.Pro_Schedule = Pro_Schedule;
     if (Pro_discription !== undefined) updateData.Pro_discription = Pro_discription;
+    if (Pro_packageExpriyDays !== undefined) updateData.Pro_packageExpriyDays = Pro_packageExpriyDays;
     
     // Approval fields
     if (approve_status !== undefined) updateData.approve_status = approve_status;

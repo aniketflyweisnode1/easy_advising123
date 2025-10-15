@@ -19,7 +19,8 @@ const packageSchema = new mongoose.Schema({
     type: String,
     default: 'Pro'
   },
-  
+
+
   // Basic package fields
   Basic_minute: {
     type: Number,
@@ -33,6 +34,11 @@ const packageSchema = new mongoose.Schema({
   },
   Basic_discription: {
     type: String
+  },
+  Basic_packageExpriyDays: {
+    type: Number,
+    default: 30,
+    min: 1
   },
   
   // Economy package fields
@@ -49,6 +55,11 @@ const packageSchema = new mongoose.Schema({
   Economy_discription: {
     type: String
   },
+  Economy_packageExpriyDays: {
+    type: Number,
+    default: 60,
+    min: 1
+  },
   
   // Pro package fields
   Pro_minute: {
@@ -64,39 +75,44 @@ const packageSchema = new mongoose.Schema({
   Pro_discription: {
     type: String
   },
+  Pro_packageExpriyDays: {
+    type: Number,
+    default: 90,
+    min: 1
+  },
   // Rate fields
- 
+
   approve_status: {
-    type: Boolean,
-    default: false
-  },
+  type: Boolean,
+  default: false
+},
   approve_by: {
-    type: Number,
-    ref: 'User'
-  },
+  type: Number,
+  ref: 'User'
+},
   approve_at: {
-    type: Date
-  },
+  type: Date
+},
   status: {
-    type: Number,
-    default: 1
-  },
+  type: Number,
+  default: 1
+},
   created_by: {
-    type: Number,
-    ref: 'User',
-    required: true
-  },
+  type: Number,
+  ref: 'User',
+  required: true
+},
   created_at: {
-    type: Date,
-    default: Date.now
-  },
+  type: Date,
+  default: Date.now
+},
   updated_by: {
-    type: Number,
-    ref: 'User'
-  },
+  type: Number,
+  ref: 'User'
+},
   updated_at: {
-    type: Date
-  }
+  type: Date
+}
 });
 
 packageSchema.plugin(AutoIncrement, { inc_field: 'package_id' });
