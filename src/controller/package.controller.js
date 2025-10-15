@@ -3,42 +3,54 @@ const Package = require('../models/package.model');
 const createPackage = async (req, res) => {
   try {
     const { 
-      packege_name, 
-      Chat_minute, 
-      Chat_Schedule, 
-      Chat_discription,
-      Audio_minute, 
-      Audio_Schedule, 
-      Audio_discription,
-      Video_minute, 
-      Video_Schedule, 
-      Video_discription,
+      Basic_packege_name = 'Basic', 
+      Economy_packege_name = 'Economy', 
+      Pro_packege_name = 'Pro', 
+      Basic_minute, 
+      Economy_minute, 
+      Pro_minute, 
+      Basic_Schedule, 
+      Economy_Schedule, 
+      Pro_Schedule, 
+      Basic_discription,
+      Economy_discription,
+      Pro_discription,
       status 
     } = req.body;
     
+   
     // Validate required fields
-    if (!packege_name) {
+    if (!Basic_packege_name || !Economy_packege_name || !Pro_packege_name) {
       return res.status(400).json({ 
         success: false, 
-        message: 'packege_name is required' 
+        message: 'Basic_packege_name, Economy_packege_name, Pro_packege_name are required' 
       });
     }
     
     // Create package with all fields
     const packageObj = new Package({
-      packege_name, 
-      // Chat fields
-      Chat_minute: Chat_minute || 0,
-      Chat_Schedule: Chat_Schedule || 0,
-      Chat_discription: Chat_discription || '',
-      // Audio fields
-      Audio_minute: Audio_minute || 0,
-      Audio_Schedule: Audio_Schedule || 0,
-      Audio_discription: Audio_discription || '',
-      // Video fields
-      Video_minute: Video_minute || 0,
-      Video_Schedule: Video_Schedule || 0,
-      Video_discription: Video_discription || '',
+      // Package names
+      Basic_packege_name, 
+      Economy_packege_name, 
+      Pro_packege_name, 
+      
+      // Basic package fields
+      Basic_minute: Basic_minute || 0,
+      Basic_Schedule: Basic_Schedule || 0,
+      Basic_discription: Basic_discription || '',
+      
+      // Economy package fields
+      Economy_minute: Economy_minute || 0,
+      Economy_Schedule: Economy_Schedule || 0,
+      Economy_discription: Economy_discription || '',
+      
+      // Pro package fields
+      Pro_minute: Pro_minute || 0,
+      Pro_Schedule: Pro_Schedule || 0,
+      Pro_discription: Pro_discription || '',
+      
+      // Status fields
+      approve_status: approve_status !== undefined ? approve_status : false,
       status: status !== undefined ? status : 1,
       created_by: req.user.user_id
     });
@@ -79,16 +91,19 @@ const updatePackage = async (req, res) => {
   try {
     const { 
       package_id, 
-      packege_name, 
-      Chat_minute, 
-      Chat_Schedule, 
-      Chat_discription,
-      Audio_minute, 
-      Audio_Schedule, 
-      Audio_discription,
-      Video_minute, 
-      Video_Schedule, 
-      Video_discription,
+      Basic_packege_name, 
+      Economy_packege_name, 
+      Pro_packege_name, 
+      Basic_minute, 
+      Economy_minute, 
+      Pro_minute, 
+      Basic_Schedule, 
+      Economy_Schedule, 
+      Pro_Schedule, 
+      Basic_discription,
+      Economy_discription,
+      Pro_discription,
+      approve_status,
       status 
     } = req.body;
     
@@ -116,22 +131,28 @@ const updatePackage = async (req, res) => {
     };
     
     // Only update fields that are provided
-    if (packege_name !== undefined) updateData.packege_name = packege_name;
+    // Package names
+    if (Basic_packege_name !== undefined) updateData.Basic_packege_name = Basic_packege_name;
+    if (Economy_packege_name !== undefined) updateData.Economy_packege_name = Economy_packege_name;
+    if (Pro_packege_name !== undefined) updateData.Pro_packege_name = Pro_packege_name;
     
-    // Chat fields
-    if (Chat_minute !== undefined) updateData.Chat_minute = Chat_minute;
-    if (Chat_Schedule !== undefined) updateData.Chat_Schedule = Chat_Schedule;
-    if (Chat_discription !== undefined) updateData.Chat_discription = Chat_discription;
+    // Basic package fields
+    if (Basic_minute !== undefined) updateData.Basic_minute = Basic_minute;
+    if (Basic_Schedule !== undefined) updateData.Basic_Schedule = Basic_Schedule;
+    if (Basic_discription !== undefined) updateData.Basic_discription = Basic_discription;
     
-    // Audio fields
-    if (Audio_minute !== undefined) updateData.Audio_minute = Audio_minute;
-    if (Audio_Schedule !== undefined) updateData.Audio_Schedule = Audio_Schedule;
-    if (Audio_discription !== undefined) updateData.Audio_discription = Audio_discription;
+    // Economy package fields
+    if (Economy_minute !== undefined) updateData.Economy_minute = Economy_minute;
+    if (Economy_Schedule !== undefined) updateData.Economy_Schedule = Economy_Schedule;
+    if (Economy_discription !== undefined) updateData.Economy_discription = Economy_discription;
     
-    // Video fields
-    if (Video_minute !== undefined) updateData.Video_minute = Video_minute;
-    if (Video_Schedule !== undefined) updateData.Video_Schedule = Video_Schedule;
-    if (Video_discription !== undefined) updateData.Video_discription = Video_discription;
+    // Pro package fields
+    if (Pro_minute !== undefined) updateData.Pro_minute = Pro_minute;
+    if (Pro_Schedule !== undefined) updateData.Pro_Schedule = Pro_Schedule;
+    if (Pro_discription !== undefined) updateData.Pro_discription = Pro_discription;
+    
+    // Approval fields
+    if (approve_status !== undefined) updateData.approve_status = approve_status;
     
     if (status !== undefined) updateData.status = status;
     
@@ -287,4 +308,136 @@ const getAllPackages = async (req, res) => {
   }
 };
 
-module.exports = { createPackage, updatePackage, getPackageById, getAllPackages }; 
+// Approve package
+const approvePackage = async (req, res) => {
+  try {
+    const { package_id } = req.params;
+    const { approve_status } = req.body;
+    const adminId = req.user.user_id;
+
+    // Validate package_id
+    if (!package_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'package_id is required' 
+      });
+    }
+
+    // Validate approve_status
+    if (approve_status === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'approve_status is required' 
+      });
+    }
+
+    if (typeof approve_status !== 'boolean') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'approve_status must be a boolean value' 
+      });
+    }
+
+    // Check if package exists
+    const existingPackage = await Package.findOne({ package_id });
+    if (!existingPackage) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Package not found' 
+      });
+    }
+
+    // Update package approval
+    const updateData = {
+      approve_status: approve_status,
+      approve_by: adminId,
+      approve_at: new Date(),
+      updated_by: adminId,
+      updated_at: new Date()
+    };
+
+    const packageObj = await Package.findOneAndUpdate(
+      { package_id }, 
+      updateData, 
+      { new: true, runValidators: true }
+    )
+      .populate({ 
+        path: 'created_by', 
+        model: 'User', 
+        localField: 'created_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'updated_by', 
+        model: 'User', 
+        localField: 'updated_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      })
+      .populate({ 
+        path: 'approve_by', 
+        model: 'User', 
+        localField: 'approve_by', 
+        foreignField: 'user_id', 
+        select: 'user_id name email mobile role_id' 
+      });
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Package ${approve_status ? 'approved' : 'rejected'} successfully`,
+      data: packageObj 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
+
+// Delete package
+const deletePackage = async (req, res) => {
+  try {
+    const { package_id } = req.params;
+    const adminId = req.user.user_id;
+
+    // Validate package_id
+    if (!package_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'package_id is required' 
+      });
+    }
+
+    // Check if package exists
+    const existingPackage = await Package.findOne({ package_id });
+    if (!existingPackage) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Package not found' 
+      });
+    }
+
+    // Delete package
+    const deletedPackage = await Package.findOneAndDelete({ package_id });
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Package deleted successfully',
+      data: {
+        package_id: deletedPackage.package_id,
+        packege_name: deletedPackage.packege_name,
+        deleted_by: adminId,
+        deleted_at: new Date()
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
+
+module.exports = { createPackage, updatePackage, getPackageById, getAllPackages, approvePackage, deletePackage }; 

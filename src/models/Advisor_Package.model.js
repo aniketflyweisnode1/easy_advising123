@@ -11,66 +11,78 @@ const advisorPackageSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  packege_name: {
+  // Package names
+  Basic_packege_name: {
     type: String,
-    required: true
+    default: 'Basic'
+  },
+  Economy_packege_name: {
+    type: String,
+    default: 'Economy'
+  },
+  Pro_packege_name: {
+    type: String,
+    default: 'Pro'
   },
   
-  // Chat fields
-  Chat_minute: {
+  // Basic package fields
+  Basic_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Chat_Schedule: {
+  Basic_Schedule: {
     type: Number,
     default: 0,
     min: 0
   },
-  Chat_discription: {
+  Basic_discription: {
     type: String
   },
-  Chat_price: {
+  Basic_price: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   
-  // Audio fields
-  Audio_minute: {
+  // Economy package fields
+  Economy_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Audio_Schedule: {
+  Economy_Schedule: {
     type: Number,
     default: 0,
     min: 0
   },
-  Audio_discription: {
+  Economy_discription: {
     type: String
   },
-  Audio_price: {
+  Economy_price: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   
-  // Video fields
-  Video_minute: {
+  // Pro package fields
+  Pro_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Video_Schedule: {
+  Pro_Schedule: {
     type: Number,
     default: 0,
     min: 0
   },
-  Video_discription: {
+  Pro_discription: {
     type: String
   },
-  Video_price: {
+  Pro_price: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   
   status: {

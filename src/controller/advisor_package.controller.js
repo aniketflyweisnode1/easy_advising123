@@ -6,9 +6,21 @@ const User = require('../models/User.model');
 const createAdvisorPackage = async (req, res) => {
   try {
     const {
-      Chat_price,
-      Audio_price,
-      Video_price,
+      Basic_packege_name,
+      Economy_packege_name,
+      Pro_packege_name,
+      Basic_minute,
+      Economy_minute,
+      Pro_minute,
+      Basic_Schedule,
+      Economy_Schedule,
+      Pro_Schedule,
+      Basic_discription,
+      Economy_discription,
+      Pro_discription,
+      Basic_price,
+      Economy_price,
+      Pro_price,
       status
     } = req.body;
 
@@ -24,22 +36,24 @@ const createAdvisorPackage = async (req, res) => {
       });
     }
 
-    // If package_id is provided, fetch package details
+    // Fetch package details for defaults
     let packageData = {};
 
     const packageDetails = await Package.findOne();
     if (packageDetails) {
       packageData = {
-        packege_name: packageDetails.packege_name,
-        Chat_minute: packageDetails.Chat_minute,
-        Chat_Schedule: packageDetails.Chat_Schedule,
-        Chat_discription: packageDetails.Chat_discription,
-        Audio_minute: packageDetails.Audio_minute,
-        Audio_Schedule: packageDetails.Audio_Schedule,
-        Audio_discription: packageDetails.Audio_discription,
-        Video_minute: packageDetails.Video_minute,
-        Video_Schedule: packageDetails.Video_Schedule,
-        Video_discription: packageDetails.Video_discription
+        Basic_packege_name: packageDetails.Basic_packege_name,
+        Economy_packege_name: packageDetails.Economy_packege_name,
+        Pro_packege_name: packageDetails.Pro_packege_name,
+        Basic_minute: packageDetails.Basic_minute,
+        Economy_minute: packageDetails.Economy_minute,
+        Pro_minute: packageDetails.Pro_minute,
+        Basic_Schedule: packageDetails.Basic_Schedule,
+        Economy_Schedule: packageDetails.Economy_Schedule,
+        Pro_Schedule: packageDetails.Pro_Schedule,
+        Basic_discription: packageDetails.Basic_discription,
+        Economy_discription: packageDetails.Economy_discription,
+        Pro_discription: packageDetails.Pro_discription
       };
     }
  
@@ -48,20 +62,31 @@ const createAdvisorPackage = async (req, res) => {
     // Create advisor package with merged data (body overrides package defaults)
     const advisorPackage = new AdvisorPackage({
       advisor_id,
-      packege_name: packageData.packege_name,
-      Chat_minute: packageData.Chat_minute ,
-      Chat_Schedule:  packageData.Chat_Schedule,
-      Chat_discription: packageData.Chat_discription,
-      Chat_price: Chat_price || 0,
-      Audio_minute: packageData.Audio_minute,
-      Audio_Schedule: packageData.Audio_Schedule,
-      Audio_discription: packageData.Audio_discription,
-      Audio_price: Audio_price || 0,
-      Video_minute: packageData.Video_minute,
-      Video_Schedule: packageData.Video_Schedule,
-      Video_discription: packageData.Video_discription,
-      Video_price: Video_price || 0,
-      status: true,
+      
+      // Package names
+      Basic_packege_name: Basic_packege_name || packageData.Basic_packege_name || 'Basic',
+      Economy_packege_name: Economy_packege_name || packageData.Economy_packege_name || 'Economy',
+      Pro_packege_name: Pro_packege_name || packageData.Pro_packege_name || 'Pro',
+      
+      // Basic package fields
+      Basic_minute: Basic_minute !== undefined ? Basic_minute : (packageData.Basic_minute || 0),
+      Basic_Schedule: Basic_Schedule !== undefined ? Basic_Schedule : (packageData.Basic_Schedule || 0),
+      Basic_discription: Basic_discription || packageData.Basic_discription || '',
+      Basic_price: Basic_price || 0,
+      
+      // Economy package fields
+      Economy_minute: Economy_minute !== undefined ? Economy_minute : (packageData.Economy_minute || 0),
+      Economy_Schedule: Economy_Schedule !== undefined ? Economy_Schedule : (packageData.Economy_Schedule || 0),
+      Economy_discription: Economy_discription || packageData.Economy_discription || '',
+      Economy_price: Economy_price || 0,
+      
+      // Pro package fields
+      Pro_minute: Pro_minute !== undefined ? Pro_minute : (packageData.Pro_minute || 0),
+      Pro_Schedule: Pro_Schedule !== undefined ? Pro_Schedule : (packageData.Pro_Schedule || 0),
+      Pro_discription: Pro_discription || packageData.Pro_discription || '',
+      Pro_price: Pro_price || 0,
+      
+      status: status !== undefined ? status : true,
       created_by: req.user.user_id
     });
 
@@ -107,7 +132,25 @@ console.log(package);
 // Update Advisor Package
 const updateAdvisorPackage = async (req, res) => {
   try {
-    const { Advisor_Package_id, Chat_price, Audio_price, Video_price } = req.body;
+    const { 
+      Advisor_Package_id, 
+      Basic_packege_name,
+      Economy_packege_name,
+      Pro_packege_name,
+      Basic_minute,
+      Economy_minute,
+      Pro_minute,
+      Basic_Schedule,
+      Economy_Schedule,
+      Pro_Schedule,
+      Basic_discription,
+      Economy_discription,
+      Pro_discription,
+      Basic_price,
+      Economy_price,
+      Pro_price,
+      status
+    } = req.body;
 
     // Validate Advisor_Package_id
     if (!Advisor_Package_id) {
@@ -128,12 +171,36 @@ const updateAdvisorPackage = async (req, res) => {
 
     // Build update data
     const updateData = {
-      Chat_price: Chat_price || 0,
-      Audio_price: Audio_price || 0,
-      Video_price: Video_price || 0,
       updated_by: req.user.user_id,
       updated_at: new Date()
     };
+
+    // Only update fields that are provided
+    // Package names
+    if (Basic_packege_name !== undefined) updateData.Basic_packege_name = Basic_packege_name;
+    if (Economy_packege_name !== undefined) updateData.Economy_packege_name = Economy_packege_name;
+    if (Pro_packege_name !== undefined) updateData.Pro_packege_name = Pro_packege_name;
+    
+    // Basic package fields
+    if (Basic_minute !== undefined) updateData.Basic_minute = Basic_minute;
+    if (Basic_Schedule !== undefined) updateData.Basic_Schedule = Basic_Schedule;
+    if (Basic_discription !== undefined) updateData.Basic_discription = Basic_discription;
+    if (Basic_price !== undefined) updateData.Basic_price = Basic_price;
+    
+    // Economy package fields
+    if (Economy_minute !== undefined) updateData.Economy_minute = Economy_minute;
+    if (Economy_Schedule !== undefined) updateData.Economy_Schedule = Economy_Schedule;
+    if (Economy_discription !== undefined) updateData.Economy_discription = Economy_discription;
+    if (Economy_price !== undefined) updateData.Economy_price = Economy_price;
+    
+    // Pro package fields
+    if (Pro_minute !== undefined) updateData.Pro_minute = Pro_minute;
+    if (Pro_Schedule !== undefined) updateData.Pro_Schedule = Pro_Schedule;
+    if (Pro_discription !== undefined) updateData.Pro_discription = Pro_discription;
+    if (Pro_price !== undefined) updateData.Pro_price = Pro_price;
+    
+    // Status field
+    if (status !== undefined) updateData.status = status;
 
 
 

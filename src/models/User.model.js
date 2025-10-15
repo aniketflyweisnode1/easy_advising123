@@ -141,14 +141,14 @@ const userSchema = new mongoose.Schema({
   expertise_offer: {
     type: String
   },
-  Category: [{
+  Category: {
     type: Number,
     ref: 'Category'
-  }],
-  Subcategory: [{
+  },
+  Subcategory: {
     type: Number,
     ref: 'Subcategory'
-  }],
+  },
   chat_Rate: {
     type: Number,
     default: 0

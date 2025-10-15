@@ -6,56 +6,66 @@ const packageSchema = new mongoose.Schema({
     type: Number,
     unique: true
   },
-  packege_name: {
+  // Package names
+  Basic_packege_name: {
     type: String,
-    required: true
+    default: 'Basic'
   },
-
-  //Chat
-  Chat_minute: {
+  Economy_packege_name: {
+    type: String,
+    default: 'Economy'
+  },
+  Pro_packege_name: {
+    type: String,
+    default: 'Pro'
+  },
+  
+  // Basic package fields
+  Basic_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Chat_Schedule: {
+  Basic_Schedule: {
     type: Number,
     default: 0,
     min: 0
   },
-  Chat_discription: {
+  Basic_discription: {
     type: String
   },
-
-  //Audio
-  Audio_minute: {
+  
+  // Economy package fields
+  Economy_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Audio_Schedule: {
+  Economy_Schedule: {
     type: Number,
     default: 0,
     min: 0
   },
-  Audio_discription: {
+  Economy_discription: {
     type: String
   },
-
-  //video
-  Video_minute: {
+  
+  // Pro package fields
+  Pro_minute: {
     type: Number,
     default: 0,
     min: 0
   },
-  Video_Schedule: {
+  Pro_Schedule: {
     type: Number,
     default: 0,
     min: 0
   },
-  Video_discription: {
+  Pro_discription: {
     type: String
   },
-
+  // Rate fields
+ 
   approve_status: {
     type: Boolean,
     default: false
