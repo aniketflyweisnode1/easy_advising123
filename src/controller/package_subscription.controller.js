@@ -1,4 +1,5 @@
 const PackageSubscription = require('../models/package_subscription.model.js');
+const AdvisorPackage = require('../models/Advisor_Package.model.js');
 
 // create by data 2024-07-14
 const createPackageSubscription = async (req, res) => {
@@ -14,20 +15,19 @@ const createPackageSubscription = async (req, res) => {
             });
         }
         
-        // Get package details to set remaining values
-        const Package = require('../models/package.model.js');
-        const packageDetails = await Package.findOne({ package_id: data.package_id });
+        // Get advisor package details to set remaining values
+        const packageDetails = await AdvisorPackage.findOne({ Advisor_Package_id: data.package_id });
         
         if (!packageDetails) {
             return res.status(404).json({ 
-                message: 'Package not found', 
-                status: 400 
+                message: 'Advisor package not found', 
+                status: 404 
             });
         }
         
-        // Set remaining values from package
-        data.Remaining_minute = packageDetails.minute || 0;
-        data.Remaining_Schedule = packageDetails.Schedule || 0;
+        // Set remaining values from advisor package (use Basic package as default)
+        data.Remaining_minute = packageDetails.Basic_minute || 0;
+        data.Remaining_Schedule = packageDetails.Basic_Schedule || 0;
         
         // Set default Subscription_status if not provided
         if (!data.Subscription_status) {
@@ -47,14 +47,23 @@ const createPackageSubscription = async (req, res) => {
         await subscription.save();
         
         res.status(201).json({ 
-            message: 'Package subscription created', 
+            message: 'Advisor package subscription created', 
             subscription, 
             package_details: {
-                package_id: packageDetails.package_id,
-                packege_name: packageDetails.packege_name,
-                minute: packageDetails.minute,
-                Schedule: packageDetails.Schedule,
-                price: packageDetails.price
+                Advisor_Package_id: packageDetails.Advisor_Package_id,
+                advisor_id: packageDetails.advisor_id,
+                Basic_packege_name: packageDetails.Basic_packege_name,
+                Basic_minute: packageDetails.Basic_minute,
+                Basic_Schedule: packageDetails.Basic_Schedule,
+                Basic_price: packageDetails.Basic_price,
+                Economy_packege_name: packageDetails.Economy_packege_name,
+                Economy_minute: packageDetails.Economy_minute,
+                Economy_Schedule: packageDetails.Economy_Schedule,
+                Economy_price: packageDetails.Economy_price,
+                Pro_packege_name: packageDetails.Pro_packege_name,
+                Pro_minute: packageDetails.Pro_minute,
+                Pro_Schedule: packageDetails.Pro_Schedule,
+                Pro_price: packageDetails.Pro_price
             },
             status: 201 
         });
@@ -215,6 +224,64 @@ const getSubscriptionsByStatus = async (req, res) => {
     }
 };
 
+// Get subscription with advisor package details
+const getSubscriptionWithPackageDetails = async (req, res) => {
+    try {
+        const { PkSubscription_id } = req.params;
+        
+        const subscription = await PackageSubscription.findOne({ PkSubscription_id });
+        if (!subscription) {
+            return res.status(404).json({ 
+                message: 'Package subscription not found', 
+                status: 404 
+            });
+        }
+        
+        // Get advisor package details
+        const packageDetails = await AdvisorPackage.findOne({ 
+            Advisor_Package_id: subscription.package_id 
+        });
+        
+        if (!packageDetails) {
+            return res.status(404).json({ 
+                message: 'Advisor package not found', 
+                status: 404 
+            });
+        }
+        
+        res.status(200).json({ 
+            subscription,
+            package_details: {
+                Advisor_Package_id: packageDetails.Advisor_Package_id,
+                advisor_id: packageDetails.advisor_id,
+                Basic_packege_name: packageDetails.Basic_packege_name,
+                Basic_minute: packageDetails.Basic_minute,
+                Basic_Schedule: packageDetails.Basic_Schedule,
+                Basic_discription: packageDetails.Basic_discription,
+                Basic_price: packageDetails.Basic_price,
+                Basic_packageExpriyDays: packageDetails.Basic_packageExpriyDays,
+                Economy_packege_name: packageDetails.Economy_packege_name,
+                Economy_minute: packageDetails.Economy_minute,
+                Economy_Schedule: packageDetails.Economy_Schedule,
+                Economy_discription: packageDetails.Economy_discription,
+                Economy_price: packageDetails.Economy_price,
+                Economy_packageExpriyDays: packageDetails.Economy_packageExpriyDays,
+                Pro_packege_name: packageDetails.Pro_packege_name,
+                Pro_minute: packageDetails.Pro_minute,
+                Pro_Schedule: packageDetails.Pro_Schedule,
+                Pro_discription: packageDetails.Pro_discription,
+                Pro_price: packageDetails.Pro_price,
+                Pro_packageExpriyDays: packageDetails.Pro_packageExpriyDays,
+                status: packageDetails.status,
+                approve_status: packageDetails.approve_status
+            },
+            status: 200 
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message || error, status: 500 });
+    }
+};
+
 module.exports = {
     createPackageSubscription,
     updatePackageSubscription,
@@ -224,5 +291,6 @@ module.exports = {
     getAllPackageSubscriptions,
     getAllActivedPackageSubscriptions,
     updateSubscriptionStatus,
-    getSubscriptionsByStatus
+    getSubscriptionsByStatus,
+    getSubscriptionWithPackageDetails
 }; 

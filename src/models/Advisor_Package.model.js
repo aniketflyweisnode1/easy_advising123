@@ -99,7 +99,11 @@ const advisorPackageSchema = new mongoose.Schema({
     default: 90,
     min: 1
   },
-  
+
+  approve_status: {
+    type: Boolean,
+    default: false
+  },
   status: {
     type: Boolean,
     default: true

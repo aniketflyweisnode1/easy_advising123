@@ -1,51 +1,64 @@
 const Package = require('../models/package.model');
+const AdvisorPackage = require('../models/Advisor_Package.model');
 const User = require('../models/User.model');
 
 // Create package approval request (by advisor/user)
 const createPackageApproval = async (req, res) => {
   try {
     const {
-      packege_name,
-      Chat_price,
-      Chat_minute,
-      Chat_Schedule,
-      Chat_discription,
-      Audio_price,
-      Audio_minute,
-      Audio_Schedule,
-      Audio_discription,
-      Video_price,
-      Video_minute,
-      Video_Schedule,
-      Video_discription,
+      advisor_id,
+      Basic_packege_name,
+      Economy_packege_name,
+      Pro_packege_name,
+      Basic_minute,
+      Basic_Schedule,
+      Basic_discription,
+      Basic_price,
+      Basic_packageExpriyDays,
+      Economy_minute,
+      Economy_Schedule,
+      Economy_discription,
+      Economy_price,
+      Economy_packageExpriyDays,
+      Pro_minute,
+      Pro_Schedule,
+      Pro_discription,
+      Pro_price,
+      Pro_packageExpriyDays,
       status
     } = req.body;
 
     // Validate required fields
-    if (!packege_name) {
+    if (!advisor_id) {
       return res.status(400).json({
         success: false,
-        message: 'packege_name is required'
+        message: 'advisor_id is required'
       });
     }
 
-    // Create package with pending approval
-    const packageObj = new Package({
-      packege_name,
-      Chat_price: Chat_price || 0,
-      Chat_minute: Chat_minute || 0,
-      Chat_Schedule: Chat_Schedule || 0,
-      Chat_discription: Chat_discription || '',
-      Audio_price: Audio_price || 0,
-      Audio_minute: Audio_minute || 0,
-      Audio_Schedule: Audio_Schedule || 0,
-      Audio_discription: Audio_discription || '',
-      Video_price: Video_price || 0,
-      Video_minute: Video_minute || 0,
-      Video_Schedule: Video_Schedule || 0,
-      Video_discription: Video_discription || '',
+    // Create advisor package with pending approval
+    const packageObj = new AdvisorPackage({
+      advisor_id,
+      Basic_packege_name: Basic_packege_name || 'Basic',
+      Economy_packege_name: Economy_packege_name || 'Economy',
+      Pro_packege_name: Pro_packege_name || 'Pro',
+      Basic_minute: Basic_minute || 0,
+      Basic_Schedule: Basic_Schedule || 0,
+      Basic_discription: Basic_discription || '',
+      Basic_price: Basic_price || 0,
+      Basic_packageExpriyDays: Basic_packageExpriyDays || 30,
+      Economy_minute: Economy_minute || 0,
+      Economy_Schedule: Economy_Schedule || 0,
+      Economy_discription: Economy_discription || '',
+      Economy_price: Economy_price || 0,
+      Economy_packageExpriyDays: Economy_packageExpriyDays || 60,
+      Pro_minute: Pro_minute || 0,
+      Pro_Schedule: Pro_Schedule || 0,
+      Pro_discription: Pro_discription || '',
+      Pro_price: Pro_price || 0,
+      Pro_packageExpriyDays: Pro_packageExpriyDays || 90,
       approve_status: false, // Pending approval by default
-      status: status !== undefined ? status : 1,
+      status: status !== undefined ? status : true,
       created_by: req.user.user_id
     });
 
@@ -53,7 +66,7 @@ const createPackageApproval = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Package approval request created successfully',
+      message: 'Advisor package approval request created successfully',
       data: packageObj
     });
   } catch (error) {
@@ -68,37 +81,43 @@ const createPackageApproval = async (req, res) => {
 const updatePackageApproval = async (req, res) => {
   try {
     const {
-      package_id,
-      packege_name,
-      Chat_price,
-      Chat_minute,
-      Chat_Schedule,
-      Chat_discription,
-      Audio_price,
-      Audio_minute,
-      Audio_Schedule,
-      Audio_discription,
-      Video_price,
-      Video_minute,
-      Video_Schedule,
-      Video_discription,
+      Advisor_Package_id,
+      advisor_id,
+      Basic_packege_name,
+      Economy_packege_name,
+      Pro_packege_name,
+      Basic_minute,
+      Basic_Schedule,
+      Basic_discription,
+      Basic_price,
+      Basic_packageExpriyDays,
+      Economy_minute,
+      Economy_Schedule,
+      Economy_discription,
+      Economy_price,
+      Economy_packageExpriyDays,
+      Pro_minute,
+      Pro_Schedule,
+      Pro_discription,
+      Pro_price,
+      Pro_packageExpriyDays,
       status
     } = req.body;
 
-    // Validate package_id
-    if (!package_id) {
+    // Validate Advisor_Package_id
+    if (!Advisor_Package_id) {
       return res.status(400).json({
         success: false,
-        message: 'package_id is required'
+        message: 'Advisor_Package_id is required'
       });
     }
 
     // Check if package exists
-    const existingPackage = await Package.findOne({ package_id });
+    const existingPackage = await AdvisorPackage.findOne({ Advisor_Package_id });
     if (!existingPackage) {
       return res.status(404).json({
         success: false,
-        message: 'Package not found'
+        message: 'Advisor package not found'
       });
     }
 
@@ -117,31 +136,37 @@ const updatePackageApproval = async (req, res) => {
     };
 
     // Only update fields that are provided
-    if (packege_name !== undefined) updateData.packege_name = packege_name;
-    if (Chat_price !== undefined) updateData.Chat_price = Chat_price;
-    if (Chat_minute !== undefined) updateData.Chat_minute = Chat_minute;
-    if (Chat_Schedule !== undefined) updateData.Chat_Schedule = Chat_Schedule;
-    if (Chat_discription !== undefined) updateData.Chat_discription = Chat_discription;
-    if (Audio_price !== undefined) updateData.Audio_price = Audio_price;
-    if (Audio_minute !== undefined) updateData.Audio_minute = Audio_minute;
-    if (Audio_Schedule !== undefined) updateData.Audio_Schedule = Audio_Schedule;
-    if (Audio_discription !== undefined) updateData.Audio_discription = Audio_discription;
-    if (Video_price !== undefined) updateData.Video_price = Video_price;
-    if (Video_minute !== undefined) updateData.Video_minute = Video_minute;
-    if (Video_Schedule !== undefined) updateData.Video_Schedule = Video_Schedule;
-    if (Video_discription !== undefined) updateData.Video_discription = Video_discription;
+    if (advisor_id !== undefined) updateData.advisor_id = advisor_id;
+    if (Basic_packege_name !== undefined) updateData.Basic_packege_name = Basic_packege_name;
+    if (Economy_packege_name !== undefined) updateData.Economy_packege_name = Economy_packege_name;
+    if (Pro_packege_name !== undefined) updateData.Pro_packege_name = Pro_packege_name;
+    if (Basic_minute !== undefined) updateData.Basic_minute = Basic_minute;
+    if (Basic_Schedule !== undefined) updateData.Basic_Schedule = Basic_Schedule;
+    if (Basic_discription !== undefined) updateData.Basic_discription = Basic_discription;
+    if (Basic_price !== undefined) updateData.Basic_price = Basic_price;
+    if (Basic_packageExpriyDays !== undefined) updateData.Basic_packageExpriyDays = Basic_packageExpriyDays;
+    if (Economy_minute !== undefined) updateData.Economy_minute = Economy_minute;
+    if (Economy_Schedule !== undefined) updateData.Economy_Schedule = Economy_Schedule;
+    if (Economy_discription !== undefined) updateData.Economy_discription = Economy_discription;
+    if (Economy_price !== undefined) updateData.Economy_price = Economy_price;
+    if (Economy_packageExpriyDays !== undefined) updateData.Economy_packageExpriyDays = Economy_packageExpriyDays;
+    if (Pro_minute !== undefined) updateData.Pro_minute = Pro_minute;
+    if (Pro_Schedule !== undefined) updateData.Pro_Schedule = Pro_Schedule;
+    if (Pro_discription !== undefined) updateData.Pro_discription = Pro_discription;
+    if (Pro_price !== undefined) updateData.Pro_price = Pro_price;
+    if (Pro_packageExpriyDays !== undefined) updateData.Pro_packageExpriyDays = Pro_packageExpriyDays;
     if (status !== undefined) updateData.status = status;
 
     // Update package
-    const packageObj = await Package.findOneAndUpdate(
-      { package_id },
+    const packageObj = await AdvisorPackage.findOneAndUpdate(
+      { Advisor_Package_id },
       updateData,
       { new: true, runValidators: true }
     );
 
     res.status(200).json({
       success: true,
-      message: 'Package updated successfully',
+      message: 'Advisor package updated successfully',
       data: packageObj
     });
   } catch (error) {
@@ -155,14 +180,14 @@ const updatePackageApproval = async (req, res) => {
 // Get package by ID (with user details)
 const getPackageApprovalById = async (req, res) => {
   try {
-    const { package_id } = req.params;
+    const { Advisor_Package_id } = req.params;
 
-    const packageObj = await Package.findOne({ package_id });
+    const packageObj = await AdvisorPackage.findOne({ Advisor_Package_id });
 
     if (!packageObj) {
       return res.status(404).json({
         success: false,
-        message: 'Package not found'
+        message: 'Advisor package not found'
       });
     }
 
@@ -191,7 +216,7 @@ const getPackageApprovalById = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Package retrieved successfully',
+      message: 'Advisor package retrieved successfully',
       data: packageWithDetails
     });
   } catch (error) {
@@ -225,12 +250,16 @@ const getAllPackageApprovals = async (req, res) => {
 
     // Filter by status
     if (status !== undefined) {
-      query.status = parseInt(status);
+      query.status = status === 'true';
     }
 
     // Search by package name
     if (search) {
-      query.packege_name = { $regex: search, $options: 'i' };
+      query.$or = [
+        { Basic_packege_name: { $regex: search, $options: 'i' } },
+        { Economy_packege_name: { $regex: search, $options: 'i' } },
+        { Pro_packege_name: { $regex: search, $options: 'i' } }
+      ];
     }
 
     // Pagination
@@ -241,13 +270,13 @@ const getAllPackageApprovals = async (req, res) => {
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
     // Get packages
-    const packages = await Package.find(query)
+    const packages = await AdvisorPackage.find(query)
       .sort(sortObj)
       .skip(skip)
       .limit(parseInt(limit));
 
     // Get total count
-    const totalPackages = await Package.countDocuments(query);
+    const totalPackages = await AdvisorPackage.countDocuments(query);
 
     // Get user details for all packages
     const userIds = [...new Set([
@@ -276,10 +305,10 @@ const getAllPackageApprovals = async (req, res) => {
     // Calculate statistics
     const stats = {
       total: totalPackages,
-      pending_approval: await Package.countDocuments({ approve_status: false }),
-      approved: await Package.countDocuments({ approve_status: true }),
-      active: await Package.countDocuments({ status: 1 }),
-      inactive: await Package.countDocuments({ status: 0 })
+      pending_approval: await AdvisorPackage.countDocuments({ approve_status: false }),
+      approved: await AdvisorPackage.countDocuments({ approve_status: true }),
+      active: await AdvisorPackage.countDocuments({ status: true }),
+      inactive: await AdvisorPackage.countDocuments({ status: false })
     };
 
     // Pagination info
@@ -287,7 +316,7 @@ const getAllPackageApprovals = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Package approvals retrieved successfully',
+      message: 'Advisor package approvals retrieved successfully',
       data: packagesWithDetails,
       pagination: {
         current_page: parseInt(page),
@@ -332,7 +361,7 @@ const getPackageApprovalsByAuth = async (req, res) => {
 
     // Filter by status
     if (status !== undefined) {
-      query.status = parseInt(status);
+      query.status = status === 'true';
     }
 
     // Pagination
@@ -343,13 +372,13 @@ const getPackageApprovalsByAuth = async (req, res) => {
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
     // Get packages
-    const packages = await Package.find(query)
+    const packages = await AdvisorPackage.find(query)
       .sort(sortObj)
       .skip(skip)
       .limit(parseInt(limit));
 
     // Get total count
-    const totalPackages = await Package.countDocuments(query);
+    const totalPackages = await AdvisorPackage.countDocuments(query);
 
     // Get approver details
     const approverIds = [...new Set(packages.map(p => p.approve_by).filter(id => id))];
@@ -372,11 +401,11 @@ const getPackageApprovalsByAuth = async (req, res) => {
 
     // Calculate user's package statistics
     const userStats = {
-      total: await Package.countDocuments({ created_by: userId }),
-      pending_approval: await Package.countDocuments({ created_by: userId, approve_status: false }),
-      approved: await Package.countDocuments({ created_by: userId, approve_status: true }),
-      active: await Package.countDocuments({ created_by: userId, status: 1 }),
-      inactive: await Package.countDocuments({ created_by: userId, status: 0 })
+      total: await AdvisorPackage.countDocuments({ created_by: userId }),
+      pending_approval: await AdvisorPackage.countDocuments({ created_by: userId, approve_status: false }),
+      approved: await AdvisorPackage.countDocuments({ created_by: userId, approve_status: true }),
+      active: await AdvisorPackage.countDocuments({ created_by: userId, status: true }),
+      inactive: await AdvisorPackage.countDocuments({ created_by: userId, status: false })
     };
 
     // Pagination info
@@ -384,7 +413,7 @@ const getPackageApprovalsByAuth = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Your package approvals retrieved successfully',
+      message: 'Your advisor package approvals retrieved successfully',
       data: packagesWithDetails,
       pagination: {
         current_page: parseInt(page),
@@ -408,13 +437,13 @@ const getPackageApprovalsByAuth = async (req, res) => {
 // Approve/Reject package (Admin only) - ONLY updates approval status
 const approvePackage = async (req, res) => {
   try {
-    const { package_id, approve_status } = req.body;
+    const { Advisor_Package_id, approve_status } = req.body;
 
     // Validate required fields
-    if (!package_id) {
+    if (!Advisor_Package_id) {
       return res.status(400).json({
         success: false,
-        message: 'package_id is required'
+        message: 'Advisor_Package_id is required'
       });
     }
 
@@ -426,11 +455,11 @@ const approvePackage = async (req, res) => {
     }
 
     // Check if package exists
-    const existingPackage = await Package.findOne({ package_id });
+    const existingPackage = await AdvisorPackage.findOne({ Advisor_Package_id });
     if (!existingPackage) {
       return res.status(404).json({
         success: false,
-        message: 'Package not found'
+        message: 'Advisor package not found'
       });
     }
 
@@ -443,18 +472,18 @@ const approvePackage = async (req, res) => {
       updated_at: new Date()
     };
 
-    const packageObj = await Package.findOneAndUpdate(
-      { package_id },
+    const packageObj = await AdvisorPackage.findOneAndUpdate(
+      { Advisor_Package_id },
       updateData,
       { new: true, runValidators: true }
     );
 
     res.status(200).json({
       success: true,
-      message: approve_status ? 'Package approved successfully' : 'Package rejected successfully',
+      message: approve_status ? 'Advisor package approved successfully' : 'Advisor package rejected successfully',
       data: {
-        package_id: packageObj.package_id,
-        packege_name: packageObj.packege_name,
+        Advisor_Package_id: packageObj.Advisor_Package_id,
+        advisor_id: packageObj.advisor_id,
         approve_status: packageObj.approve_status,
         approve_by: packageObj.approve_by,
         approve_at: packageObj.approve_at
@@ -471,14 +500,14 @@ const approvePackage = async (req, res) => {
 // Delete package approval
 const deletePackageApproval = async (req, res) => {
   try {
-    const { package_id } = req.params;
+    const { Advisor_Package_id } = req.params;
 
     // Check if package exists
-    const existingPackage = await Package.findOne({ package_id });
+    const existingPackage = await AdvisorPackage.findOne({ Advisor_Package_id });
     if (!existingPackage) {
       return res.status(404).json({
         success: false,
-        message: 'Package not found'
+        message: 'Advisor package not found'
       });
     }
 
@@ -491,14 +520,14 @@ const deletePackageApproval = async (req, res) => {
     }
 
     // Delete package
-    await Package.findOneAndDelete({ package_id });
+    await AdvisorPackage.findOneAndDelete({ Advisor_Package_id });
 
     res.status(200).json({
       success: true,
-      message: 'Package deleted successfully',
+      message: 'Advisor package deleted successfully',
       data: {
-        package_id: existingPackage.package_id,
-        packege_name: existingPackage.packege_name
+        Advisor_Package_id: existingPackage.Advisor_Package_id,
+        advisor_id: existingPackage.advisor_id
       }
     });
   } catch (error) {
