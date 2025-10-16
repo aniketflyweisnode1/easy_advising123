@@ -41,6 +41,8 @@ const agoraRoutes = require('./agora.routes');
 const paymentDetailsRoutes = require('./Master/payment_details.routes');
 const adminPackageApprovalRoutes = require('./Admin/package_approval.routes');
 const advisorPackageRoutes = require('./Master/advisor_package.routes');
+const chooseDayAdvisorRoutes = require('./Master/choose_day_Advisor.routes');
+const chooseTimeSlotRoutes = require('./Master/choose_Time_slot.routes');
 
 function routes(app) {
 
@@ -87,6 +89,8 @@ function routes(app) {
     app.use('/api/payment-details', paymentDetailsRoutes);
     app.use('/api/admin/package-approval', adminPackageApprovalRoutes);
     app.use('/api/advisor-package', advisorPackageRoutes);
+    app.use('/api/choose-day-advisor', chooseDayAdvisorRoutes);
+    app.use('/api/choose-time-slot', chooseTimeSlotRoutes);
 }
 
 module.exports = routes;
