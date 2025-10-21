@@ -213,6 +213,42 @@ const getProfile = async (req, res) => {
       });
     }
 
+    // Get slot information for advisors
+    let slotDetails = {};
+    if (user.role_id === 2) {
+      // Get choose_day_Advisor records for this advisor
+      const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: user.user_id });
+      
+      // Get choose_Time_slot records for this advisor
+      const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: user.user_id });
+      
+      // Combine day and time slot information
+      const slotData = dayAdvisorRecords.map(dayRecord => {
+        const timeSlots = timeSlotRecords.filter(timeRecord => 
+          timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id
+        );
+        
+        return {
+          day_id: dayRecord.choose_day_Advisor_id,
+          day_name: dayRecord.DayName,
+          status: dayRecord.Status,
+          time_slots: timeSlots.map(timeSlot => ({
+            time_slot_id: timeSlot.choose_Time_slot_id,
+            time_slot: timeSlot.Time_slot,
+            status: timeSlot.Status,
+            created_at: timeSlot.created_at,
+            updated_at: timeSlot.updated_at
+          }))
+        };
+      });
+      
+      slotDetails = {
+        advisor_slots: slotData,
+        total_days: dayAdvisorRecords.length,
+        total_time_slots: timeSlotRecords.length
+      };
+    }
+
     // Get package details based on user role
     let packageDetails = {};
     
@@ -324,7 +360,8 @@ const getProfile = async (req, res) => {
       message: 'Profile retrieved successfully',
       data: {
         ...user.toObject(),
-        package_details: packageDetails
+        package_details: packageDetails,
+        slot_details: slotDetails
       }
     });
   } catch (error) {
