@@ -124,19 +124,11 @@ const userSchema = new mongoose.Schema({
   IntroductionVideo: {
     type: String
   },
-  Current_Designation: {
-    type: Number,
-    ref: 'Designation'
-  },
   Current_Designation_Name: {
     type: String
   },
   Current_Company_Name: {
     type: String
-  },
-  current_company_name: {
-    type: Number,
-    ref: 'Company'
   },
   expertise_offer: {
     type: String
