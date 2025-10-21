@@ -53,12 +53,19 @@ const registerUser = async (req, res) => {
       user_img,
       slot
     } = req.body;
+   
     if (!name || !mobile) {
       return res.status(400).json({ success: false, message: 'name and mobile are required.' });
     }
     const existingUser = await User.findOne({ mobile });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User already registered.' });
+    }
+let login_permission_status = true;
+let newstatus = 1;
+    if(role_id === 2){
+      login_permission_status = false;
+      newstatus = 0;
     }
     // Create user with all fields from the model
     const newUser = new User({
@@ -98,7 +105,9 @@ const registerUser = async (req, res) => {
       firebase_token,
       instant_call,
       applyslots_remainingDays,
-      user_img
+      user_img,
+      status: newstatus,
+      login_permission_status: login_permission_status
     });
     await newUser.save();
 

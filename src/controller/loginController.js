@@ -23,7 +23,7 @@ const login = async (req, res) => {
 
     // Check if user exists
     const existingUser = await User.findOne({ mobile });
-
+console.log(existingUser);
     if (existingUser) {
       // Check user status and login permission
       if (existingUser.status !== 1) {
