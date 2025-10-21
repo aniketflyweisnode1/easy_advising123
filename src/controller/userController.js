@@ -1645,6 +1645,56 @@ const getAdviserById = async (req, res) => {
       expired_subscribers: subscribers.filter(sub => sub.Subscription_status === 'Expired').length
     };
     
+    // Get slot information for this advisor
+    let slotDetails = {};
+    
+    // Get choose_day_Advisor records for this advisor
+    const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: Number(advisor_id) });
+    console.log('Day Advisor Records for advisor:', dayAdvisorRecords);
+    
+    // Get choose_Time_slot records for this advisor
+    const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: Number(advisor_id) });
+    console.log('Time Slot Records for advisor:', timeSlotRecords);
+    
+    // Get all unique choose_day_Advisor_id values from timeSlotRecords
+    const timeSlotDayIds = [...new Set(timeSlotRecords.map(record => record.choose_day_Advisor_id))];
+    console.log('Time Slot Day IDs for advisor:', timeSlotDayIds);
+    
+    // Get day records from dayAdvisorRecords based on timeSlotDayIds
+    const relevantDayRecords = await ChooseDayAdvisor.find({ 
+      choose_day_Advisor_id: { $in: timeSlotDayIds }
+    });
+    console.log('Relevant Day Records from DB for advisor:', relevantDayRecords);
+    
+    // Combine day and time slot information
+    const slotData = relevantDayRecords.map(dayRecord => {
+      const timeSlots = timeSlotRecords.filter(timeRecord => 
+        timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
+        timeRecord.advisor_id === Number(advisor_id)
+      );
+      
+      return {
+        day_id: dayRecord.choose_day_Advisor_id,
+        day_name: dayRecord.DayName,
+        status: dayRecord.Status,
+        created_at: dayRecord.created_at,
+        updated_at: dayRecord.updated_at,
+        time_slots: timeSlots.map(timeSlot => ({
+          time_slot_id: timeSlot.choose_Time_slot_id,
+          time_slot: timeSlot.Time_slot,
+          status: timeSlot.Status,
+          created_at: timeSlot.created_at,
+          updated_at: timeSlot.updated_at
+        }))
+      };
+    });
+    
+    slotDetails = {
+      advisor_slots: slotData,
+      total_days: dayAdvisorRecords.length,
+      total_time_slots: timeSlotRecords.length
+    };
+
     return res.status(200).json({
       advisor: advisor, // Advisor with all populated references
       reviews, // Reviews with populated user references
@@ -1655,6 +1705,7 @@ const getAdviserById = async (req, res) => {
       subscribers, // Package subscribers with populated user and package details
     // subscriptions: subscriptions, // Subscriptions with populated package and user references
       wallet: wallet || null, // Wallet with populated references
+      slot_details: slotDetails, // Slot information for the advisor
       status: 200
     });
   } catch (error) {
