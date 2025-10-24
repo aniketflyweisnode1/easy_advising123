@@ -10,7 +10,8 @@ const {
     getAllPackageSubscriptions,
     getAllActivedPackageSubscriptions,
     updateSubscriptionStatus,
-    getSubscriptionsByStatus
+    getSubscriptionsByStatus,
+    getByAuthPackageSubscription
 } = require('../../controller/package_subscription.controller.js');
 
 // create by data 2025-07-14
@@ -32,5 +33,7 @@ router.get('/getAllActived', auth, getAllActivedPackageSubscriptions);
 router.patch('/updateStatus', auth, updateSubscriptionStatus);
 // Get subscriptions by status 2025-07-15
 router.get('/getByStatus/:status', auth, getSubscriptionsByStatus);
+// Get package subscriptions by authenticated user 2025-01-15
+router.get('/getByAuth', auth, getByAuthPackageSubscription);
 
 module.exports = router; 

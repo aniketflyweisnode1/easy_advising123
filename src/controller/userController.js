@@ -2317,4 +2317,502 @@ const updateUser = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser }; 
+// Update vendor rates and packages
+const updateVendorRates = async (req, res) => {
+  try {
+    const { user_id, chat_Rate, audio_Rate, VideoCall_rate, basicPackage, EconomyPackage, proPackage } = req.body;
+    const adminId = req.user.user_id;
+
+    // Validate user_id
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required'
+      });
+    }
+
+    // Check if user exists and is an advisor
+    const user = await User.findOne({ user_id: parseInt(user_id) });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.role_id !== 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only advisors can have rates and packages updated'
+      });
+    }
+
+    // Prepare update data
+    const updateData = {
+      updated_by: adminId,
+      updated_on: new Date()
+    };
+
+    // Add rate fields if provided
+    if (chat_Rate !== undefined) {
+      updateData.chat_Rate = chat_Rate;
+    }
+    if (audio_Rate !== undefined) {
+      updateData.audio_Rate = audio_Rate;
+    }
+    if (VideoCall_rate !== undefined) {
+      updateData.VideoCall_rate = VideoCall_rate;
+    }
+
+    // Update user rates
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: parseInt(user_id) },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    // Update advisor package if package rates are provided
+    if (basicPackage !== undefined || EconomyPackage !== undefined || proPackage !== undefined) {
+      const advisorPackage = await AdvisorPackage.findOne({ advisor_id: parseInt(user_id) });
+      
+      if (advisorPackage) {
+        const packageUpdateData = {
+          updated_by: adminId,
+          updated_at: new Date()
+        };
+
+        if (basicPackage !== undefined) {
+          packageUpdateData.Basic_price = basicPackage;
+        }
+        if (EconomyPackage !== undefined) {
+          packageUpdateData.Economy_price = EconomyPackage;
+        }
+        if (proPackage !== undefined) {
+          packageUpdateData.Pro_price = proPackage;
+        }
+
+        await AdvisorPackage.findOneAndUpdate(
+          { advisor_id: parseInt(user_id) },
+          packageUpdateData,
+          { new: true, runValidators: true }
+        );
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor rates and packages updated successfully',
+      data: {
+        user_id: updatedUser.user_id,
+        name: updatedUser.name,
+        chat_Rate: updatedUser.chat_Rate,
+        audio_Rate: updatedUser.audio_Rate,
+        VideoCall_rate: updatedUser.VideoCall_rate,
+        updated_on: updatedUser.updated_on
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Update vendor rates error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+// Update Schedule and Availability by vendor_id
+const updateVendorSchedule = async (req, res) => {
+  try {
+    const { vendor_id, schedule_data } = req.body;
+    const adminId = req.user.user_id;
+
+    // Validate vendor_id
+    if (!vendor_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'vendor_id is required'
+      });
+    }
+
+    // Validate schedule_data
+    if (!schedule_data || !Array.isArray(schedule_data)) {
+      return res.status(400).json({
+        success: false,
+        message: 'schedule_data is required and must be an array'
+      });
+    }
+
+    // Check if vendor exists and is an advisor
+    const vendor = await User.findOne({ user_id: parseInt(vendor_id) });
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found'
+      });
+    }
+
+    if (vendor.role_id !== 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only advisors can have their schedule updated'
+      });
+    }
+
+    const results = {
+      updated_days: [],
+      updated_time_slots: [],
+      created_days: [],
+      created_time_slots: [],
+      errors: []
+    };
+
+    // Process each schedule item
+    for (const scheduleItem of schedule_data) {
+      try {
+        const { day_id, day_name, time_slots, status = true } = scheduleItem;
+
+        // Validate required fields
+        if (!day_name) {
+          results.errors.push('day_name is required for each schedule item');
+          continue;
+        }
+
+        if (!time_slots || !Array.isArray(time_slots)) {
+          results.errors.push('time_slots is required and must be an array for each schedule item');
+          continue;
+        }
+
+        let dayRecord;
+
+        if (day_id) {
+          // Update existing day record
+          dayRecord = await ChooseDayAdvisor.findOneAndUpdate(
+            { 
+              choose_day_Advisor_id: day_id,
+              created_by: parseInt(vendor_id)
+            },
+            {
+              DayName: day_name,
+              Status: status,
+              updated_by: adminId,
+              updated_at: new Date()
+            },
+            { new: true }
+          );
+
+          if (dayRecord) {
+            results.updated_days.push(dayRecord);
+          } else {
+            results.errors.push(`Day record with ID ${day_id} not found for vendor ${vendor_id}`);
+            continue;
+          }
+        } else {
+          // Create new day record
+          dayRecord = new ChooseDayAdvisor({
+            DayName: day_name,
+            Status: status,
+            created_by: parseInt(vendor_id)
+          });
+          await dayRecord.save();
+          results.created_days.push(dayRecord);
+        }
+
+        // Delete existing time slots for this day
+        await ChooseTimeSlot.deleteMany({
+          choose_day_Advisor_id: dayRecord.choose_day_Advisor_id,
+          advisor_id: parseInt(vendor_id)
+        });
+
+        // Create new time slots
+        for (const timeSlot of time_slots) {
+          if (timeSlot && Array.isArray(timeSlot)) {
+            const newTimeSlot = new ChooseTimeSlot({
+              choose_day_Advisor_id: dayRecord.choose_day_Advisor_id,
+              advisor_id: parseInt(vendor_id),
+              Time_slot: timeSlot,
+              Status: true,
+              created_by: adminId
+            });
+            await newTimeSlot.save();
+            results.created_time_slots.push(newTimeSlot);
+          }
+        }
+
+      } catch (error) {
+        results.errors.push(`Error processing schedule item: ${error.message}`);
+      }
+    }
+
+    // Get updated schedule data for response
+    const updatedScheduleData = await getVendorScheduleData(parseInt(vendor_id));
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor schedule updated successfully',
+      data: {
+        vendor_id: parseInt(vendor_id),
+        vendor_name: vendor.name,
+        updated_schedule: updatedScheduleData,
+        results: results
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Update vendor schedule error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+// Helper function to get vendor schedule data
+const getVendorScheduleData = async (vendorId) => {
+  try {
+    // Get choose_day_Advisor records for this vendor
+    const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: vendorId });
+    
+    // Get choose_Time_slot records for this vendor
+    const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: vendorId });
+    
+    // Get all unique choose_day_Advisor_id values from timeSlotRecords
+    const timeSlotDayIds = [...new Set(timeSlotRecords.map(record => record.choose_day_Advisor_id))];
+    
+    // Get day records from dayAdvisorRecords based on timeSlotDayIds
+    const relevantDayRecords = await ChooseDayAdvisor.find({ 
+      choose_day_Advisor_id: { $in: timeSlotDayIds }
+    });
+    
+    // Combine day and time slot information
+    const slotData = relevantDayRecords.map(dayRecord => {
+      const timeSlots = timeSlotRecords.filter(timeRecord => 
+        timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
+        timeRecord.advisor_id === vendorId
+      );
+      
+      return {
+        day_id: dayRecord.choose_day_Advisor_id,
+        day_name: dayRecord.DayName,
+        status: dayRecord.Status,
+        created_at: dayRecord.created_at,
+        updated_at: dayRecord.updated_at,
+        time_slots: timeSlots.map(timeSlot => ({
+          time_slot_id: timeSlot.choose_Time_slot_id,
+          time_slot: timeSlot.Time_slot,
+          status: timeSlot.Status,
+          created_at: timeSlot.created_at,
+          updated_at: timeSlot.updated_at
+        }))
+      };
+    });
+    
+    return {
+      advisor_slots: slotData,
+      total_days: dayAdvisorRecords.length,
+      total_time_slots: timeSlotRecords.length
+    };
+  } catch (error) {
+    console.error('Error getting vendor schedule data:', error);
+    return null;
+  }
+};
+
+// Get Total chat, voice, and video schedule calls by vendor
+const getVendorCallStatistics = async (req, res) => {
+  try {
+    const { vendor_id } = req.params;
+    const { start_date, end_date, call_status } = req.query;
+
+    // Validate vendor_id
+    if (!vendor_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'vendor_id is required'
+      });
+    }
+
+    // Check if vendor exists and is an advisor
+    const vendor = await User.findOne({ user_id: parseInt(vendor_id) });
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found'
+      });
+    }
+
+    if (vendor.role_id !== 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Only advisors can have call statistics'
+      });
+    }
+
+    // Build date filter
+    let dateFilter = {};
+    if (start_date || end_date) {
+      dateFilter.created_at = {};
+      if (start_date) {
+        dateFilter.created_at.$gte = new Date(start_date);
+      }
+      if (end_date) {
+        dateFilter.created_at.$lte = new Date(end_date);
+      }
+    }
+
+    // Build status filter
+    let statusFilter = {};
+    if (call_status) {
+      statusFilter.callStatus = call_status;
+    }
+
+    // Get all schedule calls for this vendor
+    const ScheduleCall = require('../models/schedule_call.model');
+    const allCalls = await ScheduleCall.find({
+      advisor_id: parseInt(vendor_id),
+      ...dateFilter,
+      ...statusFilter
+    });
+
+    // Get call type details
+    const CallType = require('../models/call_type.model');
+    const callTypes = await CallType.find();
+
+    // Create call type map for reference
+    const callTypeMap = {};
+    callTypes.forEach(ct => {
+      callTypeMap[ct.call_type_id] = ct;
+    });
+
+    // Categorize calls by type
+    const statistics = {
+      total_calls: allCalls.length,
+      chat_calls: 0,
+      voice_calls: 0,
+      video_calls: 0,
+      other_calls: 0,
+      completed_calls: 0,
+      pending_calls: 0,
+      cancelled_calls: 0,
+      total_duration: 0,
+      total_earnings: 0,
+      call_details: []
+    };
+
+    // Process each call
+    allCalls.forEach(call => {
+      const callType = callTypeMap[call.call_type_id];
+      
+      // Count by call type
+      if (callType) {
+        const modeName = callType.mode_name.toLowerCase();
+        if (modeName.includes('chat')) {
+          statistics.chat_calls++;
+        } else if (modeName.includes('voice') || modeName.includes('audio')) {
+          statistics.voice_calls++;
+        } else if (modeName.includes('video')) {
+          statistics.video_calls++;
+        } else {
+          statistics.other_calls++;
+        }
+      }
+
+      // Count by status
+      if (call.callStatus === 'Completed') {
+        statistics.completed_calls++;
+      } else if (call.callStatus === 'Pending') {
+        statistics.pending_calls++;
+      } else if (call.callStatus === 'Cancelled') {
+        statistics.cancelled_calls++;
+      }
+
+      // Calculate duration and earnings
+      if (call.Call_duration) {
+        statistics.total_duration += call.Call_duration;
+      }
+      if (call.Amount) {
+        statistics.total_earnings += call.Amount;
+      }
+
+      // Add call details
+      statistics.call_details.push({
+        call_id: call.schedule_call_id,
+        call_type: callType ? {
+          call_type_id: callType.call_type_id,
+          mode_name: callType.mode_name,
+          price_per_minute: callType.price_per_minute
+        } : null,
+        call_status: call.callStatus,
+        duration: call.Call_duration || 0,
+        amount: call.Amount || 0,
+        created_at: call.created_at,
+        scheduled_date: call.scheduled_date,
+        scheduled_time: call.scheduled_time
+      });
+    });
+
+    // Calculate averages
+    const averages = {
+      average_duration: statistics.completed_calls > 0 ? 
+        Math.round((statistics.total_duration / statistics.completed_calls) * 100) / 100 : 0,
+      average_earnings_per_call: statistics.completed_calls > 0 ? 
+        Math.round((statistics.total_earnings / statistics.completed_calls) * 100) / 100 : 0,
+      completion_rate: statistics.total_calls > 0 ? 
+        Math.round((statistics.completed_calls / statistics.total_calls) * 100) / 100 : 0
+    };
+
+    // Get recent calls (last 10)
+    const recentCalls = statistics.call_details
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 10);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vendor call statistics retrieved successfully',
+      data: {
+        vendor_id: parseInt(vendor_id),
+        vendor_name: vendor.name,
+        vendor_email: vendor.email,
+        vendor_mobile: vendor.mobile,
+        date_range: {
+          start_date: start_date || 'All time',
+          end_date: end_date || 'All time'
+        },
+        statistics: {
+          ...statistics,
+          averages: averages
+        },
+        recent_calls: recentCalls,
+        call_type_breakdown: {
+          chat_calls: statistics.chat_calls,
+          voice_calls: statistics.voice_calls,
+          video_calls: statistics.video_calls,
+          other_calls: statistics.other_calls
+        },
+        status_breakdown: {
+          completed_calls: statistics.completed_calls,
+          pending_calls: statistics.pending_calls,
+          cancelled_calls: statistics.cancelled_calls
+        }
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Get vendor call statistics error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics }; 

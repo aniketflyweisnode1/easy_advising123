@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser } = require('../../controller/userController');
+const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics } = require('../../controller/userController');
 const { auth } = require('../../middleware/authMiddleware');
 
 router.post('/register', registerUser);
@@ -27,5 +27,14 @@ router.get('/getallemployees', getAllEmployees);
 
 // Update user (Admin function)
 router.put('/update', auth, updateUser);
+
+// Update vendor rates and packages
+router.put('/update-vendor-rates', auth, updateVendorRates);
+
+// Update vendor schedule and availability
+router.put('/updatevendordaytimeschedule', auth, updateVendorSchedule);
+
+// Get vendor call statistics
+router.get('/vendor-call-statistics/:vendor_id', auth, getVendorCallStatistics);
 
 module.exports = router; 

@@ -282,6 +282,101 @@ const getSubscriptionWithPackageDetails = async (req, res) => {
     }
 };
 
+// Get package subscriptions by authenticated user
+const getByAuthPackageSubscription = async (req, res) => {
+    try {
+        const userId = req.user.user_id;
+        
+        // Get all package subscriptions for the authenticated user
+        const subscriptions = await PackageSubscription.find({ subscribe_by: userId })
+            .sort({ created_at: -1 }); // Sort by newest first
+        
+        if (!subscriptions || subscriptions.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'No package subscriptions found for this user',
+                subscriptions: [],
+                count: 0,
+                status: 200
+            });
+        }
+        
+        // Get package details for each subscription
+        const subscriptionsWithDetails = await Promise.all(subscriptions.map(async (subscription) => {
+            const packageDetails = await AdvisorPackage.findOne({ 
+                Advisor_Package_id: subscription.package_id 
+            });
+            
+            // Get advisor details
+            const User = require('./userController');
+            const advisorDetails = await User.findOne({ 
+                user_id: packageDetails ? packageDetails.advisor_id : null 
+            }).select('user_id name email mobile profile_image rating experience_year');
+            
+            return {
+                ...subscription.toObject(),
+                package_details: packageDetails ? {
+                    Advisor_Package_id: packageDetails.Advisor_Package_id,
+                    advisor_id: packageDetails.advisor_id,
+                    Basic_packege_name: packageDetails.Basic_packege_name,
+                    Basic_minute: packageDetails.Basic_minute,
+                    Basic_Schedule: packageDetails.Basic_Schedule,
+                    Basic_discription: packageDetails.Basic_discription,
+                    Basic_price: packageDetails.Basic_price,
+                    Economy_packege_name: packageDetails.Economy_packege_name,
+                    Economy_minute: packageDetails.Economy_minute,
+                    Economy_Schedule: packageDetails.Economy_Schedule,
+                    Economy_discription: packageDetails.Economy_discription,
+                    Economy_price: packageDetails.Economy_price,
+                    Pro_packege_name: packageDetails.Pro_packege_name,
+                    Pro_minute: packageDetails.Pro_minute,
+                    Pro_Schedule: packageDetails.Pro_Schedule,
+                    Pro_discription: packageDetails.Pro_discription,
+                    Pro_price: packageDetails.Pro_price,
+                    status: packageDetails.status
+                } : null,
+                advisor_details: advisorDetails ? {
+                    user_id: advisorDetails.user_id,
+                    name: advisorDetails.name,
+                    email: advisorDetails.email,
+                    mobile: advisorDetails.mobile,
+                    profile_image: advisorDetails.profile_image,
+                    rating: advisorDetails.rating,
+                    experience_year: advisorDetails.experience_year
+                } : null
+            };
+        }));
+        
+        // Calculate summary statistics
+        const summary = {
+            total_subscriptions: subscriptionsWithDetails.length,
+            active_subscriptions: subscriptionsWithDetails.filter(sub => sub.Subscription_status === 'Actived').length,
+            pending_subscriptions: subscriptionsWithDetails.filter(sub => sub.Subscription_status === 'Panding').length,
+            expired_subscriptions: subscriptionsWithDetails.filter(sub => sub.Subscription_status === 'Expired').length,
+            total_remaining_minutes: subscriptionsWithDetails.reduce((sum, sub) => sum + (sub.Remaining_minute || 0), 0),
+            total_remaining_schedules: subscriptionsWithDetails.reduce((sum, sub) => sum + (sub.Remaining_Schedule || 0), 0)
+        };
+        
+        res.status(200).json({
+            success: true,
+            message: 'Package subscriptions retrieved successfully',
+            subscriptions: subscriptionsWithDetails,
+            summary: summary,
+            count: subscriptionsWithDetails.length,
+            status: 200
+        });
+        
+    } catch (error) {
+        console.error('Get auth package subscriptions error:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Internal server error',
+            error: error.message, 
+            status: 500 
+        });
+    }
+};
+
 module.exports = {
     createPackageSubscription,
     updatePackageSubscription,
@@ -292,5 +387,6 @@ module.exports = {
     getAllActivedPackageSubscriptions,
     updateSubscriptionStatus,
     getSubscriptionsByStatus,
-    getSubscriptionWithPackageDetails
+    getSubscriptionWithPackageDetails,
+    getByAuthPackageSubscription
 }; 
