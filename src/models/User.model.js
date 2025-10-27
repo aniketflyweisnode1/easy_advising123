@@ -190,8 +190,8 @@ const userSchema = new mongoose.Schema({
   },
   slot: [{ day_id: Number, day_name: String, time_slots: [String] }],
   status: {
-    type: Boolean,
-    default: true
+    type: Number,
+    default: 1
   },
   created_at: {
     type: Date
