@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics } = require('../../controller/userController');
+const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall } = require('../../controller/userController');
 const { auth } = require('../../middleware/authMiddleware');
 
 router.post('/register', registerUser);
@@ -36,5 +36,8 @@ router.put('/updatevendordaytimeschedule', auth, updateVendorSchedule);
 
 // Get vendor call statistics
 router.get('/vendor-call-statistics/:vendor_id', auth, getVendorCallStatistics);
+
+// Update user slot and instant_call
+router.put('/update-slot-instant-call', auth, updateUserSlotAndInstantCall);
 
 module.exports = router; 

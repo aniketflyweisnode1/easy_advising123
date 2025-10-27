@@ -187,7 +187,16 @@ const userSchema = new mongoose.Schema({
   vacation: {
     type: [String],
     default: []
-  }
+  },
+  slot: [{
+    Day_id: {
+      type: Number,
+      ref: 'choose_day_Advisor'
+    },
+    times: [{
+      type: String
+    }]
+  }]
   
 }, {
   timestamps: false

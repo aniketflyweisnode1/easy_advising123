@@ -2815,4 +2815,117 @@ const getVendorCallStatistics = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics }; 
+// Update user slot and instant_call
+const updateUserSlotAndInstantCall = async (req, res) => {
+  try {
+    const { slot, instant_call } = req.body;
+    const user_id = req.user.user_id;
+
+    // Validate user_id
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'user_id is required'
+      });
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ user_id: parseInt(user_id) });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Build update data
+    const updateData = {
+      updated_by: user_id,
+      updated_on: new Date()
+    };
+
+    // Add instant_call if provided
+    if (instant_call !== undefined) {
+      if (typeof instant_call !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'instant_call must be a boolean value'
+        });
+      }
+      updateData.instant_call = instant_call;
+    }
+
+    // Add slot if provided
+    if (slot !== undefined) {
+      if (!Array.isArray(slot)) {
+        return res.status(400).json({
+          success: false,
+          message: 'slot must be an array'
+        });
+      }
+
+      // Validate slot structure
+      const validSlots = [];
+      for (const slotItem of slot) {
+        if (!slotItem.Day_id) {
+          return res.status(400).json({
+            success: false,
+            message: 'Day_id is required for each slot item'
+          });
+        }
+
+        if (!slotItem.times || !Array.isArray(slotItem.times)) {
+          return res.status(400).json({
+            success: false,
+            message: 'times must be an array for each slot item'
+          });
+        }
+
+        validSlots.push({
+          Day_id: slotItem.Day_id,
+          times: slotItem.times
+        });
+      }
+
+      updateData.slot = validSlots;
+    }
+
+    // Update the user
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: parseInt(user_id) },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update user'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'User slot and instant_call updated successfully',
+      data: {
+        user_id: updatedUser.user_id,
+        name: updatedUser.name,
+        instant_call: updatedUser.instant_call,
+        slot: updatedUser.slot,
+        updated_on: updatedUser.updated_on
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Update user slot and instant call error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall }; 
