@@ -51,7 +51,7 @@ const registerUser = async (req, res) => {
       user_img,
       slot
     } = req.body;
-   
+
     if (!name || !mobile) {
       return res.status(400).json({ success: false, message: 'name and mobile are required.' });
     }
@@ -59,9 +59,9 @@ const registerUser = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User already registered.' });
     }
-let login_permission_status = true;
-let newstatus = 1;
-    if(role_id === 2){
+    let login_permission_status = true;
+    let newstatus = 1;
+    if (role_id === 2) {
       login_permission_status = false;
       newstatus = 0;
     }
@@ -163,7 +163,7 @@ let newstatus = 1;
       if (slot && Array.isArray(slot) && slot.length > 0) {
         for (const slotItem of slot) {
           if (slotItem.Day_id && slotItem.times && Array.isArray(slotItem.times)) {
-          
+
             // Create choose time slot
             await ChooseTimeSlot.create({
               choose_day_Advisor_id: slotItem.Day_id,
@@ -177,7 +177,7 @@ let newstatus = 1;
       }
     }
 
-  
+
     return res.status(201).json({
       success: true,
       message: 'Registration successful',
@@ -199,7 +199,7 @@ const getProfile = async (req, res) => {
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name' })
       .populate({ path: 'Subcategory', model: 'Subcategory', localField: 'Subcategory', foreignField: 'subcategory_id', select: 'subcategory_id subcategory_name' })
       .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id packege_name Chat_minute Chat_Schedule Chat_price Audio_minute Audio_Schedule Audio_price Video_minute Video_Schedule Video_price status' });
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -220,29 +220,28 @@ const getProfile = async (req, res) => {
       // Get choose_day_Advisor records for this advisor
       const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: user.user_id });
       console.log('Day Advisor Records:', dayAdvisorRecords);
-      
+
       // Get choose_Time_slot records for this advisor
       const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: user.user_id });
       console.log('Time Slot Records:', timeSlotRecords);
-      
+
       // Get all unique choose_day_Advisor_id values from timeSlotRecords
       const timeSlotDayIds = [...new Set(timeSlotRecords.map(record => record.choose_day_Advisor_id))];
       console.log('Time Slot Day IDs:', timeSlotDayIds);
-      
+
       // Get day records from dayAdvisorRecords based on timeSlotDayIds
-      const relevantDayRecords = await ChooseDayAdvisor.find({ 
+      const relevantDayRecords = await ChooseDayAdvisor.find({
         choose_day_Advisor_id: { $in: timeSlotDayIds }
       });
       console.log('Relevant Day Records from DB:', relevantDayRecords);
-      
+
       // Combine day and time slot information
       const slotData = relevantDayRecords.map(dayRecord => {
-        const timeSlots = timeSlotRecords.filter(timeRecord => 
-          timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id,
-          
-  timeRecord.advisor_id === user.user_id
+        const timeSlots = timeSlotRecords.filter(timeRecord =>
+          timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
+          timeRecord.advisor_id === user.user_id
         );
-        
+
         return {
           day_id: dayRecord.choose_day_Advisor_id,
           day_name: dayRecord.DayName,
@@ -258,37 +257,37 @@ const getProfile = async (req, res) => {
           }))
         };
       });
-      
+
       slotDetails = {
         advisor_slots: slotData,
         total_days: dayAdvisorRecords.length,
         total_time_slots: timeSlotRecords.length
       };
-    
+
     }
 
     // Get package details based on user role
     let packageDetails = {};
-    
+
     // If user is an advisor (role_id = 2), get their advisor package details
     if (user.role_id === 2) {
       const advisorPackages = await AdvisorPackage.find({ advisor_id: user.user_id })
         .sort({ created_at: -1 });
-      
+
       // Get package subscriptions (users who subscribed to this advisor's packages)
       const packageSubscriptions = await PackageSubscription.find({ subscribe_by: user.user_id })
         .sort({ created_at: -1 });
-      
+
       const subscriptionDetails = [];
       for (const subscription of packageSubscriptions) {
-        const packageInfo = await AdvisorPackage.findOne({ 
-          Advisor_Package_id: subscription.package_id 
+        const packageInfo = await AdvisorPackage.findOne({
+          Advisor_Package_id: subscription.package_id
         });
-        
-        const subscribedByUser = await User.findOne({ 
-          user_id: subscription.created_by 
+
+        const subscribedByUser = await User.findOne({
+          user_id: subscription.created_by
         }, 'user_id name email mobile profile_image');
-        
+
         subscriptionDetails.push({
           subscription_id: subscription.PkSubscription_id,
           package_id: subscription.package_id,
@@ -315,7 +314,7 @@ const getProfile = async (req, res) => {
           updated_at: subscription.updated_at
         });
       }
-      
+
       packageDetails = {
         advisor_packages: advisorPackages,
         package_subscriptions: subscriptionDetails,
@@ -327,17 +326,17 @@ const getProfile = async (req, res) => {
       // For regular users, get packages they've subscribed to
       const userSubscriptions = await PackageSubscription.find({ created_by: user.user_id })
         .sort({ created_at: -1 });
-      
+
       const subscriptionDetails = [];
       for (const subscription of userSubscriptions) {
-        const packageInfo = await AdvisorPackage.findOne({ 
-          Advisor_Package_id: subscription.package_id 
+        const packageInfo = await AdvisorPackage.findOne({
+          Advisor_Package_id: subscription.package_id
         });
-        
-        const advisor = await User.findOne({ 
-          user_id: subscription.subscribe_by 
+
+        const advisor = await User.findOne({
+          user_id: subscription.subscribe_by
         }, 'user_id name email mobile profile_image Category rating experience_year');
-        
+
         subscriptionDetails.push({
           subscription_id: subscription.PkSubscription_id,
           package_id: subscription.package_id,
@@ -364,7 +363,7 @@ const getProfile = async (req, res) => {
           updated_at: subscription.updated_at
         });
       }
-      
+
       packageDetails = {
         subscribed_packages: subscriptionDetails,
         total_subscriptions: subscriptionDetails.length,
@@ -422,7 +421,7 @@ const updateProfile = async (req, res) => {
     // Update the user
     const updatedUser = await User.findOneAndUpdate(
       { user_id: userId },
-      { 
+      {
         ...updateData,
         updated_by: userId,
         updated_on: new Date()
@@ -464,37 +463,37 @@ const logout = async (req, res) => {
     }
 
     if (req.session) {
-        req.session.destroy(err => {
-            if (err) {
-                return res.status(500).json({ message: 'Logout failed', status: 500 });
-            }
-            return res.status(200).json({ message: 'Logged out successfully', status: 200 });
-        });
-        return;
+      req.session.destroy(err => {
+        if (err) {
+          return res.status(500).json({ message: 'Logout failed', status: 500 });
+        }
+        return res.status(200).json({ message: 'Logged out successfully', status: 200 });
+      });
+      return;
     }
     return res.status(200).json({ message: 'Logged out successfully. Please remove token on client.', status: 200 });
-} catch (error) {
+  } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
-}
+  }
 };
 
 const getUsersByRoleId = async (req, res) => {
-    try {
-        const { role_id } = req.params;
-        if (!role_id) {
-            return res.status(400).json({ message: 'role_id is required', status: 400 });
-        }
-        const users = await User.find({ role_id: Number(role_id) });
-        res.status(200).json({ users, status: 200 });
-    } catch (error) {
-        res.status(500).json({ message: error.message || error, status: 500 });
+  try {
+    const { role_id } = req.params;
+    if (!role_id) {
+      return res.status(400).json({ message: 'role_id is required', status: 400 });
     }
+    const users = await User.find({ role_id: Number(role_id) });
+    res.status(200).json({ users, status: 200 });
+  } catch (error) {
+    res.status(500).json({ message: error.message || error, status: 500 });
+  }
 };
 
 const getUserFullDetails = async (req, res) => {
   try {
     const { user_id } = req.params;
-    
+
     // User full details with all populated fields
     const user = await User.findOne({ user_id: Number(user_id) })
       .populate({ path: 'language', model: 'Language', localField: 'language', foreignField: 'language_id', select: 'language_id name' })
@@ -506,66 +505,66 @@ const getUserFullDetails = async (req, res) => {
       .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id Basic_packege_name Economy_packege_name Pro_packege_name Basic_minute Basic_Schedule Basic_discription Basic_price Economy_minute Economy_Schedule Economy_discription Economy_price Pro_minute Pro_Schedule Pro_discription Pro_price status' });
 
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'User not found', 
-        status: 404 
+        message: 'User not found',
+        status: 404
       });
     }
 
-         // Appointments: all schedule_call where advisor_id or created_by is user
-     const appointments = await require('../models/schedule_call.model').find({ 
-       $or: [ 
-         { advisor_id: Number(user_id) }, 
-         { created_by: Number(user_id) } 
-       ] 
-     });
+    // Appointments: all schedule_call where advisor_id or created_by is user
+    const appointments = await require('../models/schedule_call.model').find({
+      $or: [
+        { advisor_id: Number(user_id) },
+        { created_by: Number(user_id) }
+      ]
+    });
 
     // Get user details for appointments (advisor_id and created_by)
     const appointmentUserIds = [...new Set([
       ...appointments.map(apt => apt.advisor_id),
       ...appointments.map(apt => apt.created_by)
     ])];
-    
-         // Get all unique skill IDs, package IDs, and call type IDs from appointments
-     const skillIds = [...new Set(appointments.map(apt => apt.skills_id))];
-     const appointmentPackageIds = [...new Set(appointments.map(apt => apt.package_id))];
-     const callTypeIds = [...new Set(appointments.map(apt => apt.call_type_id))];
-     
-     // Fetch all related data in parallel
-     const [appointmentUsers, skills, appointmentPackages, callTypes] = await Promise.all([
-       User.find(
-         { user_id: { $in: appointmentUserIds } }, 
-         { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-       ),
-       require('../models/skill.model').find(
-         { skill_id: { $in: skillIds } },
-         { skill_id: 1, skill_name: 1, _id: 0 }
-       ),
-       Package.find(
-         { package_id: { $in: appointmentPackageIds } },
-         { package_id: 1, package_name: 1, price: 1, _id: 0 }
-       ),
-       require('../models/call_type.model').find(
-         { call_type_id: { $in: callTypeIds } },
-         { call_type_id: 1, mode_name: 1, price_per_minute: 1, adviser_commission: 1, admin_commission: 1, _id: 0 }
-       )
-     ]);
-    
+
+    // Get all unique skill IDs, package IDs, and call type IDs from appointments
+    const skillIds = [...new Set(appointments.map(apt => apt.skills_id))];
+    const appointmentPackageIds = [...new Set(appointments.map(apt => apt.package_id))];
+    const callTypeIds = [...new Set(appointments.map(apt => apt.call_type_id))];
+
+    // Fetch all related data in parallel
+    const [appointmentUsers, skills, appointmentPackages, callTypes] = await Promise.all([
+      User.find(
+        { user_id: { $in: appointmentUserIds } },
+        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+      ),
+      require('../models/skill.model').find(
+        { skill_id: { $in: skillIds } },
+        { skill_id: 1, skill_name: 1, _id: 0 }
+      ),
+      Package.find(
+        { package_id: { $in: appointmentPackageIds } },
+        { package_id: 1, package_name: 1, price: 1, _id: 0 }
+      ),
+      require('../models/call_type.model').find(
+        { call_type_id: { $in: callTypeIds } },
+        { call_type_id: 1, mode_name: 1, price_per_minute: 1, adviser_commission: 1, admin_commission: 1, _id: 0 }
+      )
+    ]);
+
     const appointmentUserMap = {};
     appointmentUsers.forEach(u => { appointmentUserMap[u.user_id] = u; });
-    
+
     const skillMap = {};
     skills.forEach(s => { skillMap[s.skill_id] = s; });
-    
-         const appointmentPackageMap = {};
-     appointmentPackages.forEach(p => { appointmentPackageMap[p.package_id] = p; });
-     
-     const callTypeMap = {};
-     callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
 
-     // Map appointments with user details, skills, packages, call types, and duration
-     const appointmentsWithDetails = appointments.map(appointment => {
+    const appointmentPackageMap = {};
+    appointmentPackages.forEach(p => { appointmentPackageMap[p.package_id] = p; });
+
+    const callTypeMap = {};
+    callTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
+
+    // Map appointments with user details, skills, packages, call types, and duration
+    const appointmentsWithDetails = appointments.map(appointment => {
       const appointmentObj = appointment.toObject();
       return {
         ...appointmentObj,
@@ -613,15 +612,15 @@ const getUserFullDetails = async (req, res) => {
 
     // Get user details for transactions (created_by)
     const transactionUserIds = [...new Set(userTransaction.map(txn => txn.created_by))];
-    
+
     // Get bank account IDs and payment details IDs from transactions
     const bankIds = [...new Set(userTransaction.map(txn => txn.bank_id).filter(id => id))];
     const paymentDetailsIds = [...new Set(userTransaction.map(txn => txn.PaymentDetails_id).filter(id => id))];
-    
+
     // Fetch all related data in parallel
     const [transactionUsers, bankAccounts, paymentDetails] = await Promise.all([
       User.find(
-        { user_id: { $in: transactionUserIds } }, 
+        { user_id: { $in: transactionUserIds } },
         { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
       ),
       bankIds.length > 0 ? require('../models/Advisor_bankAccountDetails.model').find(
@@ -631,14 +630,14 @@ const getUserFullDetails = async (req, res) => {
         { paymentDetails_id: { $in: paymentDetailsIds } }
       ) : Promise.resolve([])
     ]);
-    
+
     // Create maps for efficient lookup
     const transactionUserMap = {};
     transactionUsers.forEach(u => { transactionUserMap[u.user_id] = u; });
-    
+
     const bankAccountMap = {};
     bankAccounts.forEach(b => { bankAccountMap[b.bankAccount_id] = b; });
-    
+
     const paymentDetailsMap = {};
     paymentDetails.forEach(p => { paymentDetailsMap[p.paymentDetails_id] = p; });
 
@@ -668,7 +667,7 @@ const getUserFullDetails = async (req, res) => {
         } : null
       };
     });
-    
+
     // Calculate transaction summary
     const transactionSummary = {
       total_transactions: transactionsWithDetails.length,
@@ -703,11 +702,11 @@ const getUserFullDetails = async (req, res) => {
 
     // Package subscriptions: all for this user, with package details
     const subscriptions = await PackageSubscription.find({ subscribe_by: Number(user_id) });
-    
+
     // For each subscription, get package details
     const subscriptionPackageIds = subscriptions.map(sub => sub.package_id);
     const subscriptionPackages = await Package.find({ package_id: { $in: subscriptionPackageIds } });
-    
+
     // Attach package details to each subscription
     const subscriptionsWithDetails = subscriptions.map(sub => ({
       ...sub.toObject(),
@@ -749,10 +748,10 @@ const getUserFullDetails = async (req, res) => {
     });
   } catch (error) {
     console.error('Get user full details error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
       message: 'Internal server error',
-      error: error.message 
+      error: error.message
     });
   }
 };
@@ -767,12 +766,12 @@ const getAllUserFullDetails = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const search = req.query.search || '';
     const role_id = 1;
-    
+
     // Debug logging
     console.log('getAllUserFullDetails - Query params:', {
       page, limit, search, role_id, status: req.query.status
     });
-    
+
     // Handle status parsing with proper validation
     let status = null;
     if (req.query.status !== undefined && req.query.status !== null && req.query.status !== '') {
@@ -787,13 +786,13 @@ const getAllUserFullDetails = async (req, res) => {
         }
       }
     }
-    
+
     // Calculate skip value for pagination
     const skip = (page - 1) * limit;
-    
+
     // Build search query
     let searchQuery = {};
-    
+
     // Add search functionality
     if (search) {
       searchQuery.$or = [
@@ -802,52 +801,52 @@ const getAllUserFullDetails = async (req, res) => {
         { mobile: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     // Add role filter
     if (role_id) {
       searchQuery.role_id = role_id;
     }
-    
+
     // Add status filter
     if (status !== null) {
       searchQuery.status = status;
     }
-    
+
     // Debug logging - show final search query
     console.log('getAllUserFullDetails - Final search query:', JSON.stringify(searchQuery, null, 2));
-    
+
     // Get total count for pagination
     const totalUsers = await User.countDocuments(searchQuery);
-    
+
     // Get users with pagination and search
     const users = await User.find(searchQuery)
       .skip(skip)
       .limit(limit)
       .sort({ created_at: -1 }); // Sort by newest first
-    
-         // Get all appointments, transactions, wallets, and subscriptions
-     const allAppointments = await require('../models/schedule_call.model').find();
+
+    // Get all appointments, transactions, wallets, and subscriptions
+    const allAppointments = await require('../models/schedule_call.model').find();
     const allTransactions = await Transaction.find();
     const allWallets = await Wallet.find();
     const allSubscriptions = await PackageSubscription.find();
-    
+
     // Get all package details for subscriptions
     const allPackageIds = allSubscriptions.map(sub => sub.package_id);
     const allPackages = await Package.find({ package_id: { $in: allPackageIds } });
-    
-         // Get all unique skill IDs, package IDs, and call type IDs from appointments
-     const allSkillIds = [...new Set(allAppointments.map(apt => apt.skills_id))];
-     const allAppointmentPackageIds = [...new Set(allAppointments.map(apt => apt.package_id))];
-     const allCallTypeIds = [...new Set(allAppointments.map(apt => apt.call_type_id))];
-     
-     // Get all unique user IDs for appointments
-     const allAppointmentUserIds = [...new Set([
-       ...allAppointments.map(apt => apt.advisor_id),
-       ...allAppointments.map(apt => apt.created_by)
-     ])];
-     
-     // Fetch all related data in parallel
-     const [allSkills, allAppointmentPackages, allAppointmentUsers, allCallTypes] = await Promise.all([
+
+    // Get all unique skill IDs, package IDs, and call type IDs from appointments
+    const allSkillIds = [...new Set(allAppointments.map(apt => apt.skills_id))];
+    const allAppointmentPackageIds = [...new Set(allAppointments.map(apt => apt.package_id))];
+    const allCallTypeIds = [...new Set(allAppointments.map(apt => apt.call_type_id))];
+
+    // Get all unique user IDs for appointments
+    const allAppointmentUserIds = [...new Set([
+      ...allAppointments.map(apt => apt.advisor_id),
+      ...allAppointments.map(apt => apt.created_by)
+    ])];
+
+    // Fetch all related data in parallel
+    const [allSkills, allAppointmentPackages, allAppointmentUsers, allCallTypes] = await Promise.all([
       require('../models/skill.model').find(
         { skill_id: { $in: allSkillIds } },
         { skill_id: 1, skill_name: 1, _id: 0 }
@@ -856,38 +855,38 @@ const getAllUserFullDetails = async (req, res) => {
         { package_id: { $in: allAppointmentPackageIds } },
         { package_id: 1, package_name: 1, price: 1, _id: 0 }
       ),
-             User.find(
-         { user_id: { $in: allAppointmentUserIds } }, 
-         { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-       ),
-       require('../models/call_type.model').find(
-         { call_type_id: { $in: allCallTypeIds } },
-         { call_type_id: 1, mode_name: 1, price_per_minute: 1, adviser_commission: 1, admin_commission: 1, _id: 0 }
-       )
-     ]);
-    
+      User.find(
+        { user_id: { $in: allAppointmentUserIds } },
+        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+      ),
+      require('../models/call_type.model').find(
+        { call_type_id: { $in: allCallTypeIds } },
+        { call_type_id: 1, mode_name: 1, price_per_minute: 1, adviser_commission: 1, admin_commission: 1, _id: 0 }
+      )
+    ]);
+
     // Create maps for efficient lookup
     const skillMap = {};
     allSkills.forEach(s => { skillMap[s.skill_id] = s; });
-    
+
     const appointmentPackageMap = {};
     allAppointmentPackages.forEach(p => { appointmentPackageMap[p.package_id] = p; });
-    
-         const appointmentUserMap = {};
-     allAppointmentUsers.forEach(u => { appointmentUserMap[u.user_id] = u; });
-     
-     const callTypeMap = {};
-     allCallTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
-     
-     // Map users with their full details
-     const usersWithFullDetails = users.map(user => {
+
+    const appointmentUserMap = {};
+    allAppointmentUsers.forEach(u => { appointmentUserMap[u.user_id] = u; });
+
+    const callTypeMap = {};
+    allCallTypes.forEach(ct => { callTypeMap[ct.call_type_id] = ct; });
+
+    // Map users with their full details
+    const usersWithFullDetails = users.map(user => {
       const userId = user.user_id;
-      
+
       // Get user's appointments with enhanced details
-      const userAppointments = allAppointments.filter(apt => 
+      const userAppointments = allAppointments.filter(apt =>
         apt.advisor_id === userId || apt.created_by === userId
       );
-      
+
       // Map appointments with all details including duration
       const appointmentsWithDetails = userAppointments.map(appointment => {
         const appointmentObj = appointment.toObject();
@@ -909,19 +908,19 @@ const getAllUserFullDetails = async (req, res) => {
             skill_id: skillMap[appointment.skills_id].skill_id,
             skill_name: skillMap[appointment.skills_id].skill_name
           } : null,
-                     package_details: appointmentPackageMap[appointment.package_id] ? {
-             package_id: appointmentPackageMap[appointment.package_id].package_id,
-             package_name: appointmentPackageMap[appointment.package_id].package_name,
-             price: appointmentPackageMap[appointment.package_id].price
-           } : null,
-           call_type_details: callTypeMap[appointment.call_type_id] ? {
-             call_type_id: callTypeMap[appointment.call_type_id].call_type_id,
-             mode_name: callTypeMap[appointment.call_type_id].mode_name,
-             price_per_minute: callTypeMap[appointment.call_type_id].price_per_minute,
-             adviser_commission: callTypeMap[appointment.call_type_id].adviser_commission,
-             admin_commission: callTypeMap[appointment.call_type_id].admin_commission
-           } : null,
-           duration_info: {
+          package_details: appointmentPackageMap[appointment.package_id] ? {
+            package_id: appointmentPackageMap[appointment.package_id].package_id,
+            package_name: appointmentPackageMap[appointment.package_id].package_name,
+            price: appointmentPackageMap[appointment.package_id].price
+          } : null,
+          call_type_details: callTypeMap[appointment.call_type_id] ? {
+            call_type_id: callTypeMap[appointment.call_type_id].call_type_id,
+            mode_name: callTypeMap[appointment.call_type_id].mode_name,
+            price_per_minute: callTypeMap[appointment.call_type_id].price_per_minute,
+            adviser_commission: callTypeMap[appointment.call_type_id].adviser_commission,
+            admin_commission: callTypeMap[appointment.call_type_id].admin_commission
+          } : null,
+          duration_info: {
             Call_duration: appointment.Call_duration || null,
             perminRate: appointment.perminRate || null,
             Amount: appointment.Amount || null,
@@ -931,21 +930,21 @@ const getAllUserFullDetails = async (req, res) => {
           }
         };
       });
-      
+
       // Get user's transactions
       const userTransactions = allTransactions.filter(txn => txn.user_id === userId);
-      
+
       // Get user's wallet balance
       const userWallet = allWallets.find(w => w.user_id === userId);
       const walletBalance = userWallet ? userWallet.amount : 0;
-      
+
       // Get user's subscriptions with package details
       const userSubscriptions = allSubscriptions.filter(sub => sub.subscribe_by === userId);
       const subscriptionsWithDetails = userSubscriptions.map(sub => ({
         ...sub.toObject(),
         package_details: allPackages.find(pkg => pkg.package_id === sub.package_id) || null
       }));
-      
+
       return {
         user: user,
         appointments: appointmentsWithDetails,
@@ -954,12 +953,12 @@ const getAllUserFullDetails = async (req, res) => {
         package_subscriptions: subscriptionsWithDetails
       };
     });
-    
+
     // Calculate pagination info
     const totalPages = Math.ceil(totalUsers / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
-    
+
     return res.status(200).json({
       users: usersWithFullDetails,
       pagination: {
@@ -979,7 +978,7 @@ const getAllUserFullDetails = async (req, res) => {
       },
       status: 200
     });
-    
+
   } catch (error) {
     console.error('Get all users full details error:', error);
     return res.status(500).json({ message: error.message || error, status: 500 });
@@ -989,27 +988,27 @@ const getAllUserFullDetails = async (req, res) => {
 // Get users by role with filtering capabilities
 const getAdvisorList = async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      search, 
+    const {
+      page = 1,
+      limit = 10,
+      search,
       role_id = 2, // Default to advisors (role_id = 2)
-      category_id, 
-      subcategory_id, 
-      status, 
-      rating_min, 
+      category_id,
+      subcategory_id,
+      status,
+      rating_min,
       rating_max,
       experience_min,
       experience_max,
       sort_by = 'created_at',
       sort_order = 'desc'
     } = req.query;
-    
+
     const skip = (page - 1) * limit;
 
     // Build query
     const query = { role_id: parseInt(role_id) };
-    
+
     // Debug logging
     console.log('getAdvisorList - Query params:', {
       page, limit, search, role_id, category_id, subcategory_id, status
@@ -1097,31 +1096,31 @@ const getAdvisorList = async (req, res) => {
 
     // Get advisors with pagination and filters
     const advisors = await User.find(query)
-      .populate({ 
-        path: 'Category', 
-        model: 'Category', 
-        localField: 'Category', 
+      .populate({
+        path: 'Category',
+        model: 'Category',
+        localField: 'Category',
         foreignField: 'category_id',
         select: 'category_id category_name description'
       })
-      .populate({ 
-        path: 'Subcategory', 
-        model: 'Subcategory', 
-        localField: 'Subcategory', 
+      .populate({
+        path: 'Subcategory',
+        model: 'Subcategory',
+        localField: 'Subcategory',
         foreignField: 'subcategory_id',
         select: 'subcategory_id subcategory_name description'
       })
-      .populate({ 
-        path: 'skill', 
-        model: 'Skill', 
-        localField: 'skill', 
+      .populate({
+        path: 'skill',
+        model: 'Skill',
+        localField: 'skill',
         foreignField: 'skill_id',
         select: 'skill_id skill_name description'
       })
-      .populate({ 
-        path: 'language', 
-        model: 'Language', 
-        localField: 'language', 
+      .populate({
+        path: 'language',
+        model: 'Language',
+        localField: 'language',
         foreignField: 'language_id',
         select: 'language_id name'
       })
@@ -1142,7 +1141,7 @@ const getAdvisorList = async (req, res) => {
     // Get unique category IDs for filter options
     const allAdvisors = await User.find({ role_id: 2 }, { Category: 1 });
     const allCategoryIds = [...new Set(allAdvisors.flatMap(advisor => advisor.Category))];
-    
+
     // Get category details for filter options
     const Category = require('../models/category.model');
     const availableCategories = await Category.find(
@@ -1159,12 +1158,12 @@ const getAdvisorList = async (req, res) => {
     // Fetch all reviews for advisors
     const Review = require('../models/reviews.model');
     const allReviews = await Review.find({ user_id: { $in: advisorIds } })
-      .populate({ 
-        path: 'created_by', 
-        model: 'User', 
-        localField: 'created_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile profile_image' 
+      .populate({
+        path: 'created_by',
+        model: 'User',
+        localField: 'created_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile profile_image'
       });
 
     // Create maps for efficient lookup
@@ -1191,7 +1190,7 @@ const getAdvisorList = async (req, res) => {
         users: advisors.map(advisor => ({
           // Primary ID
           user_id: advisor.user_id,
-          
+
           // Basic Information
           name: advisor.name,
           email: advisor.email,
@@ -1200,66 +1199,66 @@ const getAdvisorList = async (req, res) => {
           DOB: advisor.DOB,
           address: advisor.address,
           pincode: advisor.pincode,
-          
+
           // ID References
           role_id: advisor.role_id,
           created_by: advisor.created_by,
           updated_by: advisor.updated_by,
-          
+
           // Location IDs
           state: advisor.state,
           city: advisor.city,
-          
+
           // Professional IDs
           Current_Designation: advisor.Current_Designation,
           Current_Designation_Name: advisor.Current_Designation_Name,
           Current_Company_Name: advisor.Current_Company_Name,
           current_company_name: advisor.current_company_name,
           package_id: advisor.package_id,
-          
+
           // Category and Subcategory IDs
           Category: advisor.Category,
           Subcategory: advisor.Subcategory,
-          
+
           // Skill and Language IDs
           skill: advisor.skill,
           language: advisor.language,
-          
+
           // Professional Information
           rating: advisor.rating,
           experience_year: advisor.experience_year,
           description_Bio: advisor.description_Bio,
           expertise_offer: advisor.expertise_offer,
           IntroductionVideo: advisor.IntroductionVideo,
-          
+
           // Rates
           chat_Rate: advisor.chat_Rate,
           audio_Rate: advisor.audio_Rate,
           VideoCall_rate: advisor.VideoCall_rate,
-          
+
           // Documents and Social Links
           supporting_Document: advisor.supporting_Document,
           social_linkdin_link: advisor.social_linkdin_link,
           social_instagorm_link: advisor.social_instagorm_link,
           social_twitter_link: advisor.social_twitter_link,
           social_facebook_link: advisor.social_facebook_link,
-          
+
           // Schedule and Availability
           instant_call: advisor.instant_call,
           applyslots_remainingDays: advisor.applyslots_remainingDays,
           vacation_status: advisor.vacation_status,
           vacation: advisor.vacation,
-          
+
           // Status and Permissions
           status: advisor.status,
           login_permission_status: advisor.login_permission_status,
           user_online: advisor.user_online,
           suspended_reason: advisor.suspended_reason,
-          
+
           // Terms and Firebase
           AgreeTermsCondition: advisor.AgreeTermsCondition,
           firebase_token: advisor.firebase_token,
-          
+
           // Timestamps
           created_at: advisor.created_at,
           updated_on: advisor.updated_on,
@@ -1297,11 +1296,11 @@ const getAdvisorList = async (req, res) => {
 const getAdviserById = async (req, res) => {
   try {
     const { advisor_id } = req.params;
-    
+
     // Import models at the top to avoid initialization issues
     const Package = require('../models/package.model');
     const PackageSubscription = require('../models/package_subscription.model');
-    
+
     // Advisor details with populated fields
     const advisor = await User.findOne({ user_id: Number(advisor_id), role_id: 2 })
       .populate({ path: 'Category', model: 'Category', localField: 'Category', foreignField: 'category_id', select: 'category_id category_name description' })
@@ -1314,138 +1313,138 @@ const getAdviserById = async (req, res) => {
       .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id role_name description' })
       .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' })
       .populate({ path: 'updated_by', model: 'User', localField: 'updated_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' });
-    
+
     if (!advisor) {
       return res.status(404).json({ message: 'Advisor not found', status: 404 });
     }
 
     // Get schedule calls for this advisor with all populated references
     const subscriptions = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) })
-      .populate({ 
-        path: 'advisor_id', 
-        model: 'User', 
-        localField: 'advisor_id', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id profile_image' 
+      .populate({
+        path: 'advisor_id',
+        model: 'User',
+        localField: 'advisor_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
       })
-      .populate({ 
-        path: 'created_by', 
-        model: 'User', 
-        localField: 'created_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id profile_image' 
+      .populate({
+        path: 'created_by',
+        model: 'User',
+        localField: 'created_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
       })
-      .populate({ 
-        path: 'updated_by', 
-        model: 'User', 
-        localField: 'updated_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'updated_by',
+        model: 'User',
+        localField: 'updated_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'skills_id', 
-        model: 'Skill', 
-        localField: 'skills_id', 
-        foreignField: 'skill_id', 
-        select: 'skill_id skill_name description use_count' 
+      .populate({
+        path: 'skills_id',
+        model: 'Skill',
+        localField: 'skills_id',
+        foreignField: 'skill_id',
+        select: 'skill_id skill_name description use_count'
       })
-      .populate({ 
-        path: 'call_type_id', 
-        model: 'CallType', 
-        localField: 'call_type_id', 
-        foreignField: 'call_type_id', 
-        select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+      .populate({
+        path: 'call_type_id',
+        model: 'CallType',
+        localField: 'call_type_id',
+        foreignField: 'call_type_id',
+        select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
       })
-      .populate({ 
-        path: 'package_Subscription_id', 
-        model: 'PackageSubscription', 
-        localField: 'package_Subscription_id', 
-        foreignField: 'PkSubscription_id', 
-        select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+      .populate({
+        path: 'package_Subscription_id',
+        model: 'PackageSubscription',
+        localField: 'package_Subscription_id',
+        foreignField: 'PkSubscription_id',
+        select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
       })
       .sort({ created_at: -1 }); // Latest calls first
-    
+
     // Reviews with populated user references
     const reviews = await require('../models/reviews.model').find({ user_id: Number(advisor_id) })
-      .populate({ 
-        path: 'user_id', 
-        model: 'User', 
-        localField: 'user_id', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id profile_image' 
+      .populate({
+        path: 'user_id',
+        model: 'User',
+        localField: 'user_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
       })
-      .populate({ 
-        path: 'created_by', 
-        model: 'User', 
-        localField: 'created_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'created_by',
+        model: 'User',
+        localField: 'created_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'updated_by', 
-        model: 'User', 
-        localField: 'updated_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'updated_by',
+        model: 'User',
+        localField: 'updated_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       });
-    
+
     // Appointments with populated fields
     const appointments = await require('../models/schedule_call.model').find({ advisor_id: Number(advisor_id) })
-      .populate({ 
-        path: 'advisor_id', 
-        model: 'User', 
-        localField: 'advisor_id', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id profile_image' 
+      .populate({
+        path: 'advisor_id',
+        model: 'User',
+        localField: 'advisor_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
       })
-      .populate({ 
-        path: 'created_by', 
-        model: 'User', 
-        localField: 'created_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id profile_image' 
+      .populate({
+        path: 'created_by',
+        model: 'User',
+        localField: 'created_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
       })
-      .populate({ 
-        path: 'updated_by', 
-        model: 'User', 
-        localField: 'updated_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'updated_by',
+        model: 'User',
+        localField: 'updated_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'skills_id', 
-        model: 'Skill', 
-        localField: 'skills_id', 
-        foreignField: 'skill_id', 
-        select: 'skill_id skill_name description use_count' 
+      .populate({
+        path: 'skills_id',
+        model: 'Skill',
+        localField: 'skills_id',
+        foreignField: 'skill_id',
+        select: 'skill_id skill_name description use_count'
       })
-      .populate({ 
-        path: 'call_type_id', 
-        model: 'CallType', 
-        localField: 'call_type_id', 
-        foreignField: 'call_type_id', 
-        select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+      .populate({
+        path: 'call_type_id',
+        model: 'CallType',
+        localField: 'call_type_id',
+        foreignField: 'call_type_id',
+        select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
       })
-      .populate({ 
-        path: 'package_Subscription_id', 
-        model: 'PackageSubscription', 
-        localField: 'package_Subscription_id', 
-        foreignField: 'PkSubscription_id', 
-        select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+      .populate({
+        path: 'package_Subscription_id',
+        model: 'PackageSubscription',
+        localField: 'package_Subscription_id',
+        foreignField: 'PkSubscription_id',
+        select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
       });
-    
+
     // Transactions with comprehensive details
     const transactions = await Transaction.find({ user_id: Number(advisor_id) }).sort({ created_at: -1 });
-    
+
     // Get bank account IDs, payment details IDs, and created_by IDs from transactions
     const transactionBankIds = [...new Set(transactions.map(txn => txn.bank_id).filter(id => id))];
     const transactionPaymentDetailsIds = [...new Set(transactions.map(txn => txn.PaymentDetails_id).filter(id => id))];
     const transactionUserIds = [...new Set(transactions.map(txn => txn.created_by))];
-    
+
     // Fetch all related data in parallel
     const [transactionUsers, transactionBankAccounts, transactionPaymentDetails] = await Promise.all([
       User.find(
-        { user_id: { $in: transactionUserIds } }, 
+        { user_id: { $in: transactionUserIds } },
         { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
       ),
       transactionBankIds.length > 0 ? require('../models/Advisor_bankAccountDetails.model').find(
@@ -1455,14 +1454,14 @@ const getAdviserById = async (req, res) => {
         { paymentDetails_id: { $in: transactionPaymentDetailsIds } }
       ) : Promise.resolve([])
     ]);
-    
+
     // Create maps for efficient lookup
     const transactionUserMap = {};
     transactionUsers.forEach(u => { transactionUserMap[u.user_id] = u; });
-    
+
     const transactionBankAccountMap = {};
     transactionBankAccounts.forEach(b => { transactionBankAccountMap[b.bankAccount_id] = b; });
-    
+
     const transactionPaymentDetailsMap = {};
     transactionPaymentDetails.forEach(p => { transactionPaymentDetailsMap[p.paymentDetails_id] = p; });
 
@@ -1492,7 +1491,7 @@ const getAdviserById = async (req, res) => {
         } : null
       };
     });
-    
+
     // Calculate transaction summary for advisor
     const transactionSummary = {
       total_transactions: transactionsWithDetails.length,
@@ -1525,120 +1524,120 @@ const getAdviserById = async (req, res) => {
       withdrawal_transactions: transactions.filter(txn => txn.transactionType === 'withdraw').length,
       deposit_transactions: transactions.filter(txn => ['deposit', 'RechargeByAdmin', 'Recharge'].includes(txn.transactionType)).length
     };
-    
+
     // Subscriber list - get users who subscribed to advisor's package
     let subscribers = [];
-  
+
     // Wallet information with populated references
     const Wallet = require('../models/wallet.model');
     const wallet = await Wallet.findOne({ user_id: Number(advisor_id) })
-      .populate({ 
-        path: 'user_id', 
-        model: 'User', 
-        localField: 'user_id', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'user_id',
+        model: 'User',
+        localField: 'user_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'role_id', 
-        model: 'Role', 
-        localField: 'role_id', 
-        foreignField: 'role_id', 
-        select: 'role_id role_name description' 
+      .populate({
+        path: 'role_id',
+        model: 'Role',
+        localField: 'role_id',
+        foreignField: 'role_id',
+        select: 'role_id role_name description'
       })
-      .populate({ 
-        path: 'updated_by', 
-        model: 'User', 
-        localField: 'updated_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'updated_by',
+        model: 'User',
+        localField: 'updated_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       });
-    
+
     // Get advisor's package from AdvisorPackage model
     const adviserPackage = await AdvisorPackage.findOne({ advisor_id: Number(advisor_id) })
-      .populate({ 
-        path: 'advisor_id', 
-        model: 'User', 
-        localField: 'advisor_id', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id profile_image' 
+      .populate({
+        path: 'advisor_id',
+        model: 'User',
+        localField: 'advisor_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
       })
-      .populate({ 
-        path: 'created_by', 
-        model: 'User', 
-        localField: 'created_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'created_by',
+        model: 'User',
+        localField: 'created_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'updated_by', 
-        model: 'User', 
-        localField: 'updated_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'updated_by',
+        model: 'User',
+        localField: 'updated_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       });
-    
+
     if (adviserPackage && adviserPackage.Advisor_Package_id) {
       // Find all package subscriptions for this advisor package
-      const packageSubscriptions = await PackageSubscription.find({ 
-        package_id: adviserPackage.Advisor_Package_id 
+      const packageSubscriptions = await PackageSubscription.find({
+        package_id: adviserPackage.Advisor_Package_id
       })
-        .populate({ 
-          path: 'subscribe_by', 
-          model: 'User', 
-          localField: 'subscribe_by', 
-          foreignField: 'user_id', 
-          select: 'user_id name email mobile role_id profile_image' 
+        .populate({
+          path: 'subscribe_by',
+          model: 'User',
+          localField: 'subscribe_by',
+          foreignField: 'user_id',
+          select: 'user_id name email mobile role_id profile_image'
         })
-        .populate({ 
-          path: 'created_by', 
-          model: 'User', 
-          localField: 'created_by', 
-          foreignField: 'user_id', 
-          select: 'user_id name email mobile role_id' 
+        .populate({
+          path: 'created_by',
+          model: 'User',
+          localField: 'created_by',
+          foreignField: 'user_id',
+          select: 'user_id name email mobile role_id'
         })
-        .populate({ 
-          path: 'updated_by', 
-          model: 'User', 
-          localField: 'updated_by', 
-          foreignField: 'user_id', 
-          select: 'user_id name email mobile role_id' 
+        .populate({
+          path: 'updated_by',
+          model: 'User',
+          localField: 'updated_by',
+          foreignField: 'user_id',
+          select: 'user_id name email mobile role_id'
         })
         .sort({ created_at: -1 });
-      
+
       subscribers = packageSubscriptions;
     }
-   
+
     // Call types by advisor with populated user references
     const allCallTypes = await CallType.find({ adviser_id: Number(advisor_id) })
-      .populate({ 
-        path: 'adviser_id', 
-        model: 'User', 
-        localField: 'adviser_id', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'adviser_id',
+        model: 'User',
+        localField: 'adviser_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'created_by', 
-        model: 'User', 
-        localField: 'created_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'created_by',
+        model: 'User',
+        localField: 'created_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       })
-      .populate({ 
-        path: 'updated_by', 
-        model: 'User', 
-        localField: 'updated_by', 
-        foreignField: 'user_id', 
-        select: 'user_id name email mobile role_id' 
+      .populate({
+        path: 'updated_by',
+        model: 'User',
+        localField: 'updated_by',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id'
       });
-    
+
     // Package and Pricing details - only call types and package by advisor_id
     const Package_and_pricing = {
       call_types_Commission: allCallTypes,
       Adviser_package: adviserPackage || null
     };
-    
+
     // Subscriber statistics
     const subscriber_summary = {
       total_subscribers: subscribers.length,
@@ -1646,35 +1645,35 @@ const getAdviserById = async (req, res) => {
       pending_subscribers: subscribers.filter(sub => sub.Subscription_status === 'Panding').length,
       expired_subscribers: subscribers.filter(sub => sub.Subscription_status === 'Expired').length
     };
-    
+
     // Get slot information for this advisor
     let slotDetails = {};
-    
+
     // Get choose_day_Advisor records for this advisor
     const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: Number(advisor_id) });
     console.log('Day Advisor Records for advisor:', dayAdvisorRecords);
-    
+
     // Get choose_Time_slot records for this advisor
     const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: Number(advisor_id) });
     console.log('Time Slot Records for advisor:', timeSlotRecords);
-    
+
     // Get all unique choose_day_Advisor_id values from timeSlotRecords
     const timeSlotDayIds = [...new Set(timeSlotRecords.map(record => record.choose_day_Advisor_id))];
     console.log('Time Slot Day IDs for advisor:', timeSlotDayIds);
-    
+
     // Get day records from dayAdvisorRecords based on timeSlotDayIds
-    const relevantDayRecords = await ChooseDayAdvisor.find({ 
+    const relevantDayRecords = await ChooseDayAdvisor.find({
       choose_day_Advisor_id: { $in: timeSlotDayIds }
     });
     console.log('Relevant Day Records from DB for advisor:', relevantDayRecords);
-    
+
     // Combine day and time slot information
     const slotData = relevantDayRecords.map(dayRecord => {
-      const timeSlots = timeSlotRecords.filter(timeRecord => 
+      const timeSlots = timeSlotRecords.filter(timeRecord =>
         timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
         timeRecord.advisor_id === Number(advisor_id)
       );
-      
+
       return {
         day_id: dayRecord.choose_day_Advisor_id,
         day_name: dayRecord.DayName,
@@ -1690,7 +1689,7 @@ const getAdviserById = async (req, res) => {
         }))
       };
     });
-    
+
     slotDetails = {
       advisor_slots: slotData,
       total_days: dayAdvisorRecords.length,
@@ -1705,7 +1704,7 @@ const getAdviserById = async (req, res) => {
       transaction_summary: transactionSummary, // Transaction summary with earnings breakdown
       Package_and_pricing, // Package and call types by advisor_id
       subscribers, // Package subscribers with populated user and package details
-    // subscriptions: subscriptions, // Subscriptions with populated package and user references
+      // subscriptions: subscriptions, // Subscriptions with populated package and user references
       wallet: wallet || null, // Wallet with populated references
       slot_details: slotDetails, // Slot information for the advisor
       status: 200
@@ -1722,7 +1721,7 @@ const getAdminDashboard = async (req, res) => {
   try {
     // Extract month and year filters from route parameters
     const { month, year } = req.params;
-    
+
     // Validate parameters
     if (month && (isNaN(month) || month < 1 || month > 12)) {
       return res.status(400).json({
@@ -1730,14 +1729,14 @@ const getAdminDashboard = async (req, res) => {
         status: 400
       });
     }
-    
+
     if (year && (isNaN(year) || year < 1900 || year > 2100)) {
       return res.status(400).json({
         message: 'Year must be a valid year between 1900 and 2100',
         status: 400
       });
     }
-    
+
     // Create date filter based on month and year parameters
     let dateFilter = {};
     if (month && year) {
@@ -1780,42 +1779,42 @@ const getAdminDashboard = async (req, res) => {
     const categories = await require('../models/category.model').find();
     const categoryTrends = await Promise.all(categories.map(async (category) => {
       const categoryId = category.category_id;
-      
+
       // Get advisers in this category
-      const advisersInCategory = await User.find({ 
-        Category: categoryId, 
-        role_id: 2 
+      const advisersInCategory = await User.find({
+        Category: categoryId,
+        role_id: 2
       });
-      
+
       const adviserIds = advisersInCategory.map(adv => adv.user_id);
-      
+
       // Sessions for this category
       const sessions = await require('../models/schedule_call.model').find({
         advisor_id: { $in: adviserIds },
         ...dateFilter
       });
-      
+
       // Revenue for this category
       const revenue = await require('../models/transaction.model').aggregate([
         { $match: { user_id: { $in: adviserIds }, ...dateFilter } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]);
-      
+
       // Average rating for this category
       const ratings = await require('../models/reviews.model').find({
         user_id: { $in: adviserIds },
         ...dateFilter
       });
-      const avgRating = ratings.length > 0 
-        ? ratings.reduce((sum, review) => sum + (review.rating || 0), 0) / ratings.length 
+      const avgRating = ratings.length > 0
+        ? ratings.reduce((sum, review) => sum + (review.rating || 0), 0) / ratings.length
         : 0;
-      
+
       // Packages sold for this category
       const packagesSold = await require('../models/package_subscription.model').countDocuments({
         subscribe_by: { $in: adviserIds },
         ...dateFilter
       });
-      
+
       // Last 30 days growth (simplified - you can enhance this)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -1824,7 +1823,7 @@ const getAdminDashboard = async (req, res) => {
         created_at: { $gte: thirtyDaysAgo },
         ...dateFilter
       });
-      
+
       return {
         Category: category.category_name,
         session: sessions.length,
@@ -1846,12 +1845,12 @@ const getAdminDashboard = async (req, res) => {
     const topAdvisersWithDetails = await Promise.all(topAdvisers.map(async (advisor) => {
       const user = await User.findOne({ user_id: Number(advisor._id) });
       if (!user) return null;
-      
+
       // Get user's languages
       const languages = await require('../models/language.model').find({
         language_id: { $in: user.language || [] }
       });
-      
+
       return {
         user_id: user.user_id,
         Profile_img: user.IntroductionVideo || null, // Using IntroductionVideo as profile image
@@ -1927,7 +1926,7 @@ const deleteUser = async (req, res) => {
     // Delete related data (optional - you can choose to keep or delete related data)
     const userId = parseInt(user_id);
 
-         // Note: ScheduleCall model has been removed, so no appointments to delete
+    // Note: ScheduleCall model has been removed, so no appointments to delete
 
     // Delete user's transactions
     await Transaction.deleteMany({ user_id: userId });
@@ -2118,7 +2117,7 @@ const updateUserOnlineStatus = async (req, res) => {
     // Update user online status
     const updatedUser = await User.findOneAndUpdate(
       { user_id: userId },
-      { 
+      {
         user_online: user_online,
         updated_by: userId,
         updated_on: new Date()
@@ -2169,17 +2168,17 @@ const getAllEmployees = async (req, res) => {
       .populate({ path: 'package_id', model: 'AdvisorPackage', localField: 'package_id', foreignField: 'Advisor_Package_id', select: 'Advisor_Package_id Basic_packege_name Economy_packege_name Pro_packege_name Basic_minute Basic_Schedule Basic_discription Basic_price Economy_minute Economy_Schedule Economy_discription Economy_price Pro_minute Pro_Schedule Pro_discription Pro_price status' })
       .populate({ path: 'role_id', model: 'Role', localField: 'role_id', foreignField: 'role_id', select: 'role_id name' })
       .sort({ created_at: -1 }); // Sort by newest first
-    
-   
-    
+
+
+
     return res.status(200).json({
       success: true,
       message: 'Team members retrieved successfully',
       data: employees,
-     
+
       status: 200
     });
-    
+
   } catch (error) {
     console.error('Get all employees error:', error);
     return res.status(500).json({
@@ -2243,9 +2242,9 @@ const updateUser = async (req, res) => {
 
     // If email is being updated, check for duplicates
     if (updateData.email) {
-      const existingUser = await User.findOne({ 
-        email: updateData.email, 
-        user_id: { $ne: parseInt(user_id) } 
+      const existingUser = await User.findOne({
+        email: updateData.email,
+        user_id: { $ne: parseInt(user_id) }
       });
       if (existingUser) {
         return res.status(400).json({
@@ -2257,9 +2256,9 @@ const updateUser = async (req, res) => {
 
     // If mobile is being updated, check for duplicates
     if (updateData.mobile) {
-      const existingUser = await User.findOne({ 
-        mobile: updateData.mobile, 
-        user_id: { $ne: parseInt(user_id) } 
+      const existingUser = await User.findOne({
+        mobile: updateData.mobile,
+        user_id: { $ne: parseInt(user_id) }
       });
       if (existingUser) {
         return res.status(400).json({
@@ -2376,7 +2375,7 @@ const updateVendorRates = async (req, res) => {
     // Update advisor package if package rates are provided
     if (basicPackage !== undefined || EconomyPackage !== undefined || proPackage !== undefined) {
       const advisorPackage = await AdvisorPackage.findOne({ advisor_id: parseInt(user_id) });
-      
+
       if (advisorPackage) {
         const packageUpdateData = {
           updated_by: adminId,
@@ -2493,7 +2492,7 @@ const updateVendorSchedule = async (req, res) => {
         if (day_id) {
           // Update existing day record
           dayRecord = await ChooseDayAdvisor.findOneAndUpdate(
-            { 
+            {
               choose_day_Advisor_id: day_id,
               created_by: parseInt(vendor_id)
             },
@@ -2580,25 +2579,25 @@ const getVendorScheduleData = async (vendorId) => {
   try {
     // Get choose_day_Advisor records for this vendor
     const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: vendorId });
-    
+
     // Get choose_Time_slot records for this vendor
     const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: vendorId });
-    
+
     // Get all unique choose_day_Advisor_id values from timeSlotRecords
     const timeSlotDayIds = [...new Set(timeSlotRecords.map(record => record.choose_day_Advisor_id))];
-    
+
     // Get day records from dayAdvisorRecords based on timeSlotDayIds
-    const relevantDayRecords = await ChooseDayAdvisor.find({ 
+    const relevantDayRecords = await ChooseDayAdvisor.find({
       choose_day_Advisor_id: { $in: timeSlotDayIds }
     });
-    
+
     // Combine day and time slot information
     const slotData = relevantDayRecords.map(dayRecord => {
-      const timeSlots = timeSlotRecords.filter(timeRecord => 
+      const timeSlots = timeSlotRecords.filter(timeRecord =>
         timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
         timeRecord.advisor_id === vendorId
       );
-      
+
       return {
         day_id: dayRecord.choose_day_Advisor_id,
         day_name: dayRecord.DayName,
@@ -2614,7 +2613,7 @@ const getVendorScheduleData = async (vendorId) => {
         }))
       };
     });
-    
+
     return {
       advisor_slots: slotData,
       total_days: dayAdvisorRecords.length,
@@ -2710,7 +2709,7 @@ const getVendorCallStatistics = async (req, res) => {
     // Process each call
     allCalls.forEach(call => {
       const callType = callTypeMap[call.call_type_id];
-      
+
       // Count by call type
       if (callType) {
         const modeName = callType.mode_name.toLowerCase();
@@ -2761,11 +2760,11 @@ const getVendorCallStatistics = async (req, res) => {
 
     // Calculate averages
     const averages = {
-      average_duration: statistics.completed_calls > 0 ? 
+      average_duration: statistics.completed_calls > 0 ?
         Math.round((statistics.total_duration / statistics.completed_calls) * 100) / 100 : 0,
-      average_earnings_per_call: statistics.completed_calls > 0 ? 
+      average_earnings_per_call: statistics.completed_calls > 0 ?
         Math.round((statistics.total_earnings / statistics.completed_calls) * 100) / 100 : 0,
-      completion_rate: statistics.total_calls > 0 ? 
+      completion_rate: statistics.total_calls > 0 ?
         Math.round((statistics.completed_calls / statistics.total_calls) * 100) / 100 : 0
     };
 
@@ -2895,7 +2894,7 @@ const updateUserSlotAndInstantCall = async (req, res) => {
           if (!timeSlot.time_slot || !Array.isArray(timeSlot.time_slot)) {
             throw new Error('time_slot must be an array for each time slot');
           }
-          
+
           return {
             time_slot_id: timeSlot.time_slot_id || null,
             time_slot: timeSlot.time_slot,
