@@ -189,13 +189,40 @@ const userSchema = new mongoose.Schema({
     default: []
   },
   slot: [{
-    Day_id: {
-      type: Number,
-      ref: 'choose_day_Advisor'
+    day_id: {
+      type: Number
     },
-    times: [{
+    day_name: {
       type: String
-    }]
+    },
+    status: {
+      type: Boolean,
+      default: true
+    },
+    time_slots: [{
+      time_slot_id: {
+        type: Number
+      },
+      time_slot: [{
+        type: String
+      }],
+      status: {
+        type: Boolean,
+        default: true
+      },
+      created_at: {
+        type: Date
+      },
+      updated_at: {
+        type: Date
+      }
+    }],
+    created_at: {
+      type: Date
+    },
+    updated_at: {
+      type: Date
+    }
   }]
   
 }, {

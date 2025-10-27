@@ -238,8 +238,9 @@ const getProfile = async (req, res) => {
       // Combine day and time slot information
       const slotData = relevantDayRecords.map(dayRecord => {
         const timeSlots = timeSlotRecords.filter(timeRecord => 
-          timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
-          timeRecord.advisor_id === user.user_id
+          timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id,
+          
+  timeRecord.advisor_id === user.user_id
         );
         
         return {
@@ -378,7 +379,8 @@ const getProfile = async (req, res) => {
       data: {
         ...user.toObject(),
         package_details: packageDetails,
-        slot_details: slotDetails
+        slot_details: slotData,
+        slot: user.slot || []
       }
     });
   } catch (error) {
@@ -2867,23 +2869,49 @@ const updateUserSlotAndInstantCall = async (req, res) => {
       // Validate slot structure
       const validSlots = [];
       for (const slotItem of slot) {
-        if (!slotItem.Day_id) {
+        if (!slotItem.day_id) {
           return res.status(400).json({
             success: false,
-            message: 'Day_id is required for each slot item'
+            message: 'day_id is required for each slot item'
           });
         }
 
-        if (!slotItem.times || !Array.isArray(slotItem.times)) {
+        if (!slotItem.day_name) {
           return res.status(400).json({
             success: false,
-            message: 'times must be an array for each slot item'
+            message: 'day_name is required for each slot item'
           });
         }
+
+        if (!slotItem.time_slots || !Array.isArray(slotItem.time_slots)) {
+          return res.status(400).json({
+            success: false,
+            message: 'time_slots must be an array for each slot item'
+          });
+        }
+
+        // Validate and format time slots
+        const validTimeSlots = slotItem.time_slots.map(timeSlot => {
+          if (!timeSlot.time_slot || !Array.isArray(timeSlot.time_slot)) {
+            throw new Error('time_slot must be an array for each time slot');
+          }
+          
+          return {
+            time_slot_id: timeSlot.time_slot_id || null,
+            time_slot: timeSlot.time_slot,
+            status: timeSlot.status !== undefined ? timeSlot.status : true,
+            created_at: timeSlot.created_at || new Date(),
+            updated_at: timeSlot.updated_at || new Date()
+          };
+        });
 
         validSlots.push({
-          Day_id: slotItem.Day_id,
-          times: slotItem.times
+          day_id: slotItem.day_id,
+          day_name: slotItem.day_name,
+          status: slotItem.status !== undefined ? slotItem.status : true,
+          time_slots: validTimeSlots,
+          created_at: slotItem.created_at || new Date(),
+          updated_at: slotItem.updated_at || new Date()
         });
       }
 
