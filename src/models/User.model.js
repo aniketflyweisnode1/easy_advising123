@@ -188,17 +188,7 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
-  slot: [{ day_id: Number, day_name: String, time_slots: [String] }],
-  status: {
-    type: Number,
-    default: 1
-  },
-  created_at: {
-    type: Date
-  },
-  updated_at: {
-    type: Date
-  }
+ 
 }, {
   timestamps: false
 });
