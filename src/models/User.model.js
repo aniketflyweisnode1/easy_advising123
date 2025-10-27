@@ -5,14 +5,14 @@ const userSchema = new mongoose.Schema({
   user_id: {
     type: Number,
     unique: true,
- 
+
   },
   name: {
     type: String,
     required: true,
     trim: true
   },
-  
+
   AgreeTermsCondition: {
     type: Boolean,
     default: false
@@ -116,7 +116,7 @@ const userSchema = new mongoose.Schema({
   },
   state: {
     type: String,
-    
+
   },
   city: {
     type: String,
@@ -145,7 +145,7 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-   audio_Rate: {
+  audio_Rate: {
     type: Number,
     default: 0
   },
@@ -188,61 +188,35 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
-  slot: [{
-    day_id: {
-      type: Number
-    },
-    day_name: {
-      type: String
-    },
-    status: {
-      type: Boolean,
-      default: true
-    },
-    time_slots: [{
-      time_slot_id: {
-        type: Number
-      },
-      time_slot: [{
-        type: String
-      }],
-      status: {
-        type: Boolean,
-        default: true
-      },
-      created_at: {
-        type: Date
-      },
-      updated_at: {
-        type: Date
-      }
-    }],
-    created_at: {
-      type: Date
-    },
-    updated_at: {
-      type: Date
-    }
-  }]
-  
+  slot: [{ day_id: Number, day_name: String, time_slots: [String] }],
+  status: {
+    type: Boolean,
+    default: true
+  },
+  created_at: {
+    type: Date
+  },
+  updated_at: {
+    type: Date
+  }
 }, {
   timestamps: false
 });
 
 // Auto-increment for user_id
-userSchema.plugin(AutoIncrement, { 
+userSchema.plugin(AutoIncrement, {
   inc_field: 'user_id',
   start_seq: 1
 });
 
 // Update the updated_on field before saving
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   this.updated_on = new Date();
   next();
 });
 
 // Update the updated_on field before updating
-userSchema.pre('findOneAndUpdate', function(next) {
+userSchema.pre('findOneAndUpdate', function (next) {
   this.set({ updated_on: new Date() });
   next();
 });

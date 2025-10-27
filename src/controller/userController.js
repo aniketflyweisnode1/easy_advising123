@@ -208,11 +208,11 @@ const getProfile = async (req, res) => {
     }
 
     // Debug: Check array IDs
-    console.log('User data after populate:');
-    console.log('Language IDs:', user.language);
-    console.log('Skill IDs:', user.skill);
-    console.log('Category ID:', user.Category);
-    console.log('Subcategory ID:', user.Subcategory);
+    // console.log('User data after populate:');
+    // console.log('Language IDs:', user.language);
+    // console.log('Skill IDs:', user.skill);
+    // console.log('Category ID:', user.Category);
+    // console.log('Subcategory ID:', user.Subcategory);
 
     // Get slot information for advisors
     let slotDetails = {
@@ -224,21 +224,21 @@ const getProfile = async (req, res) => {
     if (user.role_id === 2) {
       // Get choose_day_Advisor records for this advisor
       const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: user.user_id });
-      console.log('Day Advisor Records:', dayAdvisorRecords);
+      // console.log('Day Advisor Records:', dayAdvisorRecords);
 
       // Get choose_Time_slot records for this advisor
       const timeSlotRecords = await ChooseTimeSlot.find({ advisor_id: user.user_id });
-      console.log('Time Slot Records:', timeSlotRecords);
+      // console.log('Time Slot Records:', timeSlotRecords);
 
       // Get all unique choose_day_Advisor_id values from timeSlotRecords
       const timeSlotDayIds = [...new Set(timeSlotRecords.map(record => record.choose_day_Advisor_id))];
-      console.log('Time Slot Day IDs:', timeSlotDayIds);
+      // console.log('Time Slot Day IDs:', timeSlotDayIds);
 
       // Get day records from dayAdvisorRecords based on timeSlotDayIds
       const relevantDayRecords = await ChooseDayAdvisor.find({
         choose_day_Advisor_id: { $in: timeSlotDayIds }
       });
-      console.log('Relevant Day Records from DB:', relevantDayRecords);
+      // console.log('Relevant Day Records from DB:', relevantDayRecords);
 
       // Combine day and time slot information
       const slotData = relevantDayRecords.map(dayRecord => {
@@ -246,7 +246,7 @@ const getProfile = async (req, res) => {
           timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
           timeRecord.advisor_id === user.user_id
         );
-
+console.log('Time Slots:', slotData);
         return {
           day_id: dayRecord.choose_day_Advisor_id,
           day_name: dayRecord.DayName,
@@ -375,6 +375,11 @@ const getProfile = async (req, res) => {
       };
     }
 
+    // Filter out slots with empty time_slots
+    const filteredSlots = (user.slot || []).filter(slotItem => 
+      slotItem.time_slots && Array.isArray(slotItem.time_slots) && slotItem.time_slots.length > 0
+    );
+
     return res.status(200).json({
       success: true,
       message: 'Profile retrieved successfully',
@@ -382,7 +387,7 @@ const getProfile = async (req, res) => {
         ...user.toObject(),
         package_details: packageDetails,
         slot_details: slotDetails,
-        slot: user.slot || []
+        slot: filteredSlots
       }
     });
   } catch (error) {
@@ -419,7 +424,67 @@ const updateProfile = async (req, res) => {
       });
     }
 
+    // Handle slot update if provided
+    if (updateData.slot !== undefined) {
+      if (!Array.isArray(updateData.slot)) {
+        return res.status(400).json({
+          success: false,
+          message: 'slot must be an array'
+        });
+      }
 
+      // Validate and filter slot structure
+      const validSlots = [];
+      for (const slotItem of updateData.slot) {
+        if (!slotItem.day_id) {
+          return res.status(400).json({
+            success: false,
+            message: 'day_id is required for each slot item'
+          });
+        }
+
+        if (!slotItem.day_name) {
+          return res.status(400).json({
+            success: false,
+            message: 'day_name is required for each slot item'
+          });
+        }
+
+        if (!slotItem.time_slots || !Array.isArray(slotItem.time_slots)) {
+          return res.status(400).json({
+            success: false,
+            message: 'time_slots must be an array for each slot item'
+          });
+        }
+
+        // Validate and format time slots, filter out empty ones
+        const validTimeSlots = slotItem.time_slots
+          .filter(timeSlot => timeSlot.time_slot && Array.isArray(timeSlot.time_slot) && timeSlot.time_slot.length > 0)
+          .map(timeSlot => {
+            return {
+              time_slot_id: timeSlot.time_slot_id || null,
+              time_slot: timeSlot.time_slot,
+              status: timeSlot.status !== undefined ? timeSlot.status : true,
+              created_at: timeSlot.created_at || new Date(),
+              updated_at: timeSlot.updated_at || new Date()
+            };
+          });
+
+        // Only add slot if it has at least one valid time slot
+        if (validTimeSlots.length > 0) {
+          validSlots.push({
+            day_id: slotItem.day_id,
+            day_name: slotItem.day_name,
+            status: slotItem.status !== undefined ? slotItem.status : true,
+            time_slots: validTimeSlots,
+            created_at: slotItem.created_at || new Date(),
+            updated_at: slotItem.updated_at || new Date()
+          });
+        }
+      }
+
+      updateData.slot = validSlots;
+    }
 
     // Update the user
     const updatedUser = await User.findOneAndUpdate(
