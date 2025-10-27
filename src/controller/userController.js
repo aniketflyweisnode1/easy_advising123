@@ -246,7 +246,7 @@ const getProfile = async (req, res) => {
           timeRecord.choose_day_Advisor_id === dayRecord.choose_day_Advisor_id &&
           timeRecord.advisor_id === user.user_id
         );
-console.log('Time Slots:', slotData);
+        
         return {
           day_id: dayRecord.choose_day_Advisor_id,
           day_name: dayRecord.DayName,
@@ -262,6 +262,8 @@ console.log('Time Slots:', slotData);
           }))
         };
       });
+      
+      console.log('Time Slots:', slotData);
 
       slotDetails.advisor_slots = slotData;
       slotDetails.total_days = dayAdvisorRecords.length;
@@ -2984,6 +2986,50 @@ const updateUserSlotAndInstantCall = async (req, res) => {
       }
 
       updateData.slot = validSlots;
+
+      // If user is an advisor (role_id = 2), also create choose_day_Advisor and choose_Time_slot records
+      if (user.role_id === 2) {
+        // Delete existing time slot records for this advisor
+        await ChooseTimeSlot.deleteMany({ advisor_id: parseInt(user_id) });
+
+        // Create/update choose_day_Advisor and choose_Time_slot records
+        for (const slotItem of validSlots) {
+          // Check if day record exists by DayName and created_by
+          let dayRecord = await ChooseDayAdvisor.findOne({
+            DayName: slotItem.day_name,
+            created_by: parseInt(user_id)
+          });
+
+          // If day record doesn't exist, create it
+          if (!dayRecord) {
+            dayRecord = await ChooseDayAdvisor.create({
+              DayName: slotItem.day_name,
+              Status: slotItem.status,
+              created_by: parseInt(user_id),
+              created_at: slotItem.created_at,
+              updated_at: slotItem.updated_at
+            });
+          } else {
+            // Update existing day record
+            dayRecord.Status = slotItem.status;
+            dayRecord.updated_at = slotItem.updated_at;
+            await dayRecord.save();
+          }
+
+          // Create choose_Time_slot records for this day
+          for (const timeSlot of slotItem.time_slots) {
+            await ChooseTimeSlot.create({
+              choose_day_Advisor_id: dayRecord.choose_day_Advisor_id,
+              advisor_id: parseInt(user_id),
+              Time_slot: timeSlot.time_slot,
+              Status: timeSlot.status,
+              created_by: parseInt(user_id),
+              created_at: timeSlot.created_at,
+              updated_at: timeSlot.updated_at
+            });
+          }
+        }
+      }
     }
 
     // Update the user
