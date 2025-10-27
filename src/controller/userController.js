@@ -207,14 +207,7 @@ const getProfile = async (req, res) => {
       });
     }
 
-    // Debug: Check array IDs
-    // console.log('User data after populate:');
-    // console.log('Language IDs:', user.language);
-    // console.log('Skill IDs:', user.skill);
-    // console.log('Category ID:', user.Category);
-    // console.log('Subcategory ID:', user.Subcategory);
-
-    // Get slot information for advisors
+    
     let slotDetails = {
       advisor_slots: [],
       total_days: 0,
@@ -263,7 +256,7 @@ const getProfile = async (req, res) => {
         };
       });
 
-      console.log('Time Slots:', slotData);
+      // console.log('Time Slots:', slotData);
 
       slotDetails.advisor_slots = slotData;
       slotDetails.total_days = dayAdvisorRecords.length;
@@ -377,10 +370,10 @@ const getProfile = async (req, res) => {
       };
     }
 
-    // Filter out slots with empty time_slots
-    const filteredSlots = (user.slot || []).filter(slotItem =>
-      slotItem.time_slots && Array.isArray(slotItem.time_slots) && slotItem.time_slots.length > 0
-    );
+    // // Filter out slots with empty time_slots
+    // const filteredSlots = (user.slot || []).filter(slotItem =>
+    //   slotItem.time_slots && Array.isArray(slotItem.time_slots) && slotItem.time_slots.length > 0
+    // );
 
     return res.status(200).json({
       success: true,
@@ -388,8 +381,7 @@ const getProfile = async (req, res) => {
       data: {
         ...user.toObject(),
         package_details: packageDetails,
-        slot_details: slotDetails,
-        slot: filteredSlots
+        slot_details: slotDetails
       }
     });
   } catch (error) {
