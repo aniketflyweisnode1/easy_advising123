@@ -215,7 +215,12 @@ const getProfile = async (req, res) => {
     console.log('Subcategory ID:', user.Subcategory);
 
     // Get slot information for advisors
-    let slotDetails = {};
+    let slotDetails = {
+      advisor_slots: [],
+      total_days: 0,
+      total_time_slots: 0
+    };
+
     if (user.role_id === 2) {
       // Get choose_day_Advisor records for this advisor
       const dayAdvisorRecords = await ChooseDayAdvisor.find({ created_by: user.user_id });
@@ -258,11 +263,9 @@ const getProfile = async (req, res) => {
         };
       });
 
-      slotDetails = {
-        advisor_slots: slotData,
-        total_days: dayAdvisorRecords.length,
-        total_time_slots: timeSlotRecords.length
-      };
+      slotDetails.advisor_slots = slotData;
+      slotDetails.total_days = dayAdvisorRecords.length;
+      slotDetails.total_time_slots = timeSlotRecords.length;
 
     }
 
@@ -378,7 +381,7 @@ const getProfile = async (req, res) => {
       data: {
         ...user.toObject(),
         package_details: packageDetails,
-        slot_details: slotData,
+        slot_details: slotDetails,
         slot: user.slot || []
       }
     });
@@ -2890,28 +2893,29 @@ const updateUserSlotAndInstantCall = async (req, res) => {
         }
 
         // Validate and format time slots
-        const validTimeSlots = slotItem.time_slots.map(timeSlot => {
-          if (!timeSlot.time_slot || !Array.isArray(timeSlot.time_slot)) {
-            throw new Error('time_slot must be an array for each time slot');
-          }
+        const validTimeSlots = slotItem.time_slots
+          .filter(timeSlot => timeSlot.time_slot && Array.isArray(timeSlot.time_slot) && timeSlot.time_slot.length > 0)
+          .map(timeSlot => {
+            return {
+              time_slot_id: timeSlot.time_slot_id || null,
+              time_slot: timeSlot.time_slot,
+              status: timeSlot.status !== undefined ? timeSlot.status : true,
+              created_at: timeSlot.created_at || new Date(),
+              updated_at: timeSlot.updated_at || new Date()
+            };
+          });
 
-          return {
-            time_slot_id: timeSlot.time_slot_id || null,
-            time_slot: timeSlot.time_slot,
-            status: timeSlot.status !== undefined ? timeSlot.status : true,
-            created_at: timeSlot.created_at || new Date(),
-            updated_at: timeSlot.updated_at || new Date()
-          };
-        });
-
-        validSlots.push({
-          day_id: slotItem.day_id,
-          day_name: slotItem.day_name,
-          status: slotItem.status !== undefined ? slotItem.status : true,
-          time_slots: validTimeSlots,
-          created_at: slotItem.created_at || new Date(),
-          updated_at: slotItem.updated_at || new Date()
-        });
+        // Only add slot if it has at least one valid time slot
+        if (validTimeSlots.length > 0) {
+          validSlots.push({
+            day_id: slotItem.day_id,
+            day_name: slotItem.day_name,
+            status: slotItem.status !== undefined ? slotItem.status : true,
+            time_slots: validTimeSlots,
+            created_at: slotItem.created_at || new Date(),
+            updated_at: slotItem.updated_at || new Date()
+          });
+        }
       }
 
       updateData.slot = validSlots;
