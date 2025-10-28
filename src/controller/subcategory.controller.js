@@ -208,16 +208,12 @@ const getAllSubcategoriesAll = async (req, res) => {
 const getAllSubcategories = async (req, res) => {
   try {
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       status,
       category_id,
       sort_by = 'created_At',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query
     const query = {};
@@ -257,14 +253,9 @@ const getAllSubcategories = async (req, res) => {
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-    // Get subcategories with pagination and filters
+    // Get all subcategories with filters (no pagination)
     const subcategories = await Subcategory.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalSubcategories = await Subcategory.countDocuments(query);
+      .sort(sortObj);
 
     // Get subcategories with category details and adviser counts
     const subcategoriesWithDetails = await Promise.all(
@@ -310,12 +301,6 @@ const getAllSubcategories = async (req, res) => {
       message: 'Subcategories retrieved successfully',
       data: {
         subcategories: subcategoriesWithDetails,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalSubcategories / limit),
-          total_items: totalSubcategories,
-          items_per_page: parseInt(limit)
-        },
         filters: {
           available_categories: allCategories
         }

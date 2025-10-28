@@ -165,15 +165,11 @@ const getCategoryAll = async (req, res) => {
 const getAllCategories = async (req, res) => {
   try {
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       status,
       sort_by = 'created_At',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query
     const query = {};
@@ -208,14 +204,9 @@ const getAllCategories = async (req, res) => {
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-    // Get categories with pagination and filters
+    // Get all categories with filters (no pagination)
     const categories = await Category.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalCategories = await Category.countDocuments(query);
+      .sort(sortObj);
 
     // Get adviser counts for each category
     const categoriesWithCounts = await Promise.all(
@@ -249,7 +240,7 @@ const getAllCategories = async (req, res) => {
       })
     );
 
-    // Get all categories for filter options (without pagination)
+    // Get all categories for filter options
     const allCategories = await Category.find({}, { category_id: 1, category_name: 1, _id: 0 });
 
     return res.status(200).json({
@@ -257,12 +248,6 @@ const getAllCategories = async (req, res) => {
       message: 'Categories retrieved successfully',
       data: {
         categories: categoriesWithCounts,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalCategories / limit),
-          total_items: totalCategories,
-          items_per_page: parseInt(limit)
-        },
         filters: {
           available_categories: allCategories
         }
