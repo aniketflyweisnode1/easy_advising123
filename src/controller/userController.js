@@ -2963,110 +2963,38 @@ const updateUserSlotAndInstantCall = async (req, res) => {
         });
       }
 
-      // Validate slot structure
-      const validSlots = [];
-      for (const slotItem of slot) {
-        if (!slotItem.Day_id) {
-          return res.status(400).json({
-            success: false,
-            message: 'day_id is required for each slot item'
-          });
-        }
-
-        // Accept either `time_slots` or `times` from the payload
-        const rawTimes = Array.isArray(slotItem.time_slots)
-          ? slotItem.time_slots
-          : (Array.isArray(slotItem.times) ? slotItem.times : []);
-
-        if (!Array.isArray(rawTimes)) {
-          return res.status(400).json({
-            success: false,
-            message: 'time_slots must be an array for each slot item'
-          });
-        }
-
-        // Normalize to expected structure
-        const validTimeSlots = rawTimes
-          .filter(ts => ts && (ts.time_slot || ts.Time_slot))
-          .map(ts => ({
-            time_slot: ts.time_slot || ts.Time_slot,
-            status: ts.status !== undefined ? ts.status : true,
-            created_at: ts.created_at || new Date(),
-            updated_at: ts.updated_at || new Date()
-          }));
-
-        // Only add slot if it has at least one valid time slot
-        if (validTimeSlots.length > 0) {
-          validSlots.push({
-            Day_id: slotItem.Day_id,
-            status: slotItem.status !== undefined ? slotItem.status : true,
-            time_slots: validTimeSlots,
-            created_at: slotItem.created_at || new Date(),
-            updated_at: slotItem.updated_at || new Date()
-          });
-        }
-      }
-
-      updateData.slot = validSlots;
-
       // If user is an advisor (role_id = 2), also create choose_day_Advisor and choose_Time_slot records
       if (user.role_id === 2) {
-        // Delete existing time slot records for this advisor
-        await ChooseTimeSlot.deleteMany({ advisor_id: parseInt(user_id) });
+
+        const existsTimeSlot = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
+
+        for (const existsTimes of existsTimeSlot) {
+          // Delete existing time slot records for this advisor
+          await ChooseTimeSlot.deleteOne({ choose_Time_slot_id: existsTimes.choose_Time_slot_id });
+        }
 
         // Create/update choose_day_Advisor and choose_Time_slot records
-        for (const slotItem of validSlots) {
+        for (const slotItem of slot) {
           // Check if day record exists by DayName and created_by
           let dayRecord = await ChooseDayAdvisor.findOne({
-            choose_day_Advisor_id: slotItem.Day_id
+            choose_day_Advisor_id: slotItem.Day_id,
+            advisor_id: parseInt(user_id)
           });
 
-          // If day record doesn't exist, create it
-          if (!dayRecord) {
-            dayRecord = await ChooseDayAdvisor.create({
-              choose_day_Advisor_id: slotItem.Day_id,
-              Status: slotItem.status,
-              created_by: parseInt(user_id),
-              created_at: slotItem.created_at,
-              updated_at: slotItem.updated_at
-            });
-          } else {
-            // Update existing day record
-            dayRecord.Status = slotItem.status;
-            dayRecord.updated_at = slotItem.updated_at;
-            await dayRecord.save();
-          }
-
-          // Create choose_Time_slot records for this day
-          for (const timeSlot of slotItem.time_slots) {
-            await ChooseTimeSlot.create({
-              choose_day_Advisor_id: dayRecord.choose_day_Advisor_id,
-              advisor_id: parseInt(user_id),
-              Time_slot: timeSlot.time_slot,
-              Status: timeSlot.status,
-              created_by: parseInt(user_id),
-              created_at: timeSlot.created_at,
-              updated_at: timeSlot.updated_at
-            });
-          }
+          await ChooseTimeSlot.create({
+            choose_day_Advisor_id: slotItem.Day_id,
+            advisor_id: parseInt(user_id),
+            Time_slot: slotItem.times,
+            created_by: parseInt(user_id),
+            created_at: new Date(),
+            updated_at: new Date()
+          });
         }
       }
     }
 
-    // Update the user
-    const updatedUser = await User.findOneAndUpdate(
-      { user_id: parseInt(user_id) },
-      updateData,
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update user'
-      });
-    }
-
+    const updatedUser = await User.findOne({ user_id: parseInt(user_id) });
+    const updatedSlot = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
     return res.status(200).json({
       success: true,
       message: 'User slot and instant_call updated successfully',
@@ -3074,7 +3002,7 @@ const updateUserSlotAndInstantCall = async (req, res) => {
         user_id: updatedUser.user_id,
         name: updatedUser.name,
         instant_call: updatedUser.instant_call,
-        slot: updatedUser.slot,
+        slot: updatedSlot,
         updated_on: updatedUser.updated_on
       },
       status: 200
