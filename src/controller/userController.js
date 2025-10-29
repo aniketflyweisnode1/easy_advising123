@@ -2965,22 +2965,13 @@ const updateUserSlotAndInstantCall = async (req, res) => {
 
       // If user is an advisor (role_id = 2), also create choose_day_Advisor and choose_Time_slot records
       if (user.role_id === 2) {
-
         const existsTimeSlot = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
-
         for (const existsTimes of existsTimeSlot) {
-          // Delete existing time slot records for this advisor
           await ChooseTimeSlot.deleteOne({ choose_Time_slot_id: existsTimes.choose_Time_slot_id });
         }
 
         // Create/update choose_day_Advisor and choose_Time_slot records
         for (const slotItem of slot) {
-          // Check if day record exists by DayName and created_by
-          let dayRecord = await ChooseDayAdvisor.findOne({
-            choose_day_Advisor_id: slotItem.Day_id,
-            advisor_id: parseInt(user_id)
-          });
-
           await ChooseTimeSlot.create({
             choose_day_Advisor_id: slotItem.Day_id,
             advisor_id: parseInt(user_id),
