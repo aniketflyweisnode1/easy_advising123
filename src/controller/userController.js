@@ -207,7 +207,7 @@ const getProfile = async (req, res) => {
       });
     }
 
-    
+
     let slotDetails = {
       advisor_slots: [],
       total_days: 0,
@@ -2332,10 +2332,10 @@ const updateUser = async (req, res) => {
       }
       // console.log('updateData.user  \n', user_id);
 
-    const slots = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
-    // console.log('slots  \n', slots);
-      for(const slot of slots){
-      
+      const slots = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
+      // console.log('slots  \n', slots);
+      for (const slot of slots) {
+
         await ChooseTimeSlot.deleteOne({ choose_Time_slot_id: slot.choose_Time_slot_id });
       }
 
@@ -2966,45 +2966,39 @@ const updateUserSlotAndInstantCall = async (req, res) => {
       // Validate slot structure
       const validSlots = [];
       for (const slotItem of slot) {
-        if (!slotItem.day_id) {
+        if (!slotItem.Day_id) {
           return res.status(400).json({
             success: false,
             message: 'day_id is required for each slot item'
           });
         }
 
-        if (!slotItem.day_name) {
-          return res.status(400).json({
-            success: false,
-            message: 'day_name is required for each slot item'
-          });
-        }
+        // Accept either `time_slots` or `times` from the payload
+        const rawTimes = Array.isArray(slotItem.time_slots)
+          ? slotItem.time_slots
+          : (Array.isArray(slotItem.times) ? slotItem.times : []);
 
-        if (!slotItem.time_slots || !Array.isArray(slotItem.time_slots)) {
+        if (!Array.isArray(rawTimes)) {
           return res.status(400).json({
             success: false,
             message: 'time_slots must be an array for each slot item'
           });
         }
 
-        // Validate and format time slots
-        const validTimeSlots = slotItem.time_slots
-          .filter(timeSlot => timeSlot.time_slot && Array.isArray(timeSlot.time_slot) && timeSlot.time_slot.length > 0)
-          .map(timeSlot => {
-            return {
-              time_slot_id: timeSlot.time_slot_id || null,
-              time_slot: timeSlot.time_slot,
-              status: timeSlot.status !== undefined ? timeSlot.status : true,
-              created_at: timeSlot.created_at || new Date(),
-              updated_at: timeSlot.updated_at || new Date()
-            };
-          });
+        // Normalize to expected structure
+        const validTimeSlots = rawTimes
+          .filter(ts => ts && (ts.time_slot || ts.Time_slot))
+          .map(ts => ({
+            time_slot: ts.time_slot || ts.Time_slot,
+            status: ts.status !== undefined ? ts.status : true,
+            created_at: ts.created_at || new Date(),
+            updated_at: ts.updated_at || new Date()
+          }));
 
         // Only add slot if it has at least one valid time slot
         if (validTimeSlots.length > 0) {
           validSlots.push({
-            day_id: slotItem.day_id,
-            day_name: slotItem.day_name,
+            Day_id: slotItem.Day_id,
             status: slotItem.status !== undefined ? slotItem.status : true,
             time_slots: validTimeSlots,
             created_at: slotItem.created_at || new Date(),
@@ -3024,14 +3018,13 @@ const updateUserSlotAndInstantCall = async (req, res) => {
         for (const slotItem of validSlots) {
           // Check if day record exists by DayName and created_by
           let dayRecord = await ChooseDayAdvisor.findOne({
-            DayName: slotItem.day_name,
-            created_by: parseInt(user_id)
+            choose_day_Advisor_id: slotItem.Day_id
           });
 
           // If day record doesn't exist, create it
           if (!dayRecord) {
             dayRecord = await ChooseDayAdvisor.create({
-              DayName: slotItem.day_name,
+              choose_day_Advisor_id: slotItem.Day_id,
               Status: slotItem.status,
               created_by: parseInt(user_id),
               created_at: slotItem.created_at,
