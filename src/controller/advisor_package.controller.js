@@ -366,6 +366,82 @@ const getAdvisorPackageByAuth = async (req, res) => {
   }
 };
 
+// Update a single package price for an advisor by name (Basic/Economy/Pro)
+const updatePakagebyAdvisor = async (req, res) => {
+  try {
+    const { advisor_id, name, price } = req.body;
+
+    if (!advisor_id || !name || price === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'advisor_id, name and price are required'
+      });
+    }
+
+    const normalized = String(name).trim().toLowerCase();
+    const fieldMap = {
+      basic: 'Basic_price',
+      economy: 'Economy_price',
+      pro: 'Pro_price'
+    };
+    const field = fieldMap[normalized];
+    if (!field) {
+      return res.status(400).json({
+        success: false,
+        message: 'name must be one of: Basic, Economy, Pro'
+      });
+    }
+
+    const pkg = await AdvisorPackage.findOne({ advisor_id: parseInt(advisor_id) });
+    if (!pkg) {
+      return res.status(404).json({
+        success: false,
+        message: 'Advisor package not found for this advisor'
+      });
+    }
+
+    pkg[field] = Number(price);
+    pkg.updated_by = req.user?.user_id || parseInt(advisor_id);
+    pkg.updated_at = new Date();
+    await pkg.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Advisor package price updated',
+      data: pkg
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get advisor package by advisor_id
+const getAdvisorPackageByAdvisorId = async (req, res) => {
+  try {
+    const advisor_id = parseInt(req.params.advisor_id || req.query.advisor_id || req.body.advisor_id);
+    if (!advisor_id) {
+      return res.status(400).json({ success: false, message: 'advisor_id is required' });
+    }
+
+    const pkg = await AdvisorPackage.findOne({ advisor_id })
+      .populate({
+        path: 'advisor_id',
+        model: 'User',
+        localField: 'advisor_id',
+        foreignField: 'user_id',
+        select: 'user_id name email mobile role_id profile_image'
+      });
+
+    if (!pkg) {
+      return res.status(404).json({ success: false, message: 'Advisor package not found' });
+    }
+
+    return res.status(200).json({ success: true, data: pkg });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // Delete Advisor Package
 const deleteAdvisorPackage = async (req, res) => {
   try {
@@ -398,6 +474,8 @@ module.exports = {
   getAdvisorPackageById,
   getAllAdvisorPackages,
   getAdvisorPackageByAuth,
-  deleteAdvisorPackage
+  deleteAdvisorPackage,
+  updatePakagebyAdvisor,
+  getAdvisorPackageByAdvisorId
 };
 

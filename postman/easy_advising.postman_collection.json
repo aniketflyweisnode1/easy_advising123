@@ -1,0 +1,245 @@
+{
+  "info": {
+    "name": "easy_advising APIs",
+    "_postman_id": "f1c2aa3b-7b15-4f7c-9e66-easy-collection",
+    "description": "Collection for easy_advising APIs using {{essy}} as base URL and Bearer {{auth}} token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "AdminConnectCall",
+      "item": [
+        {
+          "name": "Create AdminConnectCall",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/admin-connect-call/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 1,\n  \"mobileNo\": \"9999999999\",\n  \"date\": \"2025-10-30\",\n  \"time\": \"10:00\",\n  \"topic\": \"Intro Call\",\n  \"Status\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Update AdminConnectCall",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/admin-connect-call/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"AdminConnectCall_id\": 1,\n  \"topic\": \"Updated Topic\",\n  \"Status\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Get AdminConnectCall By Id",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/admin-connect-call/1" }
+        },
+        {
+          "name": "Get All AdminConnectCall",
+          "request": { "method": "GET", "url": "{{essy}}/api/admin-connect-call/" }
+        },
+        {
+          "name": "Delete AdminConnectCall",
+          "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/admin-connect-call/1" }
+        }
+      ]
+    },
+    {
+      "name": "TermsAndCondition",
+      "item": [
+        {
+          "name": "Create TermsAndCondition",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/terms-and-condition/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Terms\",\n  \"Description\": \"Terms content...\",\n  \"Status\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Update TermsAndCondition",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/terms-and-condition/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"TermsAndCondition_id\": 1,\n  \"title\": \"Updated Terms\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get TermsAndCondition By Id",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{auth}}" } ],
+            "url": "{{essy}}/api/terms-and-condition/1"
+          }
+        },
+        {
+          "name": "Get All TermsAndConditions",
+          "request": { "method": "GET", "url": "{{essy}}/api/terms-and-condition/" }
+        },
+        {
+          "name": "Delete TermsAndCondition",
+          "request": {
+            "method": "DELETE",
+            "header": [ { "key": "Authorization", "value": "Bearer {{auth}}" } ],
+            "url": "{{essy}}/api/terms-and-condition/1"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AdvisorPackage",
+      "item": [
+        {
+          "name": "Create AdvisorPackage",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/advisor-package/",
+            "body": { "mode": "raw", "raw": "{\n  \"Basic_price\": 100,\n  \"Economy_price\": 150,\n  \"Pro_price\": 200,\n  \"status\": true\n}" }
+          }
+        },
+        {
+          "name": "Get All AdvisorPackages",
+          "request": { "method": "GET", "url": "{{essy}}/api/advisor-package/" }
+        },
+        {
+          "name": "Get AdvisorPackage by Auth",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/advisor-package/auth" }
+        },
+        {
+          "name": "Get AdvisorPackage by Id",
+          "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/advisor-package/1" }
+        },
+        {
+          "name": "Update AdvisorPackage",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/advisor-package/",
+            "body": { "mode": "raw", "raw": "{\n  \"Advisor_Package_id\": 1,\n  \"Basic_price\": 120\n}" }
+          }
+        },
+        {
+          "name": "Update Package by Advisor (name, price)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/advisor-package/by-advisor",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"advisor_id\": 82,\n  \"name\": \"Basic\",\n  \"price\": 200\n}"
+            }
+          }
+        },
+        {
+          "name": "Get AdvisorPackage by AdvisorId",
+          "request": { "method": "GET", "url": "{{essy}}/api/advisor-package/by-advisor/82" }
+        },
+        {
+          "name": "Delete AdvisorPackage",
+          "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/advisor-package/1" }
+        }
+      ]
+    },
+    {
+      "name": "PrivacyPolicy",
+      "item": [
+        {
+          "name": "Create PrivacyPolicy",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/privacy-policy/",
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Privacy\",\n  \"Description\": \"Policy content...\",\n  \"Status\": true\n}" }
+          }
+        },
+        { "name": "Update PrivacyPolicy", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{essy}}/api/privacy-policy/", "body": { "mode": "raw", "raw": "{\n  \"PrivacyPolicy_id\": 1,\n  \"title\": \"Updated\"\n}" } } },
+        { "name": "Get PrivacyPolicy By Id", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/privacy-policy/1" } },
+        { "name": "Get All PrivacyPolicies", "request": { "method": "GET", "url": "{{essy}}/api/privacy-policy/" } },
+        { "name": "Delete PrivacyPolicy", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/privacy-policy/1" } }
+      ]
+    },
+    {
+      "name": "Advisor MySubscriber",
+      "item": [
+        {
+          "name": "Create MySubscriber",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/advisor/my-subscriber/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"advisorPackage_id\": 1,\n  \"subscribed_by\": 2,\n  \"trangection_id\": 3,\n  \"paymentStatus\": \"Pending\",\n  \"isActive\": \"inActive\",\n  \"ExpiryDate\": \"2025-12-31\",\n  \"Status\": true\n}"
+            }
+          }
+        },
+        { "name": "Update MySubscriber", "request": { "method": "PUT", "header": [{"key":"Authorization","value":"Bearer {{auth}}"},{"key":"Content-Type","value":"application/json"}], "url": "{{essy}}/api/advisor/my-subscriber/", "body": { "mode": "raw", "raw": "{\n  \"MySubscriber_id\": 1,\n  \"isActive\": \"Active\"\n}" } } },
+        { "name": "Get MySubscriber By Id", "request": { "method": "GET", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/advisor/my-subscriber/1" } },
+        { "name": "Get All MySubscribers", "request": { "method": "GET", "url": "{{essy}}/api/advisor/my-subscriber/" } },
+        { "name": "Delete MySubscriber", "request": { "method": "DELETE", "header": [{"key":"Authorization","value":"Bearer {{auth}}"}], "url": "{{essy}}/api/advisor/my-subscriber/1" } },
+        { "name": "Subscriber Group By Plan Name", "request": { "method": "GET", "url": "{{essy}}/api/advisor/my-subscriber/group/by-plan-name" } }
+      ]
+    },
+    {
+      "name": "Advisor Rates",
+      "item": [
+        {
+          "name": "Update Advisor Rate",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{auth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{essy}}/api/advisor/rates",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 82,\n  \"type\": \"instant\",\n  \"name\": \"audio\",\n  \"price\": 50\n}"
+            }
+          }
+        },
+        { "name": "Get Advisor Rates by Id", "request": { "method": "GET", "url": "{{essy}}/api/advisor/rates/82" } }
+      ]
+    }
+  ]
+}
+
+

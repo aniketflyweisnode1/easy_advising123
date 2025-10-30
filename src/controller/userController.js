@@ -207,7 +207,7 @@ const getProfile = async (req, res) => {
       });
     }
 
-
+    
     let slotDetails = {
       advisor_slots: [],
       total_days: 0,
@@ -2332,10 +2332,10 @@ const updateUser = async (req, res) => {
       }
       // console.log('updateData.user  \n', user_id);
 
-      const slots = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
-      // console.log('slots  \n', slots);
+    const slots = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
+    // console.log('slots  \n', slots);
       for (const slot of slots) {
-
+      
         await ChooseTimeSlot.deleteOne({ choose_Time_slot_id: slot.choose_Time_slot_id });
       }
 
@@ -2972,11 +2972,11 @@ const updateUserSlotAndInstantCall = async (req, res) => {
 
         // Create/update choose_day_Advisor and choose_Time_slot records
         for (const slotItem of slot) {
-          await ChooseTimeSlot.create({
+            await ChooseTimeSlot.create({
             choose_day_Advisor_id: slotItem.Day_id,
-            advisor_id: parseInt(user_id),
+              advisor_id: parseInt(user_id),
             Time_slot: slotItem.times,
-            created_by: parseInt(user_id),
+              created_by: parseInt(user_id),
             created_at: new Date(),
             updated_at: new Date()
           });
@@ -3010,4 +3010,68 @@ const updateUserSlotAndInstantCall = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall }; 
+// Update advisor instant rates (chat/audio/video)
+const updateAdvisorRate = async (req, res) => {
+  try {
+    const { user_id, type, name, price } = req.body;
+
+    if (!user_id || !name || price === undefined) {
+      return res.status(400).json({ success: false, message: 'user_id, name and price are required' });
+    }
+
+    // Optional: validate type if provided
+    if (type && String(type).toLowerCase() !== 'instant') {
+      return res.status(400).json({ success: false, message: "type must be 'instant'" });
+    }
+
+    const user = await User.findOne({ user_id: parseInt(user_id) });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const keyMap = {
+      chat: 'chat_Rate',
+      audio: 'audio_Rate',
+      video: 'VideoCall_rate'
+    };
+    const field = keyMap[String(name).trim().toLowerCase()];
+    if (!field) {
+      return res.status(400).json({ success: false, message: 'name must be one of: chat, audio, video' });
+    }
+
+    user[field] = Number(price);
+    user.updated_by = req.user?.user_id || parseInt(user_id);
+    user.updated_on = new Date();
+    await user.save();
+
+    return res.status(200).json({ success: true, message: 'Rate updated successfully', data: {
+      user_id: user.user_id,
+      chat_Rate: user.chat_Rate,
+      audio_Rate: user.audio_Rate,
+      VideoCall_rate: user.VideoCall_rate
+    }});
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get advisor rates by advisor_id
+const getAdvisorRatesById = async (req, res) => {
+  try {
+    const advisor_id = parseInt(req.params.advisor_id || req.query.advisor_id || req.body.user_id);
+    if (!advisor_id) {
+      return res.status(400).json({ success: false, message: 'advisor_id (or user_id) is required' });
+    }
+
+    const user = await User.findOne({ user_id: advisor_id }, 'user_id name chat_Rate audio_Rate VideoCall_rate');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    return res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall, updateAdvisorRate, getAdvisorRatesById };
