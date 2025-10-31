@@ -73,7 +73,7 @@ const createScheduleCall = async (req, res) => {
             // Check if wallet has sufficient balance for minimum required minutes
             if (userWallet.amount < minimumBalanceRequired) {
                 return res.status(400).json({
-                    message: `Insufficient wallet balance for ${data.schedule_type} call. Required: ₹${minimumBalanceRequired} (${callTypeDescription} × ₹${callType.price_per_minute}/min)`,
+                    message: `Insufficient wallet balance for ${data.schedule_type} call. Required: ₹${minimumBalanceRequired} (${callTypeDescription} × ₹${data.perminRate}/min)`,
                     status: 400,
                     schedule_type: data.schedule_type,
                     required_balance: minimumBalanceRequired,
@@ -87,16 +87,15 @@ const createScheduleCall = async (req, res) => {
             const otherScheduledCalls = await ScheduleCall.find({
                 created_by: data.created_by,
                 schedule_type: 'Schedule',
-                callStatus: { $in: ['Panding', 'Upcoming'] }
+                callStatus: { $in: ['Pending', 'Upcoming'] }
             });
 
             let totalHoldAmount = 0;
             for (const scheduledCall of otherScheduledCalls) {
-               
-                if (scheduledCallType) {
-                    // Estimate hold amount for scheduled calls (assuming 30 minutes average)
-                    totalHoldAmount += 30 * data.perminRate;
-                }
+                // Estimate hold amount for scheduled calls (assuming 30 minutes average)
+                // Use the scheduled call's perminRate if available, otherwise use current perminRate
+                const callRate = scheduledCall.perminRate || data.perminRate;
+                totalHoldAmount += 30 * callRate;
             }
 
             const totalRequiredBalance = minimumBalanceRequired + totalHoldAmount;
@@ -147,7 +146,46 @@ const updateScheduleCall = async (req, res) => {
         if (!schedule) {
             return res.status(404).json({ message: 'Schedule call not found', status: 404 });
         }
-        res.status(200).json({ message: 'Schedule call updated', schedule, status: 200 });
+
+        // Re-fetch with populated references
+        const populated = await ScheduleCall.findOne({ schedule_id })
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
+            })
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
+            })
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
+            });
+
+        res.status(200).json({ message: 'Schedule call updated', schedule: populated, status: 200 });
     } catch (error) {
         res.status(500).json({ message: error.message || error, status: 500 });
     }
@@ -185,13 +223,6 @@ const getScheduleCallById = async (req, res) => {
                 localField: 'skills_id',
                 foreignField: 'skill_id',
                 select: 'skill_id skill_name description use_count'
-            })
-            .populate({
-                path: 'call_type_id',
-                model: 'CallType',
-                localField: 'call_type_id',
-                foreignField: 'call_type_id',
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
             .populate({
                 path: 'package_Subscription_id',
@@ -331,13 +362,6 @@ const getAllScheduleCalls = async (req, res) => {
                 select: 'skill_id skill_name description use_count'
             })
             .populate({
-                path: 'call_type_id',
-                model: 'CallType',
-                localField: 'call_type_id',
-                foreignField: 'call_type_id',
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
-            })
-            .populate({
                 path: 'package_Subscription_id',
                 model: 'PackageSubscription',
                 localField: 'package_Subscription_id',
@@ -387,7 +411,7 @@ const getAllScheduleCalls = async (req, res) => {
         }
 
         // Get available call statuses for filter options
-        const availableCallStatuses = ['Panding', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing'];
+        const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
 
         return res.status(200).json({
             success: true,
@@ -453,13 +477,6 @@ const getScheduleCallsByCreator = async (req, res) => {
                 select: 'skill_id skill_name description use_count'
             })
             .populate({
-                path: 'call_type_id',
-                model: 'CallType',
-                localField: 'call_type_id',
-                foreignField: 'call_type_id',
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
-            })
-            .populate({
                 path: 'package_Subscription_id',
                 model: 'PackageSubscription',
                 localField: 'package_Subscription_id',
@@ -504,13 +521,6 @@ const getScheduleCallsByAdvisor = async (req, res) => {
                 localField: 'skills_id',
                 foreignField: 'skill_id',
                 select: 'skill_id skill_name description use_count'
-            })
-            .populate({
-                path: 'call_type_id',
-                model: 'CallType',
-                localField: 'call_type_id',
-                foreignField: 'call_type_id',
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
             .populate({
                 path: 'package_Subscription_id',
@@ -650,13 +660,6 @@ const getScheduleCallsByType = async (req, res) => {
                 select: 'skill_id skill_name description use_count'
             })
             .populate({
-                path: 'call_type_id',
-                model: 'CallType',
-                localField: 'call_type_id',
-                foreignField: 'call_type_id',
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
-            })
-            .populate({
                 path: 'package_Subscription_id',
                 model: 'PackageSubscription',
                 localField: 'package_Subscription_id',
@@ -706,7 +709,7 @@ const getScheduleCallsByType = async (req, res) => {
         }
 
         // Get available call statuses for filter options
-        const availableCallStatuses = ['Panding', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing'];
+        const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
 
         return res.status(200).json({
             success: true,
@@ -775,14 +778,44 @@ const endCall = async (req, res) => {
             });
         }
 
-        // Get call type details for commission calculation
-        const callType = await CallType.findOne({ call_type_id: scheduleCall.call_type_id });
-        if (!callType) {
+        // Get advisor details to get rate per minute based on call_type
+        const advisor = await User.findOne({ user_id: scheduleCall.advisor_id });
+        if (!advisor) {
             return res.status(404).json({
-                message: 'Call type not found',
+                message: 'Advisor not found',
                 status: 404
             });
         }
+
+        // Get rate per minute based on call type
+        let pricePerMinute;
+        if (scheduleCall.call_type === 'Chat') {
+            pricePerMinute = advisor.chat_Rate;
+        } else if (scheduleCall.call_type === 'Audio') {
+            pricePerMinute = advisor.audio_Rate;
+        } else if (scheduleCall.call_type === 'Video') {
+            pricePerMinute = advisor.VideoCall_rate;
+        } else {
+            // Fallback to stored perminRate if available
+            pricePerMinute = scheduleCall.perminRate;
+        }
+
+        // Use stored perminRate if available and advisor rates are not set
+        if (!pricePerMinute && scheduleCall.perminRate) {
+            pricePerMinute = scheduleCall.perminRate;
+        }
+
+        if (!pricePerMinute || pricePerMinute <= 0) {
+            return res.status(400).json({
+                message: 'Invalid rate per minute. Please set advisor rates or perminRate',
+                status: 400
+            });
+        }
+
+        // Get call type details for commission calculation (optional, for commission rates)
+        const callType = await CallType.findOne({ 
+            mode_name: scheduleCall.call_type 
+        });
 
         // Check if Call_duration already exists in the schedule call
         let finalCallDuration = Call_duration;
@@ -792,19 +825,12 @@ const endCall = async (req, res) => {
 
         // Calculate call amount based on duration
         console.log("print durationInMinutes", Call_duration);
-        console.log("print callType.price_per_minute", callType.price_per_minute);
-
-        // Validate price_per_minute
-        const pricePerMinute = parseFloat(callType.price_per_minute);
-        if (isNaN(pricePerMinute) || pricePerMinute < 0) {
-            return res.status(400).json({
-                message: 'Invalid price_per_minute in call type',
-                call_type_id: scheduleCall.call_type_id,
-                price_per_minute: callType.price_per_minute,
-                status: 400
-            });
+        if (callType) {
+            console.log("print callType.price_per_minute", callType.price_per_minute);
         }
+        console.log("print pricePerMinute", pricePerMinute);
 
+        // Calculate total amount using the price per minute
         const totalAmount = parseFloat(Call_duration) * pricePerMinute;
         console.log("print totalAmount", totalAmount);
 
@@ -812,7 +838,7 @@ const endCall = async (req, res) => {
         if (isNaN(totalAmount) || totalAmount < 0) {
             return res.status(400).json({
                 message: 'Invalid amount calculation',
-                call_duration: call_duration,
+                call_duration: Call_duration,
                 price_per_minute: pricePerMinute,
                 status: 400
             });
@@ -820,18 +846,23 @@ const endCall = async (req, res) => {
         // Check if this is a package subscription call
         if (scheduleCall.package_Subscription_id && scheduleCall.package_Subscription_id > 0) {
             // For package subscription calls, only update specific fields without payment processing
+            const updateData = {
+                Call_duration: finalCallDuration || Call_duration,
+                perminRate: pricePerMinute,
+                Amount: totalAmount,
+                summary_type: 'Succeeded',
+                summary_status: 1,
+                updated_by: userId,
+                updated_at: new Date()
+            };
+            
+            if (callStatus) {
+                updateData.callStatus = callStatus;
+            }
+            
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
-                {
-                    Call_duration: finalCallDuration,
-                    perminRate: pricePerMinute,
-                    Amount: totalAmount,
-                    summary_type: 'Succeeded',
-                    summary_status: 1,
-                    updated_by: userId,
-                    updated_at: new Date(),
-                    callStatus: callStatus
-                },
+                updateData,
                 { new: true, runValidators: true }
             );
 
@@ -846,17 +877,22 @@ const endCall = async (req, res) => {
         // If call status is not Completed, only update schedule call without payment processing
         if (scheduleCall.callStatus !== 'Completed') {
             console.log("print callStatus", callStatus);
-            // Update schedule call with duration and amount (without changing callStatus)
+            // Update schedule call with duration and amount
+            const updateData = {
+                Call_duration: finalCallDuration || Call_duration,
+                perminRate: pricePerMinute,
+                Amount: totalAmount,
+                updated_by: userId,
+                updated_at: new Date()
+            };
+            
+            if (callStatus) {
+                updateData.callStatus = callStatus;
+            }
+            
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
-                {
-                    Call_duration: finalCallDuration,
-                    perminRate: pricePerMinute,
-                    Amount: totalAmount,
-                    callStatus: callStatus,
-                    updated_by: userId,
-                    updated_at: new Date()
-                },
+                updateData,
                 { new: true, runValidators: true }
             );
 
@@ -887,8 +923,11 @@ const endCall = async (req, res) => {
         // Only process payment and complete call if status is Accepted or Upcoming
         if (['Accepted', 'Upcoming'].includes(scheduleCall.callStatus)) {
             // Calculate commissions for payment processing
-            const advisorCommission = (totalAmount * callType.adviser_commission) / 100;
-            const adminCommission = (totalAmount * callType.admin_commission) / 100;
+            // Use callType commission rates if available, otherwise use default (80% advisor, 20% admin)
+            const advisorCommissionRate = callType?.adviser_commission || 80;
+            const adminCommissionRate = callType?.admin_commission || 20;
+            const advisorCommission = (totalAmount * advisorCommissionRate) / 100;
+            const adminCommission = (totalAmount * adminCommissionRate) / 100;
 
             // Update schedule call status and duration
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
