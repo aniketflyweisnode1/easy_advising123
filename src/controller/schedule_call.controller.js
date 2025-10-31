@@ -24,92 +24,92 @@ const createScheduleCall = async (req, res) => {
             // Check wallet balance for both Instant and Schedule calls
             if (data.schedule_type === 'Instant' || data.schedule_type === 'Schedule') {
                 // Validate required fields
+                console.log(data.call_type, data.advisor_id);
                 if (!data.call_type || !data.advisor_id) {
+                    console.log('call_type and advisor_id are required for Instant and Schedule calls');
                     return res.status(400).json({
-                        message: 'call_type_id and advisor_id are required for Instant and Schedule calls',
+                        message: 'call_type and advisor_id are required for Instant and Schedule calls',
                         status: 400
                     });
                 }
 
                 // Get call type details to calculate minimum balance
-                const callType = await CallType.findOne({
-                    mode_name: data.call_type,
-                    adviser_id: data.advisor_id
+                const advisorRate = await User.findOne({
+                    user_id: data.advisor_id
                 });
-                if (!callType) {
-                    return res.status(404).json({
-                        message: 'Call type not found Create Advisor call Type First',
-                        status: 400
-                    });
-                }else{
-                    data.perminRate = callType.price_per_minute;
+                console.log(advisorRate);
+                if (data.call_type === 'Chat') {
+                    data.perminRate = advisorRate.chat_Rate;
+                } else if (data.call_type === 'Audio') {
+                    data.perminRate = advisorRate.audio_Rate;
+                } else if (data.call_type === 'Video') {
+                    data.perminRate = advisorRate.VideoCall_rate;
                 }
 
-                // Calculate minimum balance required based on schedule type
-                let minimumBalanceRequired;
-                let callTypeDescription;
 
-                if (data.schedule_type === 'Instant') {
-                    minimumBalanceRequired = 5 * callType.price_per_minute; // 5 minutes for Instant
-                    callTypeDescription = '5 minutes';
-                } else if (data.schedule_type === 'Schedule') {
-                    minimumBalanceRequired = 30 * callType.price_per_minute; // 30 minutes for Schedule
-                    callTypeDescription = '30 minutes';
-                }
+            }
+            // callType.price_per_minute
+            // Calculate minimum balance required based on schedule type
+            let minimumBalanceRequired;
+            let callTypeDescription;
 
-                // Check user's wallet balance
-                const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
-                if (!userWallet) {
-                    return res.status(404).json({
-                        message: 'User wallet not found',
-                        status: 400
-                    });
-                }
+            if (data.schedule_type === 'Instant') {
+                minimumBalanceRequired = 5 * data.perminRate; // 5 minutes for Instant
+                callTypeDescription = '5 minutes';
+            } else if (data.schedule_type === 'Schedule') {
+                minimumBalanceRequired = 30 * data.perminRate; // 30 minutes for Schedule
+                callTypeDescription = '30 minutes';
+            }
 
-                // Check if wallet has sufficient balance for minimum required minutes
-                if (userWallet.amount < minimumBalanceRequired) {
-                    return res.status(400).json({
-                        message: `Insufficient wallet balance for ${data.schedule_type} call. Required: ₹${minimumBalanceRequired} (${callTypeDescription} × ₹${callType.price_per_minute}/min)`,
-                        status: 400,
-                        schedule_type: data.schedule_type,
-                        required_balance: minimumBalanceRequired,
-                        current_balance: userWallet.amount,
-                        price_per_minute: callType.price_per_minute,
-                        minimum_minutes: data.schedule_type === 'Instant' ? 5 : 30
-                    });
-                }
-
-                // Check if wallet has enough balance for other scheduled calls (hold amount)
-                const otherScheduledCalls = await ScheduleCall.find({
-                    created_by: data.created_by,
-                    schedule_type: 'Schedule',
-                    callStatus: { $in: ['Panding', 'Upcoming'] }
+            // Check user's wallet balance
+            const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
+            if (!userWallet) {
+                return res.status(404).json({
+                    message: 'User wallet not found',
+                    status: 400
                 });
+            }
 
-                let totalHoldAmount = 0;
-                for (const scheduledCall of otherScheduledCalls) {
-                    const scheduledCallType = await CallType.findOne({
-                        call_type_id: scheduledCall.call_type_id,
-                        adviser_id: scheduledCall.advisor_id
-                    });
-                    if (scheduledCallType) {
-                        // Estimate hold amount for scheduled calls (assuming 30 minutes average)
-                        totalHoldAmount += 30 * scheduledCallType.price_per_minute;
-                    }
-                }
+            // Check if wallet has sufficient balance for minimum required minutes
+            if (userWallet.amount < minimumBalanceRequired) {
+                return res.status(400).json({
+                    message: `Insufficient wallet balance for ${data.schedule_type} call. Required: ₹${minimumBalanceRequired} (${callTypeDescription} × ₹${callType.price_per_minute}/min)`,
+                    status: 400,
+                    schedule_type: data.schedule_type,
+                    required_balance: minimumBalanceRequired,
+                    current_balance: userWallet.amount,
+                    price_per_minute: data.perminRate,
+                    minimum_minutes: data.schedule_type === 'Instant' ? 5 : 30
+                });
+            }
 
-                const totalRequiredBalance = minimumBalanceRequired + totalHoldAmount;
-                if (userWallet.amount < totalRequiredBalance) {
-                    return res.status(400).json({
-                        message: `Insufficient wallet balance for ${data.schedule_type} call and other scheduled calls. Required: ₹${totalRequiredBalance}`,
-                        status: 400,
-                        schedule_type: data.schedule_type,
-                        call_required: minimumBalanceRequired,
-                        scheduled_calls_hold: totalHoldAmount,
-                        total_required: totalRequiredBalance,
-                        current_balance: userWallet.amount
-                    });
+            // Check if wallet has enough balance for other scheduled calls (hold amount)
+            const otherScheduledCalls = await ScheduleCall.find({
+                created_by: data.created_by,
+                schedule_type: 'Schedule',
+                callStatus: { $in: ['Panding', 'Upcoming'] }
+            });
+
+            let totalHoldAmount = 0;
+            for (const scheduledCall of otherScheduledCalls) {
+               
+                if (scheduledCallType) {
+                    // Estimate hold amount for scheduled calls (assuming 30 minutes average)
+                    totalHoldAmount += 30 * data.perminRate;
                 }
+            }
+
+            const totalRequiredBalance = minimumBalanceRequired + totalHoldAmount;
+            if (userWallet.amount < totalRequiredBalance) {
+                return res.status(400).json({
+                    message: `Insufficient wallet balance for ${data.schedule_type} call and other scheduled calls. Required: ₹${totalRequiredBalance}`,
+                    status: 400,
+                    schedule_type: data.schedule_type,
+                    call_required: minimumBalanceRequired,
+                    scheduled_calls_hold: totalHoldAmount,
+                    total_required: totalRequiredBalance,
+                    current_balance: userWallet.amount
+                });
             }
         } else {
             // Check Package Subscription availability (if user has subscription package)
@@ -118,15 +118,15 @@ const createScheduleCall = async (req, res) => {
                 data.package_Subscription_id = activeSubscription.PkSubscription_id;
                 data.remaining_minutes = activeSubscription.Remaining_minute;
                 data.remaining_schedule = activeSubscription.Remaining_Schedule;
-                data.call_type_id = callType.call_type_id;
+                
             }
         }
-        const schedule = new ScheduleCall(data);
-        await schedule.save();
-        res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
-    } catch (error) {
-        res.status(500).json({ message: error.message || error, status: 500 });
-    }
+    const schedule = new ScheduleCall(data);
+    await schedule.save();
+    res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
+} catch (error) {
+    res.status(500).json({ message: error.message || error, status: 500 });
+}
 };
 
 // Update Schedule Call
@@ -158,47 +158,47 @@ const getScheduleCallById = async (req, res) => {
     try {
         const { schedule_id } = req.params;
         const schedule = await ScheduleCall.findOne({ schedule_id })
-            .populate({ 
-                path: 'advisor_id', 
-                model: 'User', 
-                localField: 'advisor_id', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'created_by', 
-                model: 'User', 
-                localField: 'created_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'updated_by', 
-                model: 'User', 
-                localField: 'updated_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id' 
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
             })
-            .populate({ 
-                path: 'skills_id', 
-                model: 'Skill', 
-                localField: 'skills_id', 
-                foreignField: 'skill_id', 
-                select: 'skill_id skill_name description use_count' 
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
             })
-            .populate({ 
-                path: 'call_type_id', 
-                model: 'CallType', 
-                localField: 'call_type_id', 
-                foreignField: 'call_type_id', 
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            .populate({
+                path: 'call_type_id',
+                model: 'CallType',
+                localField: 'call_type_id',
+                foreignField: 'call_type_id',
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
-            .populate({ 
-                path: 'package_Subscription_id', 
-                model: 'PackageSubscription', 
-                localField: 'package_Subscription_id', 
-                foreignField: 'PkSubscription_id', 
-                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             });
         if (!schedule) {
             return res.status(404).json({ message: 'Schedule call not found', status: 404 });
@@ -212,13 +212,13 @@ const getScheduleCallById = async (req, res) => {
 // Get all
 const getAllScheduleCalls = async (req, res) => {
     try {
-        const { 
-            page = 1, 
-            limit = 10, 
-            search, 
-            callStatus, 
-            date_from, 
-            date_to, 
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            callStatus,
+            date_from,
+            date_to,
             advisor_name,
             creator_name,
             call_type,
@@ -228,7 +228,7 @@ const getAllScheduleCalls = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-        
+
         const skip = (page - 1) * limit;
 
         // Build query
@@ -302,52 +302,52 @@ const getAllScheduleCalls = async (req, res) => {
         // Get schedules with filters and pagination - with all IDs populated
         console.log(query);
         const schedules = await ScheduleCall.find(query)
-            .populate({ 
-                path: 'advisor_id', 
-                model: 'User', 
-                localField: 'advisor_id', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'created_by', 
-                model: 'User', 
-                localField: 'created_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'updated_by', 
-                model: 'User', 
-                localField: 'updated_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id' 
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
             })
-            .populate({ 
-                path: 'skills_id', 
-                model: 'Skill', 
-                localField: 'skills_id', 
-                foreignField: 'skill_id', 
-                select: 'skill_id skill_name description use_count' 
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
             })
-            .populate({ 
-                path: 'call_type_id', 
-                model: 'CallType', 
-                localField: 'call_type_id', 
-                foreignField: 'call_type_id', 
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            .populate({
+                path: 'call_type_id',
+                model: 'CallType',
+                localField: 'call_type_id',
+                foreignField: 'call_type_id',
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
-            .populate({ 
-                path: 'package_Subscription_id', 
-                model: 'PackageSubscription', 
-                localField: 'package_Subscription_id', 
-                foreignField: 'PkSubscription_id', 
-                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
             .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
-console.log(schedules);
+        console.log(schedules);
         // Get total count
         const totalSchedules = await ScheduleCall.countDocuments(query);
 
@@ -357,7 +357,7 @@ console.log(schedules);
             filteredSchedules = schedules.filter(schedule => {
                 const advisor = schedule.advisor_id;
                 const creator = schedule.created_by;
-                
+
                 let matchesSearch = true;
                 let matchesAdvisorName = true;
                 let matchesCreatorName = true;
@@ -373,12 +373,12 @@ console.log(schedules);
                 }
 
                 if (advisor_name) {
-                    matchesAdvisorName = advisor && advisor.name && 
+                    matchesAdvisorName = advisor && advisor.name &&
                         advisor.name.toLowerCase().includes(advisor_name.toLowerCase());
                 }
 
                 if (creator_name) {
-                    matchesCreatorName = creator && creator.name && 
+                    matchesCreatorName = creator && creator.name &&
                         creator.name.toLowerCase().includes(creator_name.toLowerCase());
                 }
 
@@ -424,47 +424,47 @@ const getScheduleCallsByCreator = async (req, res) => {
     try {
         const creatorId = req.user.user_id;
         const schedules = await ScheduleCall.find({ created_by: creatorId })
-            .populate({ 
-                path: 'advisor_id', 
-                model: 'User', 
-                localField: 'advisor_id', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'created_by', 
-                model: 'User', 
-                localField: 'created_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'updated_by', 
-                model: 'User', 
-                localField: 'updated_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id' 
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
             })
-            .populate({ 
-                path: 'skills_id', 
-                model: 'Skill', 
-                localField: 'skills_id', 
-                foreignField: 'skill_id', 
-                select: 'skill_id skill_name description use_count' 
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
             })
-            .populate({ 
-                path: 'call_type_id', 
-                model: 'CallType', 
-                localField: 'call_type_id', 
-                foreignField: 'call_type_id', 
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            .populate({
+                path: 'call_type_id',
+                model: 'CallType',
+                localField: 'call_type_id',
+                foreignField: 'call_type_id',
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
-            .populate({ 
-                path: 'package_Subscription_id', 
-                model: 'PackageSubscription', 
-                localField: 'package_Subscription_id', 
-                foreignField: 'PkSubscription_id', 
-                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             });
         res.status(200).json({ schedules, status: 200 });
     } catch (error) {
@@ -477,47 +477,47 @@ const getScheduleCallsByAdvisor = async (req, res) => {
     try {
         const { advisor_id } = req.params;
         const schedules = await ScheduleCall.find({ advisor_id })
-            .populate({ 
-                path: 'advisor_id', 
-                model: 'User', 
-                localField: 'advisor_id', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'created_by', 
-                model: 'User', 
-                localField: 'created_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'updated_by', 
-                model: 'User', 
-                localField: 'updated_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id' 
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
             })
-            .populate({ 
-                path: 'skills_id', 
-                model: 'Skill', 
-                localField: 'skills_id', 
-                foreignField: 'skill_id', 
-                select: 'skill_id skill_name description use_count' 
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
             })
-            .populate({ 
-                path: 'call_type_id', 
-                model: 'CallType', 
-                localField: 'call_type_id', 
-                foreignField: 'call_type_id', 
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            .populate({
+                path: 'call_type_id',
+                model: 'CallType',
+                localField: 'call_type_id',
+                foreignField: 'call_type_id',
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
-            .populate({ 
-                path: 'package_Subscription_id', 
-                model: 'PackageSubscription', 
-                localField: 'package_Subscription_id', 
-                foreignField: 'PkSubscription_id', 
-                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             });
         res.status(200).json({ schedules, status: 200 });
     } catch (error) {
@@ -529,13 +529,13 @@ const getScheduleCallsByAdvisor = async (req, res) => {
 const getScheduleCallsByType = async (req, res) => {
     try {
         const { schedule_type } = req.params;
-        const { 
-            page = 1, 
-            limit = 10, 
-            search, 
-            callStatus, 
-            date_from, 
-            date_to, 
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            callStatus,
+            date_from,
+            date_to,
             advisor_name,
             creator_name,
             call_type,
@@ -621,47 +621,47 @@ const getScheduleCallsByType = async (req, res) => {
 
         // Get schedules with filters and pagination - with all IDs populated
         const schedules = await ScheduleCall.find(query)
-            .populate({ 
-                path: 'advisor_id', 
-                model: 'User', 
-                localField: 'advisor_id', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'created_by', 
-                model: 'User', 
-                localField: 'created_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id profile_image' 
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
             })
-            .populate({ 
-                path: 'updated_by', 
-                model: 'User', 
-                localField: 'updated_by', 
-                foreignField: 'user_id', 
-                select: 'user_id name email mobile role_id' 
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
             })
-            .populate({ 
-                path: 'skills_id', 
-                model: 'Skill', 
-                localField: 'skills_id', 
-                foreignField: 'skill_id', 
-                select: 'skill_id skill_name description use_count' 
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
             })
-            .populate({ 
-                path: 'call_type_id', 
-                model: 'CallType', 
-                localField: 'call_type_id', 
-                foreignField: 'call_type_id', 
-                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description' 
+            .populate({
+                path: 'call_type_id',
+                model: 'CallType',
+                localField: 'call_type_id',
+                foreignField: 'call_type_id',
+                select: 'call_type_id mode_name price_per_minute adviser_commission admin_commission description'
             })
-            .populate({ 
-                path: 'package_Subscription_id', 
-                model: 'PackageSubscription', 
-                localField: 'package_Subscription_id', 
-                foreignField: 'PkSubscription_id', 
-                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status' 
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
             .sort(sortObj)
             .skip(skip)
@@ -676,7 +676,7 @@ const getScheduleCallsByType = async (req, res) => {
             filteredSchedules = schedules.filter(schedule => {
                 const advisor = schedule.advisor_id;
                 const creator = schedule.created_by;
-                
+
                 let matchesSearch = true;
                 let matchesAdvisorName = true;
                 let matchesCreatorName = true;
@@ -692,12 +692,12 @@ const getScheduleCallsByType = async (req, res) => {
                 }
 
                 if (advisor_name) {
-                    matchesAdvisorName = advisor && advisor.name && 
+                    matchesAdvisorName = advisor && advisor.name &&
                         advisor.name.toLowerCase().includes(advisor_name.toLowerCase());
                 }
 
                 if (creator_name) {
-                    matchesCreatorName = creator && creator.name && 
+                    matchesCreatorName = creator && creator.name &&
                         creator.name.toLowerCase().includes(creator_name.toLowerCase());
                 }
 
@@ -788,12 +788,12 @@ const endCall = async (req, res) => {
         let finalCallDuration = Call_duration;
         let durationInMinutes;
 
-       
+
 
         // Calculate call amount based on duration
-        console.log("print durationInMinutes",Call_duration);
-        console.log("print callType.price_per_minute",callType.price_per_minute);
-        
+        console.log("print durationInMinutes", Call_duration);
+        console.log("print callType.price_per_minute", callType.price_per_minute);
+
         // Validate price_per_minute
         const pricePerMinute = parseFloat(callType.price_per_minute);
         if (isNaN(pricePerMinute) || pricePerMinute < 0) {
@@ -804,10 +804,10 @@ const endCall = async (req, res) => {
                 status: 400
             });
         }
-        
+
         const totalAmount = parseFloat(Call_duration) * pricePerMinute;
-        console.log("print totalAmount",totalAmount);
-        
+        console.log("print totalAmount", totalAmount);
+
         // Validate totalAmount
         if (isNaN(totalAmount) || totalAmount < 0) {
             return res.status(400).json({
@@ -830,7 +830,7 @@ const endCall = async (req, res) => {
                     summary_status: 1,
                     updated_by: userId,
                     updated_at: new Date(),
-                    callStatus: callStatus 
+                    callStatus: callStatus
                 },
                 { new: true, runValidators: true }
             );
@@ -845,7 +845,7 @@ const endCall = async (req, res) => {
 
         // If call status is not Completed, only update schedule call without payment processing
         if (scheduleCall.callStatus !== 'Completed') {
-         console.log("print callStatus",callStatus);
+            console.log("print callStatus", callStatus);
             // Update schedule call with duration and amount (without changing callStatus)
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },

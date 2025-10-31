@@ -16,10 +16,11 @@ const scheduleCallSchema = new mongoose.Schema({
     ref: 'Skill',
     required: true
   },
-  call_type_id: {
-    type: Number,
-    ref: 'CallType',
-    required: true
+  call_type: {
+    type: String,
+    enum: ['Chat', 'Audio', 'Video'],
+    required: true,
+    default: 'Chat'
   },
   schedule_type: {
     type: String,
@@ -42,8 +43,8 @@ const scheduleCallSchema = new mongoose.Schema({
   },
   callStatus : {
     type: String,
-    enum: ['Panding', 'Accepted', 'Completed', "Cancelled", "Upcoming", "Ongoing", "Not Answered"],
-    default : 'Panding',
+    enum: ['Pending', 'Accepted', 'Completed', "Cancelled", "Upcoming", "Ongoing", "Not Answered"],
+    default : 'Pending',
     required: true
   },
   approval_status: {
