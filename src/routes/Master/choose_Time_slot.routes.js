@@ -13,6 +13,9 @@ const {
 
 
 
+// Create choose time slot (with auth)
+router.post('/create', auth, createChooseTimeSlot);
+
 // Update choose time slot (with auth)
 router.put('/update/:choose_Time_slot_id', auth, updateChooseTimeSlot);
 

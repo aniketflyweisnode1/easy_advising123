@@ -1217,6 +1217,11 @@ const getAdvisorList = async (req, res) => {
     // Fetch all package details for advisors
     const allPackages = await AdvisorPackage.find({ advisor_id: { $in: advisorIds } });
 
+    // Fetch advisor time slots (active only) with populated day details
+    const ChooseTimeSlot = require('../models/choose_Time_slot.model');
+    const allTimeSlots = await ChooseTimeSlot.find({ advisor_id: { $in: advisorIds }, Status: true })
+      .populate({ path: 'choose_day_Advisor_id', model: 'choose_day_Advisor', localField: 'choose_day_Advisor_id', foreignField: 'choose_day_Advisor_id', select: 'choose_day_Advisor_id DayName' });
+
     // Fetch all reviews for advisors
     const Review = require('../models/reviews.model');
     const allReviews = await Review.find({ user_id: { $in: advisorIds } })
@@ -1243,6 +1248,23 @@ const getAdvisorList = async (req, res) => {
         reviewsMap[review.user_id] = [];
       }
       reviewsMap[review.user_id].push(review);
+    });
+
+    // Map advisor_id -> time slots
+    const timeSlotMap = {};
+    allTimeSlots.forEach(slot => {
+      const advisorId = slot.advisor_id;
+      if (!timeSlotMap[advisorId]) {
+        timeSlotMap[advisorId] = [];
+      }
+      timeSlotMap[advisorId].push({
+        choose_Time_slot_id: slot.choose_Time_slot_id,
+        choose_day_Advisor: slot.choose_day_Advisor_id || null,
+        Time_slot: slot.Time_slot,
+        Status: slot.Status,
+        created_at: slot.created_at,
+        updated_at: slot.updated_at
+      });
     });
 
     return res.status(200).json({
@@ -1329,7 +1351,10 @@ const getAdvisorList = async (req, res) => {
           packageDetails: packageMap[advisor.user_id] || [],
 
           // Reviews
-          reviews: reviewsMap[advisor.user_id] || []
+          reviews: reviewsMap[advisor.user_id] || [],
+
+          // Advisor Time Slots (with populated day details)
+          time_slots: timeSlotMap[advisor.user_id] || []
         })),
         pagination: {
           current_page: parseInt(page),

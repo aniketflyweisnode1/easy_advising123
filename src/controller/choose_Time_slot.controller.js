@@ -57,10 +57,17 @@ const createChooseTimeSlot = async (req, res) => {
 
     await chooseTimeSlot.save();
 
+    // Re-fetch with populated references using numeric local/foreign fields
+    const populated = await ChooseTimeSlot.findOne({ choose_Time_slot_id: chooseTimeSlot.choose_Time_slot_id })
+      .populate({ path: 'choose_day_Advisor_id', model: 'choose_day_Advisor', localField: 'choose_day_Advisor_id', foreignField: 'choose_day_Advisor_id', select: 'choose_day_Advisor_id DayName advisor_id' })
+      .populate({ path: 'advisor_id', model: 'User', localField: 'advisor_id', foreignField: 'user_id', select: 'user_id name email mobile role_id' })
+      .populate({ path: 'created_by', model: 'User', localField: 'created_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' })
+      .populate({ path: 'updated_by', model: 'User', localField: 'updated_by', foreignField: 'user_id', select: 'user_id name email mobile role_id' });
+
     res.status(201).json({
       success: true,
       message: 'Choose time slot created successfully',
-      data: chooseTimeSlot
+      data: populated
     });
   } catch (error) {
     res.status(500).json({
