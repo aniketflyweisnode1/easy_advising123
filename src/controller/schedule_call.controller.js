@@ -118,6 +118,7 @@ const createScheduleCall = async (req, res) => {
                 data.package_Subscription_id = activeSubscription.PkSubscription_id;
                 data.remaining_minutes = activeSubscription.Remaining_minute;
                 data.remaining_schedule = activeSubscription.Remaining_Schedule;
+                data.call_type_id = callType.call_type_id;
             }
         }
         const schedule = new ScheduleCall(data);
