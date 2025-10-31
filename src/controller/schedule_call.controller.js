@@ -24,7 +24,7 @@ const createScheduleCall = async (req, res) => {
             // Check wallet balance for both Instant and Schedule calls
             if (data.schedule_type === 'Instant' || data.schedule_type === 'Schedule') {
                 // Validate required fields
-                if (!data.call_type_id || !data.advisor_id) {
+                if (!data.call_type || !data.advisor_id) {
                     return res.status(400).json({
                         message: 'call_type_id and advisor_id are required for Instant and Schedule calls',
                         status: 400
