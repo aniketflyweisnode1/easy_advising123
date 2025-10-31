@@ -33,7 +33,7 @@ const createScheduleCall = async (req, res) => {
 
                 // Get call type details to calculate minimum balance
                 const callType = await CallType.findOne({
-                    call_type_id: data.call_type_id,
+                    mode_name: data.call_type,
                     adviser_id: data.advisor_id
                 });
                 if (!callType) {
