@@ -2,11 +2,31 @@ const Reviews = require('../models/reviews.model');
 const User = require('../models/User.model');
 const createReview = async (req, res) => {
   try {
-    const { description, user_id } = req.body;
-    if (!description || !user_id) return res.status(400).json({ success: false, message: 'description and user_id are required' });
+    const { description, user_id, rating } = req.body;
+    
+    // Validate required fields
+    if (!description || !user_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'description and user_id are required' 
+      });
+    }
+
+    // Validate rating if provided (1-5)
+    if (rating !== undefined) {
+      const ratingNum = Number(rating);
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'rating must be a number between 1 and 5' 
+        });
+      }
+    }
+
     const review = new Reviews({
       description,
       user_id,
+      rating: rating !== undefined ? Number(rating) : 5, // Default to 5 if not provided
       created_by: req.user.user_id
     });
     await review.save();
@@ -19,8 +39,25 @@ const createReview = async (req, res) => {
 const updateReview = async (req, res) => {
   try {
     const { reviews_id } = req.body;
-    const updateData = { ...req.body, updated_by: req.user.user_id, updated_at: new Date() };
-    const review = await Reviews.findOneAndUpdate({ reviews_id }, updateData, { new: true });
+    
+    // Validate rating if provided
+    if (req.body.rating !== undefined) {
+      const ratingNum = Number(req.body.rating);
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'rating must be a number between 1 and 5' 
+        });
+      }
+      req.body.rating = ratingNum;
+    }
+
+    // Don't allow updating reviews_id, created_by, or user_id
+    const { reviews_id: _, created_by: __, user_id: ___, ...updateData } = req.body;
+    updateData.updated_by = req.user.user_id;
+    updateData.updated_at = new Date();
+    
+    const review = await Reviews.findOneAndUpdate({ reviews_id }, updateData, { new: true, runValidators: true });
     if (!review) return res.status(404).json({ success: false, message: 'Review not found' });
     res.status(200).json({ success: true, data: review });
   } catch (error) {
@@ -210,10 +247,26 @@ const getReviewsByAdvisorId = async (req, res) => {
     const hasPrevPage = parseInt(page) > 1;
 
     // Calculate review statistics
+    const allReviews = await Reviews.find(query);
+    const totalRatings = allReviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+    const averageRating = totalReviews > 0 ? (totalRatings / totalReviews).toFixed(2) : 0;
+    
+    // Count reviews by rating
+    const ratingDistribution = {
+      5: allReviews.filter(r => r.rating === 5).length,
+      4: allReviews.filter(r => r.rating === 4).length,
+      3: allReviews.filter(r => r.rating === 3).length,
+      2: allReviews.filter(r => r.rating === 2).length,
+      1: allReviews.filter(r => r.rating === 1).length
+    };
+
     const reviewStats = {
       total_reviews: totalReviews,
       active_reviews: await Reviews.countDocuments({ ...query, status: 1 }),
-      inactive_reviews: await Reviews.countDocuments({ ...query, status: 0 })
+      inactive_reviews: await Reviews.countDocuments({ ...query, status: 0 }),
+      average_rating: parseFloat(averageRating),
+      total_ratings: totalRatings,
+      rating_distribution: ratingDistribution
     };
 
     res.status(200).json({
