@@ -1221,17 +1221,10 @@ const getAdvisorList = async (req, res) => {
     const allTimeSlots = await ChooseTimeSlot.find({ advisor_id: { $in: advisorIds }, Status: true })
       .populate({ path: 'choose_day_Advisor_id', model: 'choose_day_Advisor', localField: 'choose_day_Advisor_id', foreignField: 'choose_day_Advisor_id', select: 'choose_day_Advisor_id DayName' });
 
-    // Fetch all reviews for advisors (guard for empty list) with populated created_by
+    // Fetch all reviews for advisors (guard for empty list)
     const Review = require('../models/reviews.model');
     const allReviews = advisorIds.length > 0
       ? await Review.find({ user_id: { $in: advisorIds } })
-          .populate({
-            path: 'created_by',
-            model: 'User',
-            localField: 'created_by',
-            foreignField: 'user_id',
-            select: 'user_id name email mobile role_id profile_image'
-          })
       : [];
     
     // Count reviews with rating 0
@@ -1250,11 +1243,103 @@ const getAdvisorList = async (req, res) => {
     });
 
     const reviewsMap = {};
+    const reviewStatsByAdvisor = {};
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const last2Days = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const last3Days = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    // First pass: Count reviews by date category for each advisor
     allReviews.forEach(review => {
-      if (!reviewsMap[review.user_id]) {
-        reviewsMap[review.user_id] = [];
+      const advisorId = review.user_id;
+      
+      if (!reviewStatsByAdvisor[advisorId]) {
+        reviewStatsByAdvisor[advisorId] = {
+          reviews_today_count: 0,
+          reviews_last2days_count: 0,
+          reviews_last3days_count: 0,
+          reviews_old_days_count: 0  // Reviews older than 3 days
+        };
       }
-      reviewsMap[review.user_id].push(review);
+
+      const createdAt = review.created_at ? new Date(review.created_at) : null;
+      
+      if (createdAt) {
+        // Today
+        if (createdAt >= startOfToday) {
+          reviewStatsByAdvisor[advisorId].reviews_today_count += 1;
+        }
+        // Last 2 days (including today)
+        if (createdAt >= last2Days) {
+          reviewStatsByAdvisor[advisorId].reviews_last2days_count += 1;
+        }
+        // Last 3 days (including today)
+        if (createdAt >= last3Days) {
+          reviewStatsByAdvisor[advisorId].reviews_last3days_count += 1;
+        }
+        // Older than 3 days
+        if (createdAt < last3Days) {
+          reviewStatsByAdvisor[advisorId].reviews_old_days_count += 1;
+        }
+      } else {
+        // If created_at is not available, count as old
+        reviewStatsByAdvisor[advisorId].reviews_old_days_count += 1;
+      }
+    });
+
+    // Second pass: Add reviews to map with statistics attached
+    allReviews.forEach(review => {
+      const advisorId = review.user_id;
+      if (!reviewsMap[advisorId]) {
+        reviewsMap[advisorId] = [];
+      }
+
+      const createdAt = review.created_at ? new Date(review.created_at) : null;
+      
+      // Determine review age category
+      let reviewAgeCategory = {
+        is_today: false,
+        is_last2days: false,
+        is_last3days: false,
+        is_old_days: false
+      };
+
+      if (createdAt) {
+        // Today
+        if (createdAt >= startOfToday) {
+          reviewAgeCategory.is_today = true;
+          reviewAgeCategory.is_last2days = true;
+          reviewAgeCategory.is_last3days = true;
+        }
+        // Last 2 days (including today)
+        else if (createdAt >= last2Days) {
+          reviewAgeCategory.is_last2days = true;
+          reviewAgeCategory.is_last3days = true;
+        }
+        // Last 3 days (including today)
+        else if (createdAt >= last3Days) {
+          reviewAgeCategory.is_last3days = true;
+        }
+        // Older than 3 days
+        else {
+          reviewAgeCategory.is_old_days = true;
+        }
+      } else {
+        // If created_at is not available, count as old
+        reviewAgeCategory.is_old_days = true;
+      }
+
+      // Add review with age category and advisor statistics to reviewsMap
+      const reviewWithStats = {
+        ...review.toObject(),
+        review_age_category: reviewAgeCategory,
+        reviews_today_count: reviewStatsByAdvisor[advisorId].reviews_today_count,
+        reviews_last2days_count: reviewStatsByAdvisor[advisorId].reviews_last2days_count,
+        reviews_last3days_count: reviewStatsByAdvisor[advisorId].reviews_last3days_count,
+        reviews_old_days_count: reviewStatsByAdvisor[advisorId].reviews_old_days_count
+      };
+      
+      reviewsMap[advisorId].push(reviewWithStats);
     });
 
     // Map advisor_id -> time slots
@@ -1358,8 +1443,8 @@ const getAdvisorList = async (req, res) => {
           packageDetails: packageMap[advisor.user_id] || [],
 
           // Reviews
-          average_rating: allReviews.reduce((sum, review) => sum + review.rating, 0) / allReviews.length,
-          Total_reviews: allReviews.length,
+          average_rating: allReviews.length > 0 ? (allReviews.reduce((sum, review) => sum + (review.rating || 0), 0) / allReviews.length) : 0,
+          Total_reviews: (reviewsMap[advisor.user_id] || []).length,
           reviews: reviewsMap[advisor.user_id] || [],
 
           // Advisor Time Slots (with populated day details)
