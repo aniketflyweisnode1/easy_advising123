@@ -1211,8 +1211,8 @@ const getAdvisorList = async (req, res) => {
       { category_id: 1, category_name: 1, description: 1, _id: 0 }
     );
 
-    // Get advisor IDs
-    const advisorIds = advisors.map(advisor => advisor.user_id);
+    // Get advisor IDs (ensure numbers)
+    const advisorIds = advisors.map(advisor => Number(advisor.user_id)).filter(id => !isNaN(id));
 
     // Fetch all package details for advisors
     const allPackages = await AdvisorPackage.find({ advisor_id: { $in: advisorIds } });
@@ -1222,18 +1222,13 @@ const getAdvisorList = async (req, res) => {
     const allTimeSlots = await ChooseTimeSlot.find({ advisor_id: { $in: advisorIds }, Status: true })
       .populate({ path: 'choose_day_Advisor_id', model: 'choose_day_Advisor', localField: 'choose_day_Advisor_id', foreignField: 'choose_day_Advisor_id', select: 'choose_day_Advisor_id DayName' });
 
-    // Fetch all reviews for advisors
+    // Fetch all reviews for advisors (guard for empty list)
     const Review = require('../models/reviews.model');
-    const allReviews = await Review.find({ user_id: { $in: advisorIds } })
-      .populate({
-        path: 'created_by',
-        model: 'User',
-        localField: 'created_by',
-        foreignField: 'user_id',
-        select: 'user_id name email mobile profile_image'
-      });
-
+    const allReviews = advisorIds.length > 0
+      ? await Review.find({ user_id: { $in: advisorIds } })
+      : [];
     // Create maps for efficient lookup
+    console.log(allReviews);
     const packageMap = {};
     allPackages.forEach(pkg => {
       if (!packageMap[pkg.advisor_id]) {
