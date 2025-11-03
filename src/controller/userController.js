@@ -1222,13 +1222,26 @@ const getAdvisorList = async (req, res) => {
     const allTimeSlots = await ChooseTimeSlot.find({ advisor_id: { $in: advisorIds }, Status: true })
       .populate({ path: 'choose_day_Advisor_id', model: 'choose_day_Advisor', localField: 'choose_day_Advisor_id', foreignField: 'choose_day_Advisor_id', select: 'choose_day_Advisor_id DayName' });
 
-    // Fetch all reviews for advisors (guard for empty list)
+    // Fetch all reviews for advisors (guard for empty list) with populated created_by
     const Review = require('../models/reviews.model');
     const allReviews = advisorIds.length > 0
       ? await Review.find({ user_id: { $in: advisorIds } })
+          .populate({
+            path: 'created_by',
+            model: 'User',
+            localField: 'created_by',
+            foreignField: 'user_id',
+            select: 'user_id name email mobile role_id profile_image'
+          })
       : [];
-    // Create maps for efficient lookup
-    console.log(allReviews);
+    
+    // Count reviews with rating 0
+    const reviewsWithZeroRating = allReviews.filter(r => r.rating === 0 || r.rating === null || r.rating === undefined).length;
+    const reviewsWithValidRating = allReviews.filter(r => r.rating > 0 && r.rating <= 5).length;
+    
+    console.log('All reviews count:', allReviews.length);
+    console.log('Reviews with rating 0:', reviewsWithZeroRating);
+    console.log('Reviews with valid rating (1-5):', reviewsWithValidRating);
     const packageMap = {};
     allPackages.forEach(pkg => {
       if (!packageMap[pkg.advisor_id]) {
@@ -1304,7 +1317,7 @@ const getAdvisorList = async (req, res) => {
           language: advisor.language,
 
           // Professional Information
-          rating: advisor.rating,
+      
           experience_year: advisor.experience_year,
           description_Bio: advisor.description_Bio,
           expertise_offer: advisor.expertise_offer,
@@ -1346,6 +1359,7 @@ const getAdvisorList = async (req, res) => {
           packageDetails: packageMap[advisor.user_id] || [],
 
           // Reviews
+          Total_reviews: allReviews.length,
           reviews: reviewsMap[advisor.user_id] || [],
 
           // Advisor Time Slots (with populated day details)

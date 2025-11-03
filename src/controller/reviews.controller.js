@@ -12,13 +12,13 @@ const createReview = async (req, res) => {
       });
     }
 
-    // Validate rating if provided (1-5)
+    // Validate rating if provided (0-5)
     if (rating !== undefined) {
       const ratingNum = Number(rating);
-      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      if (isNaN(ratingNum) || ratingNum < 0 || ratingNum > 5) {
         return res.status(400).json({ 
           success: false, 
-          message: 'rating must be a number between 1 and 5' 
+          message: 'rating must be a number between 0 and 5' 
         });
       }
     }
@@ -26,7 +26,7 @@ const createReview = async (req, res) => {
     const review = new Reviews({
       description,
       user_id,
-      rating: rating !== undefined ? Number(rating) : 5, // Default to 5 if not provided
+      rating: rating !== undefined ? Number(rating) : 0, // Default to 0 if not provided
       created_by: req.user.user_id
     });
     await review.save();
@@ -40,13 +40,13 @@ const updateReview = async (req, res) => {
   try {
     const { reviews_id } = req.body;
     
-    // Validate rating if provided
+    // Validate rating if provided (0-5)
     if (req.body.rating !== undefined) {
       const ratingNum = Number(req.body.rating);
-      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      if (isNaN(ratingNum) || ratingNum < 0 || ratingNum > 5) {
         return res.status(400).json({ 
           success: false, 
-          message: 'rating must be a number between 1 and 5' 
+          message: 'rating must be a number between 0 and 5' 
         });
       }
       req.body.rating = ratingNum;
@@ -248,16 +248,20 @@ const getReviewsByAdvisorId = async (req, res) => {
 
     // Calculate review statistics
     const allReviews = await Reviews.find(query);
-    const totalRatings = allReviews.reduce((sum, r) => sum + (r.rating || 0), 0);
-    const averageRating = totalReviews > 0 ? (totalRatings / totalReviews).toFixed(2) : 0;
     
-    // Count reviews by rating
+    // Filter out reviews with rating 0 for average calculation
+    const reviewsWithRating = allReviews.filter(r => r.rating > 0);
+    const totalRatings = reviewsWithRating.reduce((sum, r) => sum + (r.rating || 0), 0);
+    const averageRating = reviewsWithRating.length > 0 ? (totalRatings / reviewsWithRating.length).toFixed(2) : 0;
+    
+    // Count reviews by rating (including 0)
     const ratingDistribution = {
       5: allReviews.filter(r => r.rating === 5).length,
       4: allReviews.filter(r => r.rating === 4).length,
       3: allReviews.filter(r => r.rating === 3).length,
       2: allReviews.filter(r => r.rating === 2).length,
-      1: allReviews.filter(r => r.rating === 1).length
+      1: allReviews.filter(r => r.rating === 1).length,
+      0: allReviews.filter(r => r.rating === 0 || !r.rating).length
     };
 
     const reviewStats = {
@@ -266,6 +270,8 @@ const getReviewsByAdvisorId = async (req, res) => {
       inactive_reviews: await Reviews.countDocuments({ ...query, status: 0 }),
       average_rating: parseFloat(averageRating),
       total_ratings: totalRatings,
+      reviews_with_rating: reviewsWithRating.length,
+      reviews_with_zero_rating: ratingDistribution[0],
       rating_distribution: ratingDistribution
     };
 
