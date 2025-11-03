@@ -1226,6 +1226,14 @@ const getAdvisorList = async (req, res) => {
     const allReviews = advisorIds.length > 0
       ? await Review.find({ user_id: { $in: advisorIds } })
       : [];
+
+    // Fetch details of creators of these reviews to populate created_by
+    const createdByIds = [...new Set(allReviews.map(r => r.created_by).filter(id => typeof id === 'number'))];
+    const createdByUsers = createdByIds.length > 0
+      ? await User.find({ user_id: { $in: createdByIds } }, { user_id: 1, name: 1, email: 1, mobile: 1, profile_image: 1, role_id: 1, _id: 0 })
+      : [];
+    const createdByMap = {};
+    createdByUsers.forEach(u => { createdByMap[u.user_id] = u; });
     
     // Count reviews with rating 0
     const reviewsWithZeroRating = allReviews.filter(r => r.rating === 0 || r.rating === null || r.rating === undefined).length;
@@ -1333,6 +1341,7 @@ const getAdvisorList = async (req, res) => {
       const reviewWithStats = {
         ...review.toObject(),
         review_age_category: reviewAgeCategory,
+        created_by_details: createdByMap[review.created_by] || null,
         reviews_today_count: reviewStatsByAdvisor[advisorId].reviews_today_count,
         reviews_last2days_count: reviewStatsByAdvisor[advisorId].reviews_last2days_count,
         reviews_last3days_count: reviewStatsByAdvisor[advisorId].reviews_last3days_count,
