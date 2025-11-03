@@ -1340,8 +1340,7 @@ const getAdvisorList = async (req, res) => {
       // Add review with age category and advisor statistics to reviewsMap
       const reviewWithStats = {
         ...review.toObject(),
-        review_age_category: reviewAgeCategory,
-        created_by_details: createdByMap[review.created_by] || null,
+        created_by: createdByMap[review.created_by] || null,
         reviews_old_days: reviewStatsByAdvisor[advisorId].reviews_old_days_count
       };
       
