@@ -1227,8 +1227,7 @@ const getAdvisorList = async (req, res) => {
     const allReviews = advisorIds.length > 0
       ? await Review.find({ user_id: { $in: advisorIds } })
           .populate({
-            path: 'created_by',
-            model: 'User',
+               model: 'User',
             localField: 'created_by',
             foreignField: 'user_id',
             select: 'user_id name email mobile role_id profile_image'
@@ -1308,7 +1307,8 @@ const getAdvisorList = async (req, res) => {
           current_company_name: advisor.current_company_name,
           package_id: advisor.package_id,
 
-          // Category and Subcategory IDs
+          
+           // Category and Subcategory IDs
           Category: advisor.Category,
           Subcategory: advisor.Subcategory,
 
@@ -1357,9 +1357,8 @@ const getAdvisorList = async (req, res) => {
 
           // Package Details
           packageDetails: packageMap[advisor.user_id] || [],
-
+          rating: advisor.rating,
           // Reviews
-          Total_reviews: allReviews.length,
           reviews: reviewsMap[advisor.user_id] || [],
 
           // Advisor Time Slots (with populated day details)
