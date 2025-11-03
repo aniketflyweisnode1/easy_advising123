@@ -1342,10 +1342,7 @@ const getAdvisorList = async (req, res) => {
         ...review.toObject(),
         review_age_category: reviewAgeCategory,
         created_by_details: createdByMap[review.created_by] || null,
-        reviews_today_count: reviewStatsByAdvisor[advisorId].reviews_today_count,
-        reviews_last2days_count: reviewStatsByAdvisor[advisorId].reviews_last2days_count,
-        reviews_last3days_count: reviewStatsByAdvisor[advisorId].reviews_last3days_count,
-        reviews_old_days_count: reviewStatsByAdvisor[advisorId].reviews_old_days_count
+        reviews_old_days: reviewStatsByAdvisor[advisorId].reviews_old_days_count
       };
       
       reviewsMap[advisorId].push(reviewWithStats);
