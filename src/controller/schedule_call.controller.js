@@ -740,6 +740,388 @@ const getScheduleCallsByType = async (req, res) => {
     }
 };
 
+// Get schedule calls by authenticated user (creator)
+const getSchedulecallByuserAuth = async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            callStatus,
+            date_from,
+            date_to,
+            advisor_name,
+            call_type,
+            schedule_type,
+            approval_status,
+            status,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        const userId = req.user.user_id;
+        const skip = (page - 1) * limit;
+
+        // Build query - filter by authenticated user as creator
+        const query = { created_by: userId };
+
+        // Add call status filter
+        if (callStatus) {
+            const statusArray = Array.isArray(callStatus) ? callStatus : [callStatus];
+            query.callStatus = { $in: statusArray };
+        }
+
+        // Add date range filter
+        if (date_from || date_to) {
+            query.date = {};
+            if (date_from) {
+                query.date.$gte = new Date(date_from);
+            }
+            if (date_to) {
+                const endDate = new Date(date_to);
+                endDate.setDate(endDate.getDate() + 1);
+                query.date.$lt = endDate;
+            }
+        }
+
+        // Add call type filter
+        if (call_type) {
+            query.call_type = call_type;
+        }
+
+        // Add schedule type filter
+        if (schedule_type) {
+            query.schedule_type = schedule_type;
+        }
+
+        // Add approval status filter
+        if (approval_status !== undefined) {
+            let approvalValue;
+            if (approval_status === 'true' || approval_status === true) {
+                approvalValue = true;
+            } else if (approval_status === 'false' || approval_status === false) {
+                approvalValue = false;
+            } else {
+                approvalValue = approval_status;
+            }
+            query.approval_status = approvalValue;
+        }
+
+        // Add status filter
+        if (status !== undefined) {
+            let statusValue;
+            if (status === 'true' || status === true) {
+                statusValue = 1;
+            } else if (status === 'false' || status === false) {
+                statusValue = 0;
+            } else {
+                statusValue = parseInt(status);
+                if (isNaN(statusValue)) {
+                    statusValue = undefined;
+                }
+            }
+            if (statusValue !== undefined) {
+                query.status = statusValue;
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get schedules with filters and pagination
+        const schedules = await ScheduleCall.find(query)
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
+            })
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
+            })
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
+            })
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalSchedules = await ScheduleCall.countDocuments(query);
+
+        // If name search is provided, filter by advisor names
+        let filteredSchedules = schedules;
+        if (search || advisor_name) {
+            filteredSchedules = schedules.filter(schedule => {
+                const advisor = schedule.advisor_id;
+
+                let matchesSearch = true;
+                let matchesAdvisorName = true;
+
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    matchesSearch = (
+                        (advisor && advisor.name && advisor.name.toLowerCase().includes(searchLower)) ||
+                        (advisor && advisor.email && advisor.email.toLowerCase().includes(searchLower))
+                    );
+                }
+
+                if (advisor_name) {
+                    matchesAdvisorName = advisor && advisor.name &&
+                        advisor.name.toLowerCase().includes(advisor_name.toLowerCase());
+                }
+
+                return matchesSearch && matchesAdvisorName;
+            });
+        }
+
+        // Get available call statuses for filter options
+        const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
+
+        return res.status(200).json({
+            success: true,
+            message: 'Your schedule calls retrieved successfully',
+            data: {
+                schedules: filteredSchedules,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalSchedules / limit),
+                    total_items: totalSchedules,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_call_statuses: availableCallStatuses,
+                    available_schedule_types: ['Schedule', 'Instant']
+                }
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Get schedule calls by user auth error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
+// Get schedule calls by authenticated advisor
+const getSchedulecallByAdvisorAuth = async (req, res) => {
+    try {
+        const {
+            page = 1,
+            limit = 10,
+            search,
+            callStatus,
+            date_from,
+            date_to,
+            creator_name,
+            call_type,
+            schedule_type,
+            approval_status,
+            status,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        const advisorId = req.user.user_id;
+        const skip = (page - 1) * limit;
+
+        // Build query - filter by authenticated advisor
+        const query = { advisor_id: advisorId };
+
+        // Add call status filter
+        if (callStatus) {
+            const statusArray = Array.isArray(callStatus) ? callStatus : [callStatus];
+            query.callStatus = { $in: statusArray };
+        }
+
+        // Add date range filter
+        if (date_from || date_to) {
+            query.date = {};
+            if (date_from) {
+                query.date.$gte = new Date(date_from);
+            }
+            if (date_to) {
+                const endDate = new Date(date_to);
+                endDate.setDate(endDate.getDate() + 1);
+                query.date.$lt = endDate;
+            }
+        }
+
+        // Add call type filter
+        if (call_type) {
+            query.call_type = call_type;
+        }
+
+        // Add schedule type filter
+        if (schedule_type) {
+            query.schedule_type = schedule_type;
+        }
+
+        // Add approval status filter
+        if (approval_status !== undefined) {
+            let approvalValue;
+            if (approval_status === 'true' || approval_status === true) {
+                approvalValue = true;
+            } else if (approval_status === 'false' || approval_status === false) {
+                approvalValue = false;
+            } else {
+                approvalValue = approval_status;
+            }
+            query.approval_status = approvalValue;
+        }
+
+        // Add status filter
+        if (status !== undefined) {
+            let statusValue;
+            if (status === 'true' || status === true) {
+                statusValue = 1;
+            } else if (status === 'false' || status === false) {
+                statusValue = 0;
+            } else {
+                statusValue = parseInt(status);
+                if (isNaN(statusValue)) {
+                    statusValue = undefined;
+                }
+            }
+            if (statusValue !== undefined) {
+                query.status = statusValue;
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get schedules with filters and pagination
+        const schedules = await ScheduleCall.find(query)
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'updated_by',
+                model: 'User',
+                localField: 'updated_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id'
+            })
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
+            })
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
+            })
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get total count
+        const totalSchedules = await ScheduleCall.countDocuments(query);
+
+        // If name search is provided, filter by creator names
+        let filteredSchedules = schedules;
+        if (search || creator_name) {
+            filteredSchedules = schedules.filter(schedule => {
+                const creator = schedule.created_by;
+
+                let matchesSearch = true;
+                let matchesCreatorName = true;
+
+                if (search) {
+                    const searchLower = search.toLowerCase();
+                    matchesSearch = (
+                        (creator && creator.name && creator.name.toLowerCase().includes(searchLower)) ||
+                        (creator && creator.email && creator.email.toLowerCase().includes(searchLower))
+                    );
+                }
+
+                if (creator_name) {
+                    matchesCreatorName = creator && creator.name &&
+                        creator.name.toLowerCase().includes(creator_name.toLowerCase());
+                }
+
+                return matchesSearch && matchesCreatorName;
+            });
+        }
+
+        // Get available call statuses for filter options
+        const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
+
+        return res.status(200).json({
+            success: true,
+            message: 'Schedule calls for advisor retrieved successfully',
+            data: {
+                schedules: filteredSchedules,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalSchedules / limit),
+                    total_items: totalSchedules,
+                    items_per_page: parseInt(limit)
+                },
+                filters: {
+                    available_call_statuses: availableCallStatuses,
+                    available_schedule_types: ['Schedule', 'Instant']
+                }
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Get schedule calls by advisor auth error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
 // End Call and Process Payment
 const endCall = async (req, res) => {
     try {
@@ -1066,5 +1448,7 @@ module.exports = {
     getScheduleCallsByCreator,
     getScheduleCallsByAdvisor,
     getScheduleCallsByType,
+    getSchedulecallByuserAuth,
+    getSchedulecallByAdvisorAuth,
     endCall
 }; 
