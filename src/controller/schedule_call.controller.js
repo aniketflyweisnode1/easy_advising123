@@ -70,14 +70,19 @@ const createScheduleCall = async (req, res) => {
                 });
             }
 
-            // Check if wallet has sufficient balance for minimum required minutes
-            if (userWallet.amount < minimumBalanceRequired) {
+            // Calculate available balance (amount - hold_amount)
+            const availableBalance = userWallet.amount - (userWallet.hold_amount || 0);
+
+            // Check if wallet has sufficient available balance for minimum required minutes
+            if (availableBalance < minimumBalanceRequired) {
                 return res.status(400).json({
                     message: `Insufficient wallet balance for ${data.schedule_type} call. Required: ₹${minimumBalanceRequired} (${callTypeDescription} × ₹${data.perminRate}/min)`,
                     status: 400,
                     schedule_type: data.schedule_type,
                     required_balance: minimumBalanceRequired,
                     current_balance: userWallet.amount,
+                    hold_amount: userWallet.hold_amount || 0,
+                    available_balance: availableBalance,
                     price_per_minute: data.perminRate,
                     minimum_minutes: data.schedule_type === 'Instant' ? 5 : 30
                 });
@@ -98,16 +103,24 @@ const createScheduleCall = async (req, res) => {
                 totalHoldAmount += 30 * callRate;
             }
 
-            const totalRequiredBalance = minimumBalanceRequired + totalHoldAmount;
-            if (userWallet.amount < totalRequiredBalance) {
+            // Calculate new hold amount for this call
+            const newHoldAmount = data.schedule_type === 'Schedule' 
+                ? 30 * data.perminRate 
+                : (data.Call_duration ? data.Call_duration * data.perminRate : minimumBalanceRequired);
+
+            const totalRequiredBalance = minimumBalanceRequired + totalHoldAmount + newHoldAmount;
+            if (availableBalance < totalRequiredBalance) {
                 return res.status(400).json({
                     message: `Insufficient wallet balance for ${data.schedule_type} call and other scheduled calls. Required: ₹${totalRequiredBalance}`,
                     status: 400,
                     schedule_type: data.schedule_type,
                     call_required: minimumBalanceRequired,
                     scheduled_calls_hold: totalHoldAmount,
+                    new_call_hold: newHoldAmount,
                     total_required: totalRequiredBalance,
-                    current_balance: userWallet.amount
+                    current_balance: userWallet.amount,
+                    hold_amount: userWallet.hold_amount || 0,
+                    available_balance: availableBalance
                 });
             }
         } else {
@@ -120,6 +133,51 @@ const createScheduleCall = async (req, res) => {
                 
             }
         }
+    
+    // Calculate hold_amount for scheduled calls (estimate for Schedule type, actual for Instant)
+    let holdAmount = 0;
+    if (data.schedule_type === 'Schedule' && data.perminRate) {
+        // For scheduled calls, estimate hold amount (30 minutes average)
+        holdAmount = 30 * data.perminRate;
+    } else if (data.schedule_type === 'Instant' && data.perminRate && data.Call_duration) {
+        // For instant calls, use actual duration
+        holdAmount = data.Call_duration * data.perminRate;
+    } else if (data.perminRate && data.Call_duration) {
+        // If Call_duration is provided, use it
+        holdAmount = data.Call_duration * data.perminRate;
+    }
+    
+    // Add hold_amount to user's wallet if not using package subscription
+    if (holdAmount > 0 && !data.package_Subscription_id) {
+        const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
+        if (userWallet) {
+            // Calculate available balance before adding hold_amount
+            const availableBalance = userWallet.amount - (userWallet.hold_amount || 0);
+            
+            // Verify available balance is sufficient for hold_amount
+            if (availableBalance < holdAmount) {
+                return res.status(400).json({
+                    message: `Insufficient available balance to hold amount. Available: ₹${availableBalance}, Required: ₹${holdAmount}`,
+                    status: 400,
+                    available_balance: availableBalance,
+                    hold_amount_required: holdAmount,
+                    current_balance: userWallet.amount,
+                    current_hold_amount: userWallet.hold_amount || 0
+                });
+            }
+            
+            // Add hold_amount to wallet (decreases available balance)
+            await Wallet.findOneAndUpdate(
+                { user_id: { $in: [data.created_by] } },
+                {
+                    $inc: { hold_amount: holdAmount },
+                    updated_At: new Date(),
+                    updated_by: req.user.user_id
+                }
+            );
+        }
+    }
+    
     const schedule = new ScheduleCall(data);
     await schedule.save();
     res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
@@ -135,17 +193,76 @@ const updateScheduleCall = async (req, res) => {
         if (!schedule_id) {
             return res.status(400).json({ message: 'schedule_id is required in body', status: 400 });
         }
+        
+        // Get existing schedule call to check previous values
+        const existingSchedule = await ScheduleCall.findOne({ schedule_id });
+        if (!existingSchedule) {
+            return res.status(404).json({ message: 'Schedule call not found', status: 404 });
+        }
+        
         const data = req.body;
         data.updated_by = req.user.user_id;
         data.updated_at = new Date();
+        
+        // Calculate hold_amount if Call_duration and perminRate are provided
+        let newHoldAmount = 0;
+        if (data.Call_duration && data.perminRate) {
+            newHoldAmount = data.Call_duration * data.perminRate;
+        } else if (data.Call_duration && existingSchedule.perminRate) {
+            newHoldAmount = data.Call_duration * existingSchedule.perminRate;
+        } else if (existingSchedule.Call_duration && data.perminRate) {
+            newHoldAmount = existingSchedule.Call_duration * data.perminRate;
+        } else if (existingSchedule.Call_duration && existingSchedule.perminRate) {
+            newHoldAmount = existingSchedule.Call_duration * existingSchedule.perminRate;
+        }
+        
+        // Calculate previous hold amount
+        let previousHoldAmount = 0;
+        if (existingSchedule.Call_duration && existingSchedule.perminRate) {
+            previousHoldAmount = existingSchedule.Call_duration * existingSchedule.perminRate;
+        }
+        
+        // Update wallet hold_amount if not using package subscription
+        if (!existingSchedule.package_Subscription_id && existingSchedule.created_by) {
+            const userWallet = await Wallet.findOne({ user_id: { $in: [existingSchedule.created_by] } });
+            if (userWallet) {
+                const holdAmountDifference = newHoldAmount - previousHoldAmount;
+                if (holdAmountDifference !== 0) {
+                    await Wallet.findOneAndUpdate(
+                        { user_id: { $in: [existingSchedule.created_by] } },
+                        {
+                            $inc: { hold_amount: holdAmountDifference },
+                            updated_At: new Date(),
+                            updated_by: req.user.user_id
+                        }
+                    );
+                }
+            }
+        }
+        
+        // Release hold_amount if call is completed or cancelled
+        if ((data.callStatus === 'Completed' || data.callStatus === 'Cancelled') && 
+            previousHoldAmount > 0 && 
+            !existingSchedule.package_Subscription_id && 
+            existingSchedule.created_by) {
+            const userWallet = await Wallet.findOne({ user_id: { $in: [existingSchedule.created_by] } });
+            if (userWallet && userWallet.hold_amount >= previousHoldAmount) {
+                await Wallet.findOneAndUpdate(
+                    { user_id: { $in: [existingSchedule.created_by] } },
+                    {
+                        $inc: { hold_amount: -previousHoldAmount },
+                        updated_At: new Date(),
+                        updated_by: req.user.user_id
+                    }
+                );
+            }
+        }
+        
         const schedule = await ScheduleCall.findOneAndUpdate(
             { schedule_id },
             data,
             { new: true, runValidators: true }
         );
-        if (!schedule) {
-            return res.status(404).json({ message: 'Schedule call not found', status: 404 });
-        }
 
         // Re-fetch with populated references
         const populated = await ScheduleCall.findOne({ schedule_id })
@@ -1259,6 +1376,46 @@ const endCall = async (req, res) => {
         // If call status is not Completed, only update schedule call without payment processing
         if (scheduleCall.callStatus !== 'Completed') {
             console.log("print callStatus", callStatus);
+            
+            // Calculate new hold_amount based on updated duration
+            const newHoldAmount = (finalCallDuration || Call_duration) * pricePerMinute;
+            const previousHoldAmount = scheduleCall.Call_duration && scheduleCall.perminRate 
+                ? scheduleCall.Call_duration * scheduleCall.perminRate 
+                : 0;
+            
+            // Update wallet hold_amount if not using package subscription
+            if (!scheduleCall.package_Subscription_id && scheduleCall.created_by) {
+                const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
+                if (userWallet) {
+                    const holdAmountDifference = newHoldAmount - previousHoldAmount;
+                    if (holdAmountDifference !== 0) {
+                        await Wallet.findOneAndUpdate(
+                            { user_id: { $in: [scheduleCall.created_by] } },
+                            {
+                                $inc: { hold_amount: holdAmountDifference },
+                                updated_At: new Date(),
+                                updated_by: userId
+                            }
+                        );
+                    }
+                }
+            }
+            
+            // Release hold_amount if call is cancelled
+            if (callStatus === 'Cancelled' && previousHoldAmount > 0 && !scheduleCall.package_Subscription_id && scheduleCall.created_by) {
+                const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
+                if (userWallet && userWallet.hold_amount >= previousHoldAmount) {
+                    await Wallet.findOneAndUpdate(
+                        { user_id: { $in: [scheduleCall.created_by] } },
+                        {
+                            $inc: { hold_amount: -previousHoldAmount },
+                            updated_At: new Date(),
+                            updated_by: userId
+                        }
+                    );
+                }
+            }
+            
             // Update schedule call with duration and amount
             const updateData = {
                 Call_duration: finalCallDuration || Call_duration,
@@ -1348,22 +1505,56 @@ const endCall = async (req, res) => {
                 });
             }
 
-            if (userWallet.amount < totalAmount) {
+            // Calculate hold_amount that was previously held
+            const previousHoldAmount = scheduleCall.Call_duration && scheduleCall.perminRate 
+                ? scheduleCall.Call_duration * scheduleCall.perminRate 
+                : 0;
+            
+            // Calculate available balance (amount - hold_amount)
+            const availableBalance = userWallet.amount - (userWallet.hold_amount || 0);
+            const amountNeeded = totalAmount - previousHoldAmount;
+            
+            if (availableBalance < amountNeeded) {
                 return res.status(400).json({
                     message: 'Insufficient wallet balance',
-                    status: 400
+                    status: 400,
+                    available_balance: availableBalance,
+                    required_amount: amountNeeded,
+                    hold_amount: userWallet.hold_amount || 0
                 });
             }
 
-            // Update user wallet (deduct call amount)
-            await Wallet.findOneAndUpdate(
-                { user_id: { $in: [scheduleCall.created_by] } },
-                {
-                    amount: userWallet.amount - totalAmount,
-                    updated_At: new Date(),
-                    updated_by: userId
-                }
-            );
+            // Release hold_amount if it exists
+            if (previousHoldAmount > 0 && userWallet.hold_amount >= previousHoldAmount) {
+                await Wallet.findOneAndUpdate(
+                    { user_id: { $in: [scheduleCall.created_by] } },
+                    {
+                        $inc: { hold_amount: -previousHoldAmount },
+                        updated_At: new Date(),
+                        updated_by: userId
+                    }
+                );
+            }
+            
+            // Calculate amount to deduct (if hold_amount was less than totalAmount)
+            let amountToDeduct = totalAmount;
+            if (previousHoldAmount > 0 && previousHoldAmount < totalAmount) {
+                amountToDeduct = totalAmount - previousHoldAmount;
+            } else if (previousHoldAmount >= totalAmount) {
+                amountToDeduct = 0; // Already held enough
+            }
+
+            // Update user wallet (deduct call amount after releasing hold)
+            if (amountToDeduct > 0) {
+                await Wallet.findOneAndUpdate(
+                    { user_id: { $in: [scheduleCall.created_by] } },
+                    {
+                        $inc: { amount: -amountToDeduct },
+                        updated_At: new Date(),
+                        updated_by: userId
+                    }
+                );
+            }
 
             // Add commission to advisor's wallet
             const advisorWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.advisor_id] } });
