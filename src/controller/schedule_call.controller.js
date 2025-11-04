@@ -1246,6 +1246,53 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
     }
 };
 
+// Get calls by advisor ID with only specific fields (Pending status only)
+const getCallByadvisorId = async (req, res) => {
+    try {
+        const { advisor_id } = req.params;
+
+        if (!advisor_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'advisor_id is required',
+                status: 400
+            });
+        }
+
+        // Get schedule calls with Pending status for the advisor
+        const scheduleCalls = await ScheduleCall.find({
+            advisor_id: Number(advisor_id),
+            callStatus: 'Pending'
+        })
+        .select('schedule_id advisor_id date time')
+        .sort({ date: 1, time: 1 }); // Sort by date and time ascending
+
+        // Map schedule calls to return only required fields
+        const mappedCalls = scheduleCalls.map(call => ({
+            date: call.date,
+            time: call.time,
+            advisor_id: call.advisor_id,
+            schedule_id: call.schedule_id
+        }));
+
+        return res.status(200).json({
+            success: true,
+            message: 'Pending schedule calls retrieved successfully',
+            data: mappedCalls,
+            count: mappedCalls.length,
+            status: 200
+        });
+    } catch (error) {
+        console.error('Get calls by advisor ID error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
 // End Call and Process Payment
 const endCall = async (req, res) => {
     try {
@@ -1656,5 +1703,6 @@ module.exports = {
     getScheduleCallsByType,
     getSchedulecallByuserAuth,
     getSchedulecallByAdvisorAuth,
+    getCallByadvisorId,
     endCall
 }; 

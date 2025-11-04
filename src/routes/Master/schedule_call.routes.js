@@ -11,6 +11,7 @@ const {
     getScheduleCallsByType,
     getSchedulecallByuserAuth,
     getSchedulecallByAdvisorAuth,
+    getCallByadvisorId,
     endCall
 } = require('../../controller/schedule_call.controller.js');
 
@@ -32,6 +33,8 @@ router.get('/getByType/:schedule_type', auth, getScheduleCallsByType);
 router.get('/getByUserAuth', auth, getSchedulecallByuserAuth);
 // Get by authenticated advisor 2025-01-15
 router.get('/getByAdvisorAuth', auth, getSchedulecallByAdvisorAuth);
+// Get pending calls by advisor ID (date, time, advisor_id, schedule_id only) 2025-01-15
+router.get('/getCallByadvisorId/:advisor_id', getCallByadvisorId);
 // End call and process payment 2025-07-14
 router.post('/endcall', auth, endCall);
 
