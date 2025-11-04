@@ -1272,7 +1272,8 @@ const getCallByadvisorId = async (req, res) => {
             date: call.date,
             time: call.time,
             advisor_id: call.advisor_id,
-            schedule_id: call.schedule_id
+            schedule_id: call.schedule_id,
+            user_id: call.created_by
         }));
 
         return res.status(200).json({
