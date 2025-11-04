@@ -43,6 +43,11 @@ const reasonSummarySchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  summary_type: {
+    type: String,
+    enum: ["Summary", "Reason"],
+    default: "Reason"
+  },
   status: {
     type: Number,
     default: 1

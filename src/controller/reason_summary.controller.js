@@ -20,16 +20,21 @@ const createReasonSummary = async (req, res) => {
     data.date = schedule.date;
     data.time = schedule.time;
     
+    // Set default summary_type if not provided
+    if (!data.summary_type) {
+      data.summary_type = "Reason";
+    }
+    
     // Create the reason summary
     const reasonSummary = new ReasonSummary(data);
     await reasonSummary.save();
     
-    // Update schedule_call model with summary_status = 1 and summary_type = "Reason"
+    // Update schedule_call model with summary_status = 1 and summary_type from reason summary
     await ScheduleCall.findOneAndUpdate(
       { schedule_id: data.schedule_call_id },
       { 
         summary_status: 1,
-        summary_type: "Reason",
+        summary_type: reasonSummary.summary_type || "Reason",
         updated_at: new Date()
       }
     );
@@ -44,14 +49,37 @@ const createReasonSummary = async (req, res) => {
 const updateReasonSummary = async (req, res) => {
   try {
     const { summary_id, ...updateData } = req.body;
+    
+    // Validate summary_type if provided
+    if (updateData.summary_type && !["Summary", "Reason", "Cancel", "Succeeded"].includes(updateData.summary_type)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'summary_type must be one of: Summary, Reason, Cancel, Succeeded',
+        status: 400 
+      });
+    }
+    
     if (req.user && req.user.user_id) {
       updateData.updated_by = req.user.user_id;
       updateData.updated_at = new Date();
     }
-    const reasonSummary = await ReasonSummary.findOneAndUpdate({ summary_id }, updateData, { new: true });
+    
+    const reasonSummary = await ReasonSummary.findOneAndUpdate({ summary_id }, updateData, { new: true, runValidators: true });
     if (!reasonSummary) {
       return res.status(404).json({ message: 'Reason summary not found', status: 404 });
     }
+    
+    // Update schedule_call summary_type if summary_type was updated
+    if (updateData.summary_type) {
+      await ScheduleCall.findOneAndUpdate(
+        { schedule_id: reasonSummary.schedule_call_id },
+        { 
+          summary_type: updateData.summary_type,
+          updated_at: new Date()
+        }
+      );
+    }
+    
     return res.status(200).json({ message: 'Reason summary updated', reasonSummary, status: 200 });
   } catch (error) {
     return res.status(500).json({ message: error.message || error, status: 500 });
@@ -164,6 +192,7 @@ const getReasonByScheduleCallId = async (req, res) => {
       date: reasonSummary.date,
       time: reasonSummary.time,
       summary: reasonSummary.summary,
+      summary_type: reasonSummary.summary_type,
       status: reasonSummary.status,
       created_by: reasonSummary.created_by,
       created_at: reasonSummary.created_at,
