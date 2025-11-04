@@ -71,7 +71,7 @@ const createScheduleCall = async (req, res) => {
             }
 
             // Calculate available balance (amount - hold_amount)
-            const availableBalance = userWallet.amount - (userWallet.hold_amount || 0);
+            const availableBalance = userWallet.amount;
 
             // Check if wallet has sufficient available balance for minimum required minutes
             if (availableBalance < minimumBalanceRequired) {
@@ -108,7 +108,7 @@ const createScheduleCall = async (req, res) => {
                 ? 30 * data.perminRate 
                 : (data.Call_duration ? data.Call_duration * data.perminRate : minimumBalanceRequired);
 
-            const totalRequiredBalance = minimumBalanceRequired + totalHoldAmount + newHoldAmount;
+            const totalRequiredBalance = minimumBalanceRequired;
             if (availableBalance < totalRequiredBalance) {
                 return res.status(400).json({
                     message: `Insufficient wallet balance for ${data.schedule_type} call and other scheduled calls. Required: ₹${totalRequiredBalance}`,
@@ -151,26 +151,24 @@ const createScheduleCall = async (req, res) => {
     if (holdAmount > 0 && !data.package_Subscription_id) {
         const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
         if (userWallet) {
-            // Calculate available balance before adding hold_amount
-            const availableBalance = userWallet.amount - (userWallet.hold_amount || 0);
-            
-            // Verify available balance is sufficient for hold_amount
-            if (availableBalance < holdAmount) {
+            // Verify wallet has sufficient balance for hold_amount
+            if (userWallet.amount < holdAmount) {
                 return res.status(400).json({
-                    message: `Insufficient available balance to hold amount. Available: ₹${availableBalance}, Required: ₹${holdAmount}`,
+                    message: `Insufficient wallet balance to hold amount. Current: ₹${userWallet.amount}, Required: ₹${holdAmount}`,
                     status: 400,
-                    available_balance: availableBalance,
-                    hold_amount_required: holdAmount,
                     current_balance: userWallet.amount,
-                    current_hold_amount: userWallet.hold_amount || 0
+                    hold_amount_required: holdAmount
                 });
             }
             
-            // Add hold_amount to wallet (decreases available balance)
+            // Deduct from amount and add to hold_amount (auto balance: amount decreases, hold_amount increases)
             await Wallet.findOneAndUpdate(
                 { user_id: { $in: [data.created_by] } },
                 {
-                    $inc: { hold_amount: holdAmount },
+                    $inc: { 
+                        amount: -holdAmount,      // Deduct from available amount
+                        hold_amount: holdAmount   // Add to hold_amount
+                    },
                     updated_At: new Date(),
                     updated_by: req.user.user_id
                 }
@@ -228,10 +226,15 @@ const updateScheduleCall = async (req, res) => {
             if (userWallet) {
                 const holdAmountDifference = newHoldAmount - previousHoldAmount;
                 if (holdAmountDifference !== 0) {
+                    // If difference is positive, deduct from amount and add to hold_amount
+                    // If difference is negative, add back to amount and reduce hold_amount
                     await Wallet.findOneAndUpdate(
                         { user_id: { $in: [existingSchedule.created_by] } },
                         {
-                            $inc: { hold_amount: holdAmountDifference },
+                            $inc: { 
+                                amount: -holdAmountDifference,      // Adjust amount (decrease if positive diff, increase if negative)
+                                hold_amount: holdAmountDifference   // Adjust hold_amount
+                            },
                             updated_At: new Date(),
                             updated_by: req.user.user_id
                         }
@@ -247,10 +250,14 @@ const updateScheduleCall = async (req, res) => {
             existingSchedule.created_by) {
             const userWallet = await Wallet.findOne({ user_id: { $in: [existingSchedule.created_by] } });
             if (userWallet && userWallet.hold_amount >= previousHoldAmount) {
+                // Release hold_amount: add back to amount, reduce hold_amount
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [existingSchedule.created_by] } },
                     {
-                        $inc: { hold_amount: -previousHoldAmount },
+                        $inc: { 
+                            amount: previousHoldAmount,        // Add back to amount
+                            hold_amount: -previousHoldAmount   // Reduce hold_amount
+                        },
                         updated_At: new Date(),
                         updated_by: req.user.user_id
                     }
@@ -1405,10 +1412,14 @@ const endCall = async (req, res) => {
             if (callStatus === 'Cancelled' && previousHoldAmount > 0 && !scheduleCall.package_Subscription_id && scheduleCall.created_by) {
                 const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
                 if (userWallet && userWallet.hold_amount >= previousHoldAmount) {
+                    // Release hold_amount: add back to amount, reduce hold_amount
                     await Wallet.findOneAndUpdate(
                         { user_id: { $in: [scheduleCall.created_by] } },
                         {
-                            $inc: { hold_amount: -previousHoldAmount },
+                            $inc: { 
+                                amount: previousHoldAmount,        // Add back to amount
+                                hold_amount: -previousHoldAmount   // Reduce hold_amount
+                            },
                             updated_At: new Date(),
                             updated_by: userId
                         }
@@ -1510,26 +1521,30 @@ const endCall = async (req, res) => {
                 ? scheduleCall.Call_duration * scheduleCall.perminRate 
                 : 0;
             
-            // Calculate available balance (amount - hold_amount)
-            const availableBalance = userWallet.amount - (userWallet.hold_amount || 0);
-            const amountNeeded = totalAmount - previousHoldAmount;
+            // Check if wallet has sufficient balance (amount + hold_amount should cover totalAmount)
+            // Since hold_amount was deducted from amount, we need: amount + hold_amount >= totalAmount
+            const totalAvailable = userWallet.amount + (userWallet.hold_amount || 0);
             
-            if (availableBalance < amountNeeded) {
+            if (totalAvailable < totalAmount) {
                 return res.status(400).json({
                     message: 'Insufficient wallet balance',
                     status: 400,
-                    available_balance: availableBalance,
-                    required_amount: amountNeeded,
-                    hold_amount: userWallet.hold_amount || 0
+                    current_balance: userWallet.amount,
+                    hold_amount: userWallet.hold_amount || 0,
+                    total_available: totalAvailable,
+                    required_amount: totalAmount
                 });
             }
 
-            // Release hold_amount if it exists
+            // Release hold_amount if it exists (add back to amount, reduce hold_amount)
             if (previousHoldAmount > 0 && userWallet.hold_amount >= previousHoldAmount) {
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [scheduleCall.created_by] } },
                     {
-                        $inc: { hold_amount: -previousHoldAmount },
+                        $inc: { 
+                            amount: previousHoldAmount,        // Add back to amount
+                            hold_amount: -previousHoldAmount   // Reduce hold_amount
+                        },
                         updated_At: new Date(),
                         updated_by: userId
                     }
@@ -1541,7 +1556,7 @@ const endCall = async (req, res) => {
             if (previousHoldAmount > 0 && previousHoldAmount < totalAmount) {
                 amountToDeduct = totalAmount - previousHoldAmount;
             } else if (previousHoldAmount >= totalAmount) {
-                amountToDeduct = 0; // Already held enough
+                amountToDeduct = 0; // Already deducted via hold_amount when created
             }
 
             // Update user wallet (deduct call amount after releasing hold)
