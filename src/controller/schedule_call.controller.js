@@ -1047,7 +1047,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
             const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
             return {
                 ...scheduleObj,
-                reason_summary: reasonSummaryMap[schedule.schedule_id] || null
+                Summary: reasonSummaryMap[schedule.schedule_id] || null
             };
         });
 
