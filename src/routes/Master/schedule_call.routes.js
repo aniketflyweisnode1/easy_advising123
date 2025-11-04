@@ -34,7 +34,7 @@ router.get('/getByUserAuth', auth, getSchedulecallByuserAuth);
 // Get by authenticated advisor 2025-01-15
 router.get('/getByAdvisorAuth', auth, getSchedulecallByAdvisorAuth);
 // Get pending calls by advisor ID (date, time, advisor_id, schedule_id only) 2025-01-15
-router.get('/getCallByadvisorId/:advisor_id', getCallByadvisorId);
+router.get('/getCallByadvisorId/:advisor_id', auth, getCallByadvisorId);
 // End call and process payment 2025-07-14
 router.post('/endcall', auth, endCall);
 
