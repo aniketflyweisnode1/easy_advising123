@@ -1023,6 +1023,34 @@ const getSchedulecallByuserAuth = async (req, res) => {
             });
         }
 
+        // Get reason summaries for all schedule calls
+        const scheduleIds = filteredSchedules.map(schedule => schedule.schedule_id);
+        const ReasonSummary = require('../models/reason_summary.model');
+        const reasonSummaries = scheduleIds.length > 0
+            ? await ReasonSummary.find({ schedule_call_id: { $in: scheduleIds } })
+                .select('schedule_call_id summary summary_type summary_id created_at')
+            : [];
+        
+        // Create a map of schedule_call_id -> reason_summary
+        const reasonSummaryMap = {};
+        reasonSummaries.forEach(summary => {
+            reasonSummaryMap[summary.schedule_call_id] = {
+                summary_id: summary.summary_id,
+                summary: summary.summary,
+                summary_type: summary.summary_type,
+                created_at: summary.created_at
+            };
+        });
+
+        // Map schedules with reason summaries
+        const schedulesWithSummary = filteredSchedules.map(schedule => {
+            const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
+            return {
+                ...scheduleObj,
+                reason_summary: reasonSummaryMap[schedule.schedule_id] || null
+            };
+        });
+
         // Get available call statuses for filter options
         const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
 
@@ -1030,7 +1058,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
             success: true,
             message: 'Your schedule calls retrieved successfully',
             data: {
-                schedules: filteredSchedules,
+                schedules: schedulesWithSummary,
                 pagination: {
                     current_page: parseInt(page),
                     total_pages: Math.ceil(totalSchedules / limit),
