@@ -1322,6 +1322,163 @@ const getCallByadvisorId = async (req, res) => {
     }
 };
 
+// Get schedule call history by call_type (Audio, Video, Chat) for authenticated user
+const getScheduleCallHistoryByType = async (req, res) => {
+    try {
+        const userId = req.user.user_id;
+        const {
+            page = 1,
+            limit = 10,
+            callStatus,
+            date_from,
+            date_to,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        const skip = (page - 1) * limit;
+
+        // Build query - filter by authenticated user as creator
+        const query = { created_by: userId };
+
+        // Add call status filter
+        if (callStatus) {
+            const statusArray = Array.isArray(callStatus) ? callStatus : [callStatus];
+            query.callStatus = { $in: statusArray };
+        }
+
+        // Add date range filter
+        if (date_from || date_to) {
+            query.date = {};
+            if (date_from) {
+                query.date.$gte = new Date(date_from);
+            }
+            if (date_to) {
+                const endDate = new Date(date_to);
+                endDate.setDate(endDate.getDate() + 1);
+                query.date.$lt = endDate;
+            }
+        }
+
+        // Build sort object
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        // Get all schedule calls for the user
+        const allSchedules = await ScheduleCall.find(query)
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'skills_id',
+                model: 'Skill',
+                localField: 'skills_id',
+                foreignField: 'skill_id',
+                select: 'skill_id skill_name description use_count'
+            })
+            .populate({
+                path: 'package_Subscription_id',
+                model: 'PackageSubscription',
+                localField: 'package_Subscription_id',
+                foreignField: 'PkSubscription_id',
+                select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
+            })
+            .sort(sortObj);
+
+        // Get reason summaries for all schedule calls
+        const scheduleIds = allSchedules.map(schedule => schedule.schedule_id);
+        const ReasonSummary = require('../models/reason_summary.model');
+        const reasonSummaries = scheduleIds.length > 0
+            ? await ReasonSummary.find({ schedule_call_id: { $in: scheduleIds } })
+                .select('schedule_call_id summary summary_type summary_id created_at')
+            : [];
+        
+        // Create a map of schedule_call_id -> reason_summary
+        const reasonSummaryMap = {};
+        reasonSummaries.forEach(summary => {
+            reasonSummaryMap[summary.schedule_call_id] = {
+                summary_id: summary.summary_id,
+                summary: summary.summary,
+                summary_type: summary.summary_type,
+                created_at: summary.created_at
+            };
+        });
+
+        // Group schedules by call_type
+        const callTypes = ['Audio', 'Video', 'Chat'];
+        const historyByType = {};
+
+        callTypes.forEach(callType => {
+            const schedulesOfType = allSchedules
+                .filter(schedule => schedule.call_type === callType)
+                .map(schedule => {
+                    const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
+                    return {
+                        ...scheduleObj,
+                        Summary: reasonSummaryMap[schedule.schedule_id] || null
+                    };
+                });
+
+            // Apply pagination to each call type
+            const paginatedSchedules = schedulesOfType.slice(skip, skip + parseInt(limit));
+            const totalCount = schedulesOfType.length;
+
+            historyByType[callType] = {
+                call_type: callType,
+                schedules: paginatedSchedules,
+                count: totalCount,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalCount / parseInt(limit)),
+                    total_items: totalCount,
+                    items_per_page: parseInt(limit)
+                }
+            };
+        });
+
+        // Get total count
+        const totalSchedules = allSchedules.length;
+
+        return res.status(200).json({
+            success: true,
+            message: 'Schedule call history by call type retrieved successfully',
+            data: {
+                history: [
+                    historyByType['Audio'],
+                    historyByType['Video'],
+                    historyByType['Chat']
+                ],
+                total_calls: totalSchedules,
+                summary: {
+                    Audio: historyByType['Audio'].count,
+                    Video: historyByType['Video'].count,
+                    Chat: historyByType['Chat'].count
+                }
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Get schedule call history by type error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
 // End Call and Process Payment
 const endCall = async (req, res) => {
     try {
@@ -1733,5 +1890,6 @@ module.exports = {
     getSchedulecallByuserAuth,
     getSchedulecallByAdvisorAuth,
     getCallByadvisorId,
+    getScheduleCallHistoryByType,
     endCall
 }; 
