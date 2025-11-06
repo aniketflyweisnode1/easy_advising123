@@ -37,7 +37,7 @@ router.get('/getByAdvisorAuth', auth, getSchedulecallByAdvisorAuth);
 // Get pending calls by advisor ID (date, time, advisor_id, schedule_id only) 2025-01-15
 router.get('/getCallByadvisorId/:advisor_id', auth, getCallByadvisorId);
 // Get schedule call history by call_type (Audio, Video, Chat) for authenticated user 2025-01-15
-router.get('/getHistoryByType', auth, getScheduleCallHistoryByType);
+router.get('/getCallHistory', auth, getScheduleCallHistoryByType);
 // End call and process payment 2025-07-14
 router.post('/endcall', auth, endCall);
 
