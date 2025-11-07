@@ -566,7 +566,6 @@ const getAllScheduleCalls = async (req, res) => {
     }
 };
 
-
 // Get by creator
 const getScheduleCallsByCreator = async (req, res) => {
     try {
@@ -1434,6 +1433,51 @@ const getScheduleCallHistoryByType = async (req, res) => {
             };
         });
 
+        // Get reviews for all schedule calls
+        // Reviews are linked by: review.user_id = schedule_call.advisor_id AND review.created_by = schedule_call.created_by
+        const Reviews = require('../models/reviews.model');
+        const reviewsMap = {};
+        
+        // Fetch reviews for each unique advisor_id and created_by combination
+        // Handle both populated objects and raw IDs
+        const advisorUserPairs = [...new Set(allSchedules.map(s => {
+            const advisorId = (s.advisor_id && typeof s.advisor_id === 'object' && s.advisor_id.user_id) 
+                ? s.advisor_id.user_id 
+                : (s.advisor_id || null);
+            const userId = (s.created_by && typeof s.created_by === 'object' && s.created_by.user_id) 
+                ? s.created_by.user_id 
+                : (s.created_by || null);
+            // Only include pairs where both IDs are valid
+            return advisorId && userId ? `${advisorId}_${userId}` : null;
+        }).filter(Boolean))];
+        
+        // Fetch all reviews in parallel
+        const reviewPromises = advisorUserPairs.map(async (pair) => {
+            const [advisorId, userId] = pair.split('_').map(Number);
+            const reviews = await Reviews.find({
+                user_id: advisorId,
+                created_by: userId,
+                status: 1 // Only active reviews
+            })
+            .select('reviews_id description rating user_id created_by created_at')
+            .sort({ created_at: -1 }); // Get most recent review first
+            
+            return {
+                pair,
+                reviews: reviews.length > 0 ? reviews.map(review => ({
+                    reviews_id: review.reviews_id,
+                    description: review.description,
+                    rating: review.rating,
+                    created_at: review.created_at
+                })) : null
+            };
+        });
+        
+        const reviewResults = await Promise.all(reviewPromises);
+        reviewResults.forEach(({ pair, reviews }) => {
+            reviewsMap[pair] = reviews;
+        });
+
         // Group schedules by call_type
         const callTypes = ['Audio', 'Video', 'Chat'];
         const historyByType = {};
@@ -1443,9 +1487,18 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 .filter(schedule => schedule.call_type === callType)
                 .map(schedule => {
                     const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
+                    // Handle both populated objects and raw IDs for review key
+                    const advisorId = (schedule.advisor_id && typeof schedule.advisor_id === 'object' && schedule.advisor_id.user_id) 
+                        ? schedule.advisor_id.user_id 
+                        : (schedule.advisor_id || null);
+                    const userId = (schedule.created_by && typeof schedule.created_by === 'object' && schedule.created_by.user_id) 
+                        ? schedule.created_by.user_id 
+                        : (schedule.created_by || null);
+                    const reviewKey = advisorId && userId ? `${advisorId}_${userId}` : null;
                     return {
                         ...scheduleObj,
-                        Summary: reasonSummaryMap[schedule.schedule_id] || null
+                        Summary: reasonSummaryMap[schedule.schedule_id] || null,
+                        Reviews: reviewKey ? (reviewsMap[reviewKey] || null) : null
                     };
                 });
 
