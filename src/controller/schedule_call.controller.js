@@ -884,6 +884,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
         } = req.query;
 
         const userId = req.user.user_id;
+        console.log(userId);
         const skip = (page - 1) * limit;
 
         // Build query - filter by authenticated user as creator
@@ -953,6 +954,8 @@ const getSchedulecallByuserAuth = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
+        console.log(query);
+
         // Get schedules with filters and pagination
         const schedules = await ScheduleCall.find(query)
             .populate({
@@ -993,6 +996,8 @@ const getSchedulecallByuserAuth = async (req, res) => {
             .sort(sortObj)
             .skip(skip)
             .limit(parseInt(limit));
+
+        console.log("schedules",schedules);
 
         // Get total count
         const totalSchedules = await ScheduleCall.countDocuments(query);
@@ -1292,10 +1297,24 @@ const getCallByadvisorId = async (req, res) => {
             advisor_id: Number(advisor_id),
             callStatus: 'Pending'
         })
-        .select('schedule_id advisor_id date time')
+        .select('schedule_id advisor_id date time created_by')
+        .populate({
+            path: 'advisor_id',
+            model: 'User',
+            localField: 'advisor_id',
+            foreignField: 'user_id',
+            select: 'user_id name email mobile role_id profile_image'
+        })
+        .populate({
+            path: 'created_by',
+            model: 'User',
+            localField: 'created_by',
+            foreignField: 'user_id',
+            select: 'user_id name email mobile role_id profile_image'
+        })
         .sort({ date: 1, time: 1 }); // Sort by date and time ascending
 
-        // Map schedule calls to return only required fields
+        // Map schedule calls to return only required fields with populated details
         const mappedCalls = scheduleCalls.map(call => ({
             date: call.date,
             time: call.time,
