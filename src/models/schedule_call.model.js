@@ -88,6 +88,18 @@ const scheduleCallSchema = new mongoose.Schema({
   },
   Amount: {
     type: Number
+  },
+  agoraChannelName: {
+    type: String,
+    default: null
+  },
+  userAgoraToken: {
+    type: String,
+    default: null
+  },
+  advisorAgoraToken: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: false

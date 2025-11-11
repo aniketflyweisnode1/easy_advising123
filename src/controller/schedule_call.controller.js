@@ -4,6 +4,7 @@ const Wallet = require('../models/wallet.model.js');
 const CallType = require('../models/call_type.model.js');
 const PackageSubscription = require('../models/package_subscription.model.js');
 const User = require('../models/User.model');
+const { generateAgoraToken, generateAgoraChannelName } = require('../utils/AgoraToken');
 
 // Create Schedule Call
 const createScheduleCall = async (req, res) => {
@@ -176,6 +177,18 @@ const createScheduleCall = async (req, res) => {
         }
     }
     
+    // Generate Agora channel and token for the call
+    try {
+        const channelName = generateAgoraChannelName(Date.now(), data.advisor_id, data.created_by);
+        const { userToken, advisorToken } = generateAgoraToken(channelName, data.created_by, data.advisor_id);
+        data.agoraChannelName = channelName;
+        data.userAgoraToken = userToken;
+        data.advisorAgoraToken = advisorToken;
+    } catch (tokenError) {
+        console.error('Failed to generate Agora credentials:', tokenError);
+        return res.status(500).json({ message: 'Failed to generate Agora credentials', status: 500 });
+    }
+
     const schedule = new ScheduleCall(data);
     await schedule.save();
     res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
@@ -1296,7 +1309,7 @@ const getCallByadvisorId = async (req, res) => {
             advisor_id: Number(advisor_id),
             callStatus: 'Pending'
         })
-        .select('schedule_id advisor_id date time created_by')
+        .select('schedule_id advisor_id date time created_by userAgoraToken advisorAgoraToken agoraChannelName')
         .populate({
             path: 'advisor_id',
             model: 'User',
@@ -1319,7 +1332,10 @@ const getCallByadvisorId = async (req, res) => {
             time: call.time,
             advisor_id: call.advisor_id,
             schedule_id: call.schedule_id,
-            user_id: call.created_by
+            user_id: call.created_by,
+            userAgoraToken: call.userAgoraToken,
+            advisorAgoraToken: call.advisorAgoraToken,
+            agoraChannelName: call.agoraChannelName
         }));
 
         return res.status(200).json({
