@@ -1694,11 +1694,13 @@ const endCall = async (req, res) => {
             });
         }
 
-        // If call status is not Completed, only update schedule call without payment processing
-        if (scheduleCall.callStatus !== 'Completed') {
+        const isScheduledCall = scheduleCall.schedule_type === 'Schedule';
+        const isCompletionRequest = callStatus === 'Completed';
+
+        // If call status is not Completed (and not completing now), only update schedule call without payment processing
+        if (scheduleCall.callStatus !== 'Completed' && !isCompletionRequest) {
             console.log("print callStatus", callStatus);
             
-            const isScheduledCall = scheduleCall.schedule_type === 'Schedule';
             // Calculate new hold_amount based on updated duration (only relevant for scheduled calls)
             const newHoldAmount = isScheduledCall ? (finalCallDuration || Call_duration) * pricePerMinute : 0;
             const previousHoldAmount = isScheduledCall && scheduleCall.Call_duration && scheduleCall.perminRate 
@@ -1869,7 +1871,9 @@ const endCall = async (req, res) => {
             
             // Check if wallet has sufficient balance (amount + hold_amount should cover totalAmount)
             // Since hold_amount was deducted from amount, we need: amount + hold_amount >= totalAmount
-            const totalAvailable = userWallet.amount + (userWallet.hold_amount || 0);
+            const totalAvailable = scheduleCall.schedule_type === 'Schedule'
+                ? userWallet.amount + (userWallet.hold_amount || 0)
+                : userWallet.amount;
             
             if (totalAvailable < totalAmount) {
                 return res.status(400).json({
@@ -1883,7 +1887,7 @@ const endCall = async (req, res) => {
             }
 
             // Release hold_amount if it exists (add back to amount, reduce hold_amount)
-            if (previousHoldAmount > 0 && userWallet.hold_amount >= previousHoldAmount) {
+            if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount > 0 && userWallet.hold_amount >= previousHoldAmount) {
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [scheduleCall.created_by] } },
                     {
@@ -1899,12 +1903,22 @@ const endCall = async (req, res) => {
             
             // Calculate amount to deduct (if hold_amount was less than totalAmount)
             let amountToDeduct = totalAmount;
-            if (previousHoldAmount > 0 && previousHoldAmount < totalAmount) {
+            if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount > 0 && previousHoldAmount < totalAmount) {
                 amountToDeduct = totalAmount - previousHoldAmount;
-            } else if (previousHoldAmount >= totalAmount) {
+            } else if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount >= totalAmount) {
                 amountToDeduct = 0; // Already deducted via hold_amount when created
             }
 
+            if(scheduleCall.schedule_type === 'Instant' && callStatus === 'Completed') {
+                await Wallet.findOneAndUpdate(
+                    { user_id: { $in: [scheduleCall.created_by] } },
+                    {
+                        $inc: { amount: -totalAmount },
+                        updated_At: new Date(),
+                        updated_by: userId
+                    }
+                );
+            }
             // Update user wallet (deduct call amount after releasing hold)
             if (amountToDeduct > 0) {
                 await Wallet.findOneAndUpdate(
