@@ -1912,16 +1912,16 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
 console.log("print scheduleCall.schedule_type, callStatus \n\n\n", scheduleCall.schedule_type, callStatus, "\n\n\n");
 
 
-            if(scheduleCall.schedule_type === 'Instant' && callStatus === 'Completed') {
-                await Wallet.findOneAndUpdate(
-                    { user_id: { $in: [scheduleCall.created_by] } },
-                    {
-                        $inc: { amount: -totalAmount },
-                        updated_At: new Date(),
-                        updated_by: userId
-                    }
-                );
-            }
+            // if(scheduleCall.schedule_type === 'Instant' && callStatus === 'Completed') {
+            //     await Wallet.findOneAndUpdate(
+            //         { user_id: { $in: [scheduleCall.created_by] } },
+            //         {
+            //             $inc: { amount: -totalAmount },
+            //             updated_At: new Date(),
+            //             updated_by: userId
+            //         }
+            //     );
+            // }
             // Update user wallet (deduct call amount after releasing hold)
             if (amountToDeduct > 0) {
                 await Wallet.findOneAndUpdate(
