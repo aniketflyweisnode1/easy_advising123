@@ -1779,9 +1779,9 @@ const endCall = async (req, res) => {
         }
 
         const allowedStatusesForCompletion = scheduleCall.schedule_type === 'Instant'
-            ? ['Accepted', 'Upcoming', 'Ongoing', 'Instant']
-            : ['Accepted', 'Upcoming'];
-
+            ? ['Pending']
+            : ['Pending'];
+console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompletion, "\n\n\n");
         // Check if call status allows ending
         if (!allowedStatusesForCompletion.includes(scheduleCall.callStatus)) {
             return res.status(400).json({
@@ -1908,6 +1908,9 @@ const endCall = async (req, res) => {
             } else if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount >= totalAmount) {
                 amountToDeduct = 0; // Already deducted via hold_amount when created
             }
+            
+console.log("print scheduleCall.schedule_type, callStatus \n\n\n", scheduleCall.schedule_type, callStatus, "\n\n\n");
+
 
             if(scheduleCall.schedule_type === 'Instant' && callStatus === 'Completed') {
                 await Wallet.findOneAndUpdate(
