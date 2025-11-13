@@ -46,16 +46,15 @@ const createScheduleCall = async (req, res) => {
                 } else if (data.call_type === 'Video') {
                     data.perminRate = advisorRate.VideoCall_rate;
                 }
-
-
             }
+
             // callType.price_per_minute
             // Calculate minimum balance required based on schedule type
             let minimumBalanceRequired;
             let callTypeDescription;
 
             if (data.schedule_type === 'Instant') {
-                minimumBalanceRequired = 5 * data.perminRate; // 5 minutes for Instant
+                minimumBalanceRequired = 8 * data.perminRate; // 5 minutes for Instant
                 callTypeDescription = '5 minutes';
             } else if (data.schedule_type === 'Schedule') {
                 minimumBalanceRequired = 30 * data.perminRate; // 30 minutes for Schedule
@@ -85,7 +84,7 @@ const createScheduleCall = async (req, res) => {
                     hold_amount: userWallet.hold_amount || 0,
                     available_balance: availableBalance,
                     price_per_minute: data.perminRate,
-                    minimum_minutes: data.schedule_type === 'Instant' ? 5 : 30
+                    minimum_minutes: data.schedule_type === 'Instant' ? 5 : 6
                 });
             }
 
@@ -135,20 +134,14 @@ const createScheduleCall = async (req, res) => {
             }
         }
     
-    // Calculate hold_amount for scheduled calls (estimate for Schedule type, actual for Instant)
+    // Calculate hold_amount only for scheduled calls (not for Instant calls)
     let holdAmount = 0;
     if (data.schedule_type === 'Schedule' && data.perminRate) {
         // For scheduled calls, estimate hold amount (30 minutes average)
         holdAmount = 30 * data.perminRate;
-    } else if (data.schedule_type === 'Instant' && data.perminRate && data.Call_duration) {
-        // For instant calls, use actual duration
-        holdAmount = data.Call_duration * data.perminRate;
-    } else if (data.perminRate && data.Call_duration) {
-        // If Call_duration is provided, use it
-        holdAmount = data.Call_duration * data.perminRate;
     }
     
-    // Add hold_amount to user's wallet if not using package subscription
+    // Add hold_amount to user's wallet if not using package subscription (only for Schedule calls)
     if (holdAmount > 0 && !data.package_Subscription_id) {
         const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
         if (userWallet) {
