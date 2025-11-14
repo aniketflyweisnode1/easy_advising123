@@ -1566,6 +1566,8 @@ const endCall = async (req, res) => {
         const { schedule_id, Call_duration, callStatus } = req.body;
         const userId = req.user.user_id;
 
+        // Validate callStatus if provided
+    
         if (!schedule_id) {
             return res.status(400).json({
                 message: 'schedule_id is required',
@@ -1579,6 +1581,17 @@ const endCall = async (req, res) => {
             return res.status(404).json({
                 message: 'Schedule call not found',
                 status: 404
+            });
+        }
+
+        // Check if call status is in the restricted list (calls in these statuses cannot be ended)
+        const restrictedCallStatuses = ['Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
+        if (restrictedCallStatuses.includes(scheduleCall.callStatus)) {
+            return res.status(400).json({
+                message: `Call cannot be ended. Current status: ${scheduleCall.callStatus}`,
+                status: 400,
+                current_callStatus: scheduleCall.callStatus,
+                restricted_statuses: restrictedCallStatuses
             });
         }
 
