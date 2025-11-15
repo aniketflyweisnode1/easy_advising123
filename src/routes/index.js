@@ -47,6 +47,7 @@ const privacyPolicyRoutes = require('./Master/privacy_policy.routes');
 const adminConnectCallRoutes = require('./Master/admin_connect_call.routes');
 const advisorMySubscriberRoutes = require('./Advisor/advisor_mysubscriber.routes');
 const termsAndConditionRoutes = require('./Master/terms_and_condition.routes');
+const supportRequestRoutes = require('./Master/support_request.routes');
 
 function routes(app) {
 
@@ -99,6 +100,7 @@ function routes(app) {
     app.use('/api/admin-connect-call', adminConnectCallRoutes);
     app.use('/api/advisor/my-subscriber', advisorMySubscriberRoutes);
     app.use('/api/terms-and-condition', termsAndConditionRoutes);
+    app.use('/api/support-request', supportRequestRoutes);
 }
 
 module.exports = routes;

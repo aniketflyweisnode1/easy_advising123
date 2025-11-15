@@ -463,4 +463,281 @@ const getAllWithdrawRequests = async (req, res) => {
   }
 };
 
-module.exports = { createWithdrawRequest, updateWithdrawRequest, getWithdrawRequestById, getAllWithdrawRequests }; 
+// Get withdraw requests by authenticated user
+const getWithdrawRequestsByAuth = async (req, res) => {
+  try {
+    const userId = req.user?.user_id;
+    
+    if (!userId) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'User not authenticated', 
+        status: 401 
+      });
+    }
+
+    // Get query parameters
+    const { 
+      page = 1, 
+      limit = 10, 
+      search, 
+      status,
+      method_id,
+      last_status,
+      created_date_from,
+      created_date_to,
+      updated_date_from,
+      updated_date_to,
+      amount_min,
+      amount_max,
+      sort_by = 'created_at',
+      sort_order = 'desc'
+    } = req.query;
+
+    const skip = (page - 1) * limit;
+
+    // Build query - filter by authenticated user
+    const query = {
+      $or: [
+        { user_id: userId },
+        { created_by: userId }
+      ]
+    };
+
+    // Add status filter
+    if (status !== undefined) {
+      let statusValue;
+      if (status == true) {
+        statusValue = 1;
+      } else if (status == false) {
+        statusValue = 0;
+      } else {
+        statusValue = parseInt(status);
+        if (isNaN(statusValue)) {
+          statusValue = undefined;
+        }
+      }
+      if (statusValue !== undefined) {
+        query.status = statusValue;
+      }
+    }
+
+    // Add last_status filter (support multiple statuses)
+    if (last_status) {
+      if (Array.isArray(last_status)) {
+        query.last_status = { $in: last_status };
+      } else if (typeof last_status === 'string' && last_status.includes(',')) {
+        const statusArray = last_status.split(',').map(s => s.trim());
+        query.last_status = { $in: statusArray };
+      } else {
+        query.last_status = last_status;
+      }
+    }
+
+    // Add method_id filter
+    if (method_id) {
+      query.method_id = parseInt(method_id);
+    }
+
+    // Add amount range filter
+    if (amount_min !== undefined || amount_max !== undefined) {
+      query.amount = {};
+      if (amount_min !== undefined) {
+        query.amount.$gte = parseFloat(amount_min);
+      }
+      if (amount_max !== undefined) {
+        query.amount.$lte = parseFloat(amount_max);
+      }
+    }
+
+    // Add created date range filter
+    if (created_date_from || created_date_to) {
+      query.created_at = {};
+      if (created_date_from) {
+        query.created_at.$gte = new Date(created_date_from);
+      }
+      if (created_date_to) {
+        query.created_at.$lt = new Date(new Date(created_date_to).getTime() + 24 * 60 * 60 * 1000);
+      }
+    }
+
+    // Add updated date range filter
+    if (updated_date_from || updated_date_to) {
+      query.updated_at = {};
+      if (updated_date_from) {
+        query.updated_at.$gte = new Date(updated_date_from);
+      }
+      if (updated_date_to) {
+        query.updated_at.$lt = new Date(new Date(updated_date_to).getTime() + 24 * 60 * 60 * 1000);
+      }
+    }
+
+    // Build sort object
+    const sortObj = {};
+    sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+    // Get requests with pagination and filters
+    const requests = await WithdrawRequest.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count
+    const totalRequests = await WithdrawRequest.countDocuments(query);
+    
+    // Get all unique user IDs from requests
+    const userIds = [...new Set([
+      ...requests.map(r => r.user_id),
+      ...requests.map(r => r.created_by),
+      ...requests.map(r => r.updated_by).filter(id => id)
+    ])];
+    
+    // Get all unique method IDs
+    const methodIds = [...new Set(requests.map(r => r.method_id))];
+    
+    // Get all unique transaction IDs
+    const transactionIds = [...new Set(requests.map(r => r.transaction_id).filter(id => id))];
+    
+    // Fetch user details for all user IDs
+    const users = await User.find(
+      { user_id: { $in: userIds } }, 
+      { user_id: 1, name: 1, email: 1, mobile: 1, status: 1, login_permission_status: 1, _id: 0 }
+    );
+    const userMap = {};
+    users.forEach(u => { userMap[u.user_id] = u; });
+    
+    // Fetch withdraw method details for all method IDs
+    const WithdrawMethod = require('../models/withdraw_method.model');
+    const withdrawMethods = await WithdrawMethod.find(
+      { method_id: { $in: methodIds } },
+      { method_id: 1, method_name: 1, description: 1, status: 1, _id: 0 }
+    );
+    const methodMap = {};
+    withdrawMethods.forEach(m => { methodMap[m.method_id] = m; });
+    
+    // Fetch transaction details for all transaction IDs
+    let transactionMap = {};
+    if (transactionIds.length > 0) {
+      const transactions = await Transaction.find(
+        { TRANSACTION_ID: { $in: transactionIds } },
+        { TRANSACTION_ID: 1, amount: 1, status: 1, transaction_date: 1, payment_method: 1, transactionType: 1, _id: 0 }
+      );
+      transactions.forEach(t => { transactionMap[t.TRANSACTION_ID] = t; });
+    }
+    
+    // Map requests to include all populated details
+    let requestsWithDetails = requests.map(request => {
+      const requestObj = request.toObject();
+      return {
+        ...requestObj,
+        user: userMap[request.user_id] ? {
+          user_id: userMap[request.user_id].user_id,
+          name: userMap[request.user_id].name,
+          email: userMap[request.user_id].email,
+          mobile: userMap[request.user_id].mobile,
+          status: userMap[request.user_id].status,
+          login_permission_status: userMap[request.user_id].login_permission_status
+        } : null,
+        created_by_user: userMap[request.created_by] ? {
+          user_id: userMap[request.created_by].user_id,
+          name: userMap[request.created_by].name,
+          email: userMap[request.created_by].email,
+          mobile: userMap[request.created_by].mobile
+        } : null,
+        updated_by_user: request.updated_by && userMap[request.updated_by] ? {
+          user_id: userMap[request.updated_by].user_id,
+          name: userMap[request.updated_by].name,
+          email: userMap[request.updated_by].email,
+          mobile: userMap[request.updated_by].mobile
+        } : null,
+        withdraw_method: methodMap[request.method_id] ? {
+          method_id: methodMap[request.method_id].method_id,
+          method_name: methodMap[request.method_id].method_name,
+          description: methodMap[request.method_id].description,
+          status: methodMap[request.method_id].status
+        } : null,
+        transaction_details: request.transaction_id && transactionMap[request.transaction_id] ? {
+          TRANSACTION_ID: transactionMap[request.transaction_id].TRANSACTION_ID,
+          amount: transactionMap[request.transaction_id].amount,
+          status: transactionMap[request.transaction_id].status,
+          transaction_date: transactionMap[request.transaction_id].transaction_date,
+          payment_method: transactionMap[request.transaction_id].payment_method,
+          transactionType: transactionMap[request.transaction_id].transactionType
+        } : null
+      };
+    });
+
+    // Apply search filter if provided
+    if (search) {
+      requestsWithDetails = requestsWithDetails.filter(request => {
+        const searchLower = search.toLowerCase();
+        const searchTerm = search.toString();
+        return (
+          (request.user && (
+            request.user.name?.toLowerCase().includes(searchLower) ||
+            request.user.email?.toLowerCase().includes(searchLower) ||
+            request.user.mobile?.includes(searchTerm)
+          )) ||
+          (request.withdraw_method && 
+            request.withdraw_method.method_name?.toLowerCase().includes(searchLower)
+          ) ||
+          request.amount?.toString().includes(searchTerm) ||
+          request.details?.toLowerCase().includes(searchLower) ||
+          request.last_status?.toLowerCase().includes(searchLower) ||
+          request.request_id?.toString().includes(searchTerm) ||
+          (request.transaction_details && 
+            request.transaction_details.TRANSACTION_ID?.toString().includes(searchTerm)
+          ) ||
+          (request.created_at && 
+            request.created_at.toISOString().split('T')[0].includes(searchTerm)
+          ) ||
+          (request.updated_at && 
+            request.updated_at.toISOString().split('T')[0].includes(searchTerm)
+          )
+        );
+      });
+    }
+
+    // Get available filter options for this user's requests
+    const userRequests = await WithdrawRequest.find({
+      $or: [
+        { user_id: userId },
+        { created_by: userId }
+      ]
+    }, { last_status: 1, method_id: 1, _id: 0 });
+    const availableStatuses = [...new Set(userRequests.map(r => r.last_status))];
+    const availableMethods = await WithdrawMethod.find(
+      { method_id: { $in: [...new Set(userRequests.map(r => r.method_id))] } },
+      { method_id: 1, method_name: 1, _id: 0 }
+    );
+
+    return res.status(200).json({ 
+      success: true,
+      message: 'Your withdraw requests retrieved successfully',
+      data: {
+        requests: requestsWithDetails,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(totalRequests / limit),
+          total_items: totalRequests,
+          items_per_page: parseInt(limit)
+        },
+        filters: {
+          available_statuses: availableStatuses,
+          available_methods: availableMethods
+        }
+      },
+      status: 200 
+    });
+  } catch (error) {
+    console.error('Get withdraw requests by auth error:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500 
+    });
+  }
+};
+
+module.exports = { createWithdrawRequest, updateWithdrawRequest, getWithdrawRequestById, getAllWithdrawRequests, getWithdrawRequestsByAuth }; 
