@@ -1812,6 +1812,50 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
             const advisorCommission = (totalAmount * advisorCommissionRate) / 100;
             const adminCommission = (totalAmount * adminCommissionRate) / 100;
 
+            // Check if transactions already exist for this call to prevent duplicates
+            const existingUserTransaction = await Transaction.findOne({
+                reference_number: `CALL_${schedule_id}`,
+                transactionType: 'Call'
+            });
+            const existingAdvisorTransaction = await Transaction.findOne({
+                reference_number: `CALL_${schedule_id}_ADVISOR`,
+                transactionType: 'Call'
+            });
+            const existingAdminTransaction = await Transaction.findOne({
+                reference_number: `CALL_${schedule_id}_ADMIN`,
+                transactionType: 'Call'
+            });
+
+            // If transactions already exist, skip payment processing and just update call status
+            if (existingUserTransaction || existingAdvisorTransaction || existingAdminTransaction) {
+                // Update schedule call status and duration only (skip payment processing)
+                const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
+                    { schedule_id },
+                    {
+                        callStatus: callStatus || 'Completed',
+                        Call_duration: finalCallDuration,
+                        perminRate: pricePerMinute,
+                        Amount: totalAmount,
+                        updated_by: userId,
+                        updated_at: new Date()
+                    },
+                    { new: true, runValidators: true }
+                );
+
+                return res.status(200).json({
+                    message: 'Call updated successfully. Transactions already exist - payment already processed.',
+                    schedule_call: updatedScheduleCall,
+                    transaction: existingUserTransaction,
+                    note: 'No new transactions created - using existing transactions',
+                    existing_transactions: {
+                        user_transaction: existingUserTransaction ? existingUserTransaction.TRANSACTION_ID : null,
+                        advisor_transaction: existingAdvisorTransaction ? existingAdvisorTransaction.TRANSACTION_ID : null,
+                        admin_transaction: existingAdminTransaction ? existingAdminTransaction.TRANSACTION_ID : null
+                    },
+                    status: 200
+                });
+            }
+
             // Update schedule call status and duration
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
@@ -1826,9 +1870,7 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
                 { new: true, runValidators: true }
             );
 
-
-
-            // Create transaction for the call
+            // Create transaction for the call (only once)
             const transaction = new Transaction({
                 user_id: scheduleCall.created_by, // User who made the call
                 amount: totalAmount,
@@ -1840,9 +1882,10 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
             });
             await transaction.save();
 
-            // Record advisor commission transaction
+            // Record advisor commission transaction (only once)
+            let advisorTransaction = null;
             if (advisorCommission > 0) {
-                const advisorTransaction = new Transaction({
+                advisorTransaction = new Transaction({
                     user_id: scheduleCall.advisor_id,
                     amount: advisorCommission,
                     status: 'completed',
@@ -1854,9 +1897,10 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
                 await advisorTransaction.save();
             }
 
-            // Record admin commission transaction (default admin user id = 1)
+            // Record admin commission transaction (only once)
+            let adminTransaction = null;
             if (adminCommission > 0) {
-                const adminTransaction = new Transaction({
+                adminTransaction = new Transaction({
                     user_id: 1,
                     amount: adminCommission,
                     status: 'completed',
