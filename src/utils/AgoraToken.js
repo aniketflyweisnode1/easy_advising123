@@ -74,7 +74,7 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
 function generateAgoraChannelName(sessionId, mentorId, menteeId) {
     const timestamp = Date.now();
     const randomString = crypto.randomBytes(4).toString('hex');
-    return `session_${sessionId}_${mentorId}_${menteeId}_${timestamp}_${randomString}`;
+    return `session_${randomString}`;
 }
 
 module.exports = {
