@@ -173,7 +173,7 @@ const createScheduleCall = async (req, res) => {
     // Generate Agora channel and token for the call
     try {
         const channelName = generateAgoraChannelName(Date.now(), data.advisor_id, data.created_by);
-        const { userToken, advisorToken } = generateAgoraToken(channelName, data.created_by, data.advisor_id);
+        const { userToken, advisorToken } = generateAgoraToken(channelName, data.created_by, data.advisor_id, 2);
         data.agoraChannelName = channelName;
         data.userAgoraToken = userToken;
         data.advisorAgoraToken = advisorToken;

@@ -15,7 +15,7 @@ const AGORA_CONFIG = {
  * @param {number} expirationTime
  * @returns {string}
  */
-function generateAgoraToken(channelName, userId, advisorId, expirationTime = AGORA_CONFIG.TOKEN_EXPIRATION_TIME) {
+function generateAgoraToken(channelName, userId, advisorId, role = 2, expirationTime = AGORA_CONFIG.TOKEN_EXPIRATION_TIME) {
     try {
         const appId = AGORA_CONFIG.APP_ID;
         const appCertificate = AGORA_CONFIG.APP_CERTIFICATE;
