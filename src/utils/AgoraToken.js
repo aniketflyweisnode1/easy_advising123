@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { RtcTokenBuilder } = require('agora-token');
+const { RtcTokenBuilder, RtcRole } = require('agora-token');
 
 const AGORA_CONFIG = {
     APP_ID: '1a9f54c08e84434bb88fd5d366942cd8',
