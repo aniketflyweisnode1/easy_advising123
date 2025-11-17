@@ -38,7 +38,7 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
             appId,
             appCertificate,
             channelName,
-            parseInt(userId),
+            userId,
             userRole,
             privilegeExpirationInSecond
         );
@@ -47,7 +47,7 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
             appId,
             appCertificate,
             channelName,
-            parseInt(advisorId),
+            advisorId,
             advisoreRole,
             privilegeExpirationInSecond
         );
