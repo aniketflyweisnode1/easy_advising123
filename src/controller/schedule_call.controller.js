@@ -1374,7 +1374,26 @@ const getCallByadvisorId = async (req, res) => {
 // Get schedule call history by call_type (Audio, Video, Chat) for authenticated user
 const getScheduleCallHistoryByType = async (req, res) => {
     try {
-        const userId = req.user.user_id;
+        const requestedUserId = req.query?.user_id;
+        const userId = requestedUserId ? Number(requestedUserId) : req.user.user_id;
+
+        if (requestedUserId && (isNaN(userId) || userId <= 0)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid user_id parameter',
+                status: 400
+            });
+        }
+
+        // Only allow admins or self-access when requesting another user's data
+        if (requestedUserId && userId !== req.user.user_id && req.user.role_id !== 1) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to view this user\'s call history',
+                status: 403
+            });
+        }
+
         const {
             sort_by = 'created_at',
             sort_order = 'desc',
@@ -1382,7 +1401,7 @@ const getScheduleCallHistoryByType = async (req, res) => {
         } = req.query;
 
         // Build query - filter by authenticated user as creator
-        const query = { created_by: userId, call_type: call_type };
+        const query = { created_by: userId };
 
         // Build sort object
         const sortObj = {};
@@ -1419,7 +1438,7 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
             .sort(sortObj);
-
+        console.log("print allSchedules", allSchedules);
         // Get reason summaries for all schedule calls
         const scheduleIds = allSchedules.map(schedule => schedule.schedule_id);
         const ReasonSummary = require('../models/reason_summary.model');
