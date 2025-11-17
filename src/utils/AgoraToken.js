@@ -34,6 +34,8 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
         const tokenExpirationInSecond = expirationTime || AGORA_CONFIG.TOKEN_EXPIRATION_TIME;
         const privilegeExpirationInSecond = expirationTime || AGORA_CONFIG.TOKEN_EXPIRATION_TIME;
 
+console.log(appId, appCertificate, channelName,userId, advisorId, advisoreRole, privilegeExpirationInSecond);
+
         const userToken = RtcTokenBuilder.buildTokenWithUid(
             appId,
             appCertificate,
