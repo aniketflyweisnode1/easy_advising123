@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { RtcTokenBuilder, RtcRole } = require('agora-access-token');
+const { RtcTokenBuilder } = require('agora-token');
 
 // Generate RTC Token for Agora
 router.post('/generateRtcToken', (req, res) => {

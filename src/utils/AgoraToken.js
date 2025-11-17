@@ -40,7 +40,6 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
             channelName,
             parseInt(userId),
             userRole,
-            tokenExpirationInSecond,
             privilegeExpirationInSecond
         );
 
@@ -50,7 +49,6 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
             channelName,
             parseInt(advisorId),
             advisoreRole,
-            tokenExpirationInSecond,
             privilegeExpirationInSecond
         );
 
