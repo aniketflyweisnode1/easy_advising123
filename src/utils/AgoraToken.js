@@ -45,6 +45,10 @@ console.log(appId, appCertificate, channelName,userId, advisorId, advisoreRole, 
             privilegeExpirationInSecond
         );
 
+
+
+
+
         const advisorToken = RtcTokenBuilder.buildTokenWithUid(
             appId,
             appCertificate,

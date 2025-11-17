@@ -1061,18 +1061,43 @@ const getAdvisorList = async (req, res) => {
       rating_max,
       experience_min,
       experience_max,
+      login_permission_status,
       sort_by = 'created_at',
       sort_order = 'desc'
     } = req.query;
 
     const skip = (page - 1) * limit;
 
+    // Normalize login_permission_status (default true)
+  
+    if (login_permission_status !== undefined && login_permission_status !== null) {
+      if (
+        login_permission_status === true ||
+        login_permission_status === 'true' ||
+        login_permission_status === 1 ||
+        login_permission_status === '1'
+      ) {
+        login_permission_status = true;
+      } else if (
+        login_permission_status === false ||
+        login_permission_status === 'false' ||
+        login_permission_status === 0 ||
+        login_permission_status === '0'
+      ) {
+        login_permission_status = false;
+      }
+    }
+
     // Build query
+    if(!login_permission_status){
+    const query = { role_id: parseInt(role_id)};
+  }else{
     const query = { role_id: parseInt(role_id), login_permission_status: true };
+  }
 
     // Debug logging
     console.log('getAdvisorList - Query params:', {
-      page, limit, search, role_id, category_id, subcategory_id, status
+      page, limit, search, role_id, category_id, subcategory_id, status, login_permission_status: loginPermissionStatus
     });
 
     // Add search functionality
