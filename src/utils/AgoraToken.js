@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { RtcTokenBuilder, RtcRole } = require('agora-token');
+const { RtcTokenBuilder } = require('agora-token');
 
 const AGORA_CONFIG = {
     APP_ID: '1a9f54c08e84434bb88fd5d366942cd8',
@@ -27,8 +27,8 @@ function generateAgoraToken(channelName, userId, advisorId, role = 2, expiration
         if (!channelName) {
             throw new Error('Channel name is required to generate Agora token');
         }
-        const userRole = role === 2 ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER;
-        const advisoreRole = RtcRole.PUBLISHER;
+        const userRole = 1;
+        const advisoreRole = 2;
 
         const tokenExpirationInSecond = expirationTime || AGORA_CONFIG.TOKEN_EXPIRATION_TIME;
         const privilegeExpirationInSecond = expirationTime || AGORA_CONFIG.TOKEN_EXPIRATION_TIME;
