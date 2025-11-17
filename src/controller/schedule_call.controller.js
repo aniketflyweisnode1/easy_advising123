@@ -1509,19 +1509,14 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 });
 
             // Apply pagination to each call type
-            const paginatedSchedules = schedulesOfType.slice(skip, skip + parseInt(limit));
+           
             const totalCount = schedulesOfType.length;
 
             historyByType[callType] = {
                 call_type: callType,
-                schedules: paginatedSchedules,
+                schedules: schedulesOfType,
                 count: totalCount,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalCount / parseInt(limit)),
-                    total_items: totalCount,
-                    items_per_page: parseInt(limit)
-                }
+              
             };
         });
 
