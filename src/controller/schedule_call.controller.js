@@ -1049,12 +1049,36 @@ const getSchedulecallByuserAuth = async (req, res) => {
             };
         });
 
+        // Get reviews for all schedule calls based on schedule_call_id
+        const Reviews = require('../models/reviews.model');
+        const scheduleReviews = scheduleIds.length > 0
+            ? await Reviews.find({ schedule_call_id: { $in: scheduleIds }, status: 1 })
+                .select('schedule_call_id reviews_id description rating user_id created_by created_at')
+                .sort({ created_at: -1 })
+            : [];
+
+        const reviewsMap = {};
+        scheduleReviews.forEach(review => {
+            if (!reviewsMap[review.schedule_call_id]) {
+                reviewsMap[review.schedule_call_id] = [];
+            }
+            reviewsMap[review.schedule_call_id].push({
+                reviews_id: review.reviews_id,
+                description: review.description,
+                rating: review.rating,
+                user_id: review.user_id,
+                created_by: review.created_by,
+                created_at: review.created_at
+            });
+        });
+
         // Map schedules with reason summaries
         const schedulesWithSummary = filteredSchedules.map(schedule => {
             const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
             return {
                 ...scheduleObj,
-                Summary: reasonSummaryMap[schedule.schedule_id] || null
+                Summary: reasonSummaryMap[schedule.schedule_id] || null,
+                Reviews: reviewsMap[schedule.schedule_id] || []
             };
         });
 

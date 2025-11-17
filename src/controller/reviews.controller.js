@@ -2,7 +2,7 @@ const Reviews = require('../models/reviews.model');
 const User = require('../models/User.model');
 const createReview = async (req, res) => {
   try {
-    const { description, user_id, rating } = req.body;
+    const { description, user_id, rating, schedule_call_id } = req.body;
     
     // Validate required fields
     if (!description || !user_id) {
@@ -23,12 +23,25 @@ const createReview = async (req, res) => {
       }
     }
 
-    const review = new Reviews({
+    const reviewData = {
       description,
       user_id,
       rating: rating !== undefined ? Number(rating) : 0, // Default to 0 if not provided
       created_by: req.user.user_id
-    });
+    };
+
+    if (schedule_call_id !== undefined && schedule_call_id !== null) {
+      const scheduleIdNum = Number(schedule_call_id);
+      if (!Number.isInteger(scheduleIdNum) || scheduleIdNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'schedule_call_id must be a positive integer'
+        });
+      }
+      reviewData.schedule_call_id = scheduleIdNum;
+    }
+
+    const review = new Reviews(reviewData);
     await review.save();
     res.status(201).json({ success: true, data: review });
   } catch (error) {
@@ -56,6 +69,17 @@ const updateReview = async (req, res) => {
     const { reviews_id: _, created_by: __, user_id: ___, ...updateData } = req.body;
     updateData.updated_by = req.user.user_id;
     updateData.updated_at = new Date();
+
+    if (updateData.schedule_call_id !== undefined) {
+      const scheduleIdNum = Number(updateData.schedule_call_id);
+      if (!Number.isInteger(scheduleIdNum) || scheduleIdNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'schedule_call_id must be a positive integer'
+        });
+      }
+      updateData.schedule_call_id = scheduleIdNum;
+    }
     
     const review = await Reviews.findOneAndUpdate({ reviews_id }, updateData, { new: true, runValidators: true });
     if (!review) return res.status(404).json({ success: false, message: 'Review not found' });

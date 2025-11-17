@@ -27,6 +27,8 @@ function generateAgoraToken(channelName, userId, advisorId, expirationTime = AGO
         if (!channelName) {
             throw new Error('Channel name is required to generate Agora token');
         }
+        const userRole = role === 2 ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER;
+        const advisoreRole = RtcRole.PUBLISHER;
 
         const tokenExpirationInSecond = expirationTime || AGORA_CONFIG.TOKEN_EXPIRATION_TIME;
         const privilegeExpirationInSecond = expirationTime || AGORA_CONFIG.TOKEN_EXPIRATION_TIME;
@@ -36,7 +38,7 @@ function generateAgoraToken(channelName, userId, advisorId, expirationTime = AGO
             appCertificate,
             channelName,
             parseInt(userId),
-            1,
+            userRole,
             tokenExpirationInSecond,
             privilegeExpirationInSecond
         );
@@ -46,7 +48,7 @@ function generateAgoraToken(channelName, userId, advisorId, expirationTime = AGO
             appCertificate,
             channelName,
             parseInt(advisorId),
-            2,
+            advisoreRole,
             tokenExpirationInSecond,
             privilegeExpirationInSecond
         );
