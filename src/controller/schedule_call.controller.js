@@ -1376,38 +1376,13 @@ const getScheduleCallHistoryByType = async (req, res) => {
     try {
         const userId = req.user.user_id;
         const {
-            page = 1,
-            limit = 10,
-            callStatus,
-            date_from,
-            date_to,
             sort_by = 'created_at',
-            sort_order = 'desc'
+            sort_order = 'desc',
+            call_type
         } = req.query;
 
-        const skip = (page - 1) * limit;
-
         // Build query - filter by authenticated user as creator
-        const query = { created_by: userId };
-
-        // Add call status filter
-        if (callStatus) {
-            const statusArray = Array.isArray(callStatus) ? callStatus : [callStatus];
-            query.callStatus = { $in: statusArray };
-        }
-
-        // Add date range filter
-        if (date_from || date_to) {
-            query.date = {};
-            if (date_from) {
-                query.date.$gte = new Date(date_from);
-            }
-            if (date_to) {
-                const endDate = new Date(date_to);
-                endDate.setDate(endDate.getDate() + 1);
-                query.date.$lt = endDate;
-            }
-        }
+        const query = { created_by: userId, call_type: call_type };
 
         // Build sort object
         const sortObj = {};
