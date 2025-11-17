@@ -39,7 +39,7 @@ console.log(appId, appCertificate, channelName,userId, advisorId, advisoreRole, 
         const userToken = RtcTokenBuilder.buildTokenWithUid(
             appId,
             appCertificate,
-            "easyAdvisingToken",
+            channelName,
             userId,
             userRole,
             privilegeExpirationInSecond
@@ -48,7 +48,7 @@ console.log(appId, appCertificate, channelName,userId, advisorId, advisoreRole, 
         const advisorToken = RtcTokenBuilder.buildTokenWithUid(
             appId,
             appCertificate,
-            "easyAdvisingToken",
+            channelName,
             advisorId,
             advisoreRole,
             privilegeExpirationInSecond

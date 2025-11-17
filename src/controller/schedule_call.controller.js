@@ -104,8 +104,8 @@ const createScheduleCall = async (req, res) => {
             }
 
             // Calculate new hold amount for this call
-            const newHoldAmount = data.schedule_type === 'Schedule' 
-                ? 30 * data.perminRate 
+            const newHoldAmount = data.schedule_type === 'Schedule'
+                ? 30 * data.perminRate
                 : (data.Call_duration ? data.Call_duration * data.perminRate : minimumBalanceRequired);
 
             const totalRequiredBalance = minimumBalanceRequired;
@@ -130,64 +130,65 @@ const createScheduleCall = async (req, res) => {
                 data.package_Subscription_id = activeSubscription.PkSubscription_id;
                 data.remaining_minutes = activeSubscription.Remaining_minute;
                 data.remaining_schedule = activeSubscription.Remaining_Schedule;
-                
-            }
-        }
-    
-    // Calculate hold_amount only for scheduled calls (not for Instant calls)
-    let holdAmount = 0;
-    if (data.schedule_type === 'Schedule' && data.perminRate) {
-        // For scheduled calls, estimate hold amount (30 minutes average)
-        holdAmount = 30 * data.perminRate;
-    }
-    
-    // Add hold_amount to user's wallet if not using package subscription (only for Schedule calls)
-    if (holdAmount > 0 && !data.package_Subscription_id) {
-        const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
-        if (userWallet) {
-            // Verify wallet has sufficient balance for hold_amount
-            if (userWallet.amount < holdAmount) {
-                return res.status(400).json({
-                    message: `Insufficient wallet balance to hold amount. Current: ₹${userWallet.amount}, Required: ₹${holdAmount}`,
-                    status: 400,
-                    current_balance: userWallet.amount,
-                    hold_amount_required: holdAmount
-                });
-            }
-            
-            // Deduct from amount and add to hold_amount (auto balance: amount decreases, hold_amount increases)
-            await Wallet.findOneAndUpdate(
-                { user_id: { $in: [data.created_by] } },
-                {
-                    $inc: { 
-                        amount: -holdAmount,      // Deduct from available amount
-                        hold_amount: holdAmount   // Add to hold_amount
-                    },
-                    updated_At: new Date(),
-                    updated_by: req.user.user_id
-                }
-            );
-        }
-    }
-    
-    // Generate Agora channel and token for the call
-    try {
-        const channelName = generateAgoraChannelName(Date.now(), data.advisor_id, data.created_by);
-        const { userToken, advisorToken } = generateAgoraToken(channelName, data.created_by, data.advisor_id, 2);
-        data.agoraChannelName = channelName;
-        data.userAgoraToken = userToken;
-        data.advisorAgoraToken = advisorToken;
-    } catch (tokenError) {
-        console.error('Failed to generate Agora credentials:', tokenError);
-        return res.status(500).json({ message: 'Failed to generate Agora credentials', status: 500 });
-    }
 
-    const schedule = new ScheduleCall(data);
-    await schedule.save();
-    res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
-} catch (error) {
-    res.status(500).json({ message: error.message || error, status: 500 });
-}
+            }
+        }
+
+        // Calculate hold_amount only for scheduled calls (not for Instant calls)
+        let holdAmount = 0;
+        if (data.schedule_type === 'Schedule' && data.perminRate) {
+            // For scheduled calls, estimate hold amount (30 minutes average)
+            holdAmount = 30 * data.perminRate;
+        }
+
+        // Add hold_amount to user's wallet if not using package subscription (only for Schedule calls)
+        if (holdAmount > 0 && !data.package_Subscription_id) {
+            const userWallet = await Wallet.findOne({ user_id: { $in: [data.created_by] } });
+            if (userWallet) {
+                // Verify wallet has sufficient balance for hold_amount
+                if (userWallet.amount < holdAmount) {
+                    return res.status(400).json({
+                        message: `Insufficient wallet balance to hold amount. Current: ₹${userWallet.amount}, Required: ₹${holdAmount}`,
+                        status: 400,
+                        current_balance: userWallet.amount,
+                        hold_amount_required: holdAmount
+                    });
+                }
+
+                // Deduct from amount and add to hold_amount (auto balance: amount decreases, hold_amount increases)
+                await Wallet.findOneAndUpdate(
+                    { user_id: { $in: [data.created_by] } },
+                    {
+                        $inc: {
+                            amount: -holdAmount,      // Deduct from available amount
+                            hold_amount: holdAmount   // Add to hold_amount
+                        },
+                        updated_At: new Date(),
+                        updated_by: req.user.user_id
+                    }
+                );
+            }
+        }
+
+        // Generate Agora channel and token for the call
+        try {
+            // const channelName = generateAgoraChannelName(Date.now(), data.advisor_id, data.created_by);
+            const channelName = "easyAdvisingToken";
+            const { userToken, advisorToken } = generateAgoraToken(channelName, data.created_by, data.advisor_id, 2);
+            data.agoraChannelName = channelName;
+            data.userAgoraToken = userToken;
+            data.advisorAgoraToken = advisorToken;
+        } catch (tokenError) {
+            console.error('Failed to generate Agora credentials:', tokenError);
+            return res.status(500).json({ message: 'Failed to generate Agora credentials', status: 500 });
+        }
+
+        const schedule = new ScheduleCall(data);
+        await schedule.save();
+        res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
+    } catch (error) {
+        res.status(500).json({ message: error.message || error, status: 500 });
+    }
 };
 
 // Update Schedule Call
@@ -197,17 +198,17 @@ const updateScheduleCall = async (req, res) => {
         if (!schedule_id) {
             return res.status(400).json({ message: 'schedule_id is required in body', status: 400 });
         }
-        
+
         // Get existing schedule call to check previous values
         const existingSchedule = await ScheduleCall.findOne({ schedule_id });
         if (!existingSchedule) {
             return res.status(404).json({ message: 'Schedule call not found', status: 404 });
         }
-        
+
         const data = req.body;
         data.updated_by = req.user.user_id;
         data.updated_at = new Date();
-        
+
         // Calculate hold_amount if Call_duration and perminRate are provided
         let newHoldAmount = 0;
         if (data.Call_duration && data.perminRate) {
@@ -219,13 +220,13 @@ const updateScheduleCall = async (req, res) => {
         } else if (existingSchedule.Call_duration && existingSchedule.perminRate) {
             newHoldAmount = existingSchedule.Call_duration * existingSchedule.perminRate;
         }
-        
+
         // Calculate previous hold amount
         let previousHoldAmount = 0;
         if (existingSchedule.Call_duration && existingSchedule.perminRate) {
             previousHoldAmount = existingSchedule.Call_duration * existingSchedule.perminRate;
         }
-        
+
         // Update wallet hold_amount if not using package subscription
         if (!existingSchedule.package_Subscription_id && existingSchedule.created_by) {
             const userWallet = await Wallet.findOne({ user_id: { $in: [existingSchedule.created_by] } });
@@ -237,7 +238,7 @@ const updateScheduleCall = async (req, res) => {
                     await Wallet.findOneAndUpdate(
                         { user_id: { $in: [existingSchedule.created_by] } },
                         {
-                            $inc: { 
+                            $inc: {
                                 amount: -holdAmountDifference,      // Adjust amount (decrease if positive diff, increase if negative)
                                 hold_amount: holdAmountDifference   // Adjust hold_amount
                             },
@@ -248,11 +249,11 @@ const updateScheduleCall = async (req, res) => {
                 }
             }
         }
-        
+
         // Release hold_amount if call is completed or cancelled
-        if ((data.callStatus === 'Completed' || data.callStatus === 'Cancelled') && 
-            previousHoldAmount > 0 && 
-            !existingSchedule.package_Subscription_id && 
+        if ((data.callStatus === 'Completed' || data.callStatus === 'Cancelled') &&
+            previousHoldAmount > 0 &&
+            !existingSchedule.package_Subscription_id &&
             existingSchedule.created_by) {
             const userWallet = await Wallet.findOne({ user_id: { $in: [existingSchedule.created_by] } });
             if (userWallet && userWallet.hold_amount >= previousHoldAmount) {
@@ -260,7 +261,7 @@ const updateScheduleCall = async (req, res) => {
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [existingSchedule.created_by] } },
                     {
-                        $inc: { 
+                        $inc: {
                             amount: previousHoldAmount,        // Add back to amount
                             hold_amount: -previousHoldAmount   // Reduce hold_amount
                         },
@@ -270,7 +271,7 @@ const updateScheduleCall = async (req, res) => {
                 );
             }
         }
-        
+
         const schedule = await ScheduleCall.findOneAndUpdate(
             { schedule_id },
             data,
@@ -999,7 +1000,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
             .skip(skip)
             .limit(parseInt(limit));
 
-        console.log("schedules",schedules);
+        console.log("schedules", schedules);
 
         // Get total count
         const totalSchedules = await ScheduleCall.countDocuments(query);
@@ -1037,7 +1038,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
             ? await ReasonSummary.find({ schedule_call_id: { $in: scheduleIds } })
                 .select('schedule_call_id summary summary_type summary_id created_at')
             : [];
-        
+
         // Create a map of schedule_call_id -> reason_summary
         const reasonSummaryMap = {};
         reasonSummaries.forEach(summary => {
@@ -1323,22 +1324,22 @@ const getCallByadvisorId = async (req, res) => {
             advisor_id: Number(advisor_id),
             callStatus: 'Pending'
         })
-        .select('schedule_id advisor_id date time created_by userAgoraToken advisorAgoraToken agoraChannelName')
-        .populate({
-            path: 'advisor_id',
-            model: 'User',
-            localField: 'advisor_id',
-            foreignField: 'user_id',
-            select: 'user_id name email mobile role_id profile_image'
-        })
-        .populate({
-            path: 'created_by',
-            model: 'User',
-            localField: 'created_by',
-            foreignField: 'user_id',
-            select: 'user_id name email mobile role_id profile_image'
-        })
-        .sort({ date: 1, time: 1 }); // Sort by date and time ascending
+            .select('schedule_id advisor_id date time created_by userAgoraToken advisorAgoraToken agoraChannelName')
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .sort({ date: 1, time: 1 }); // Sort by date and time ascending
 
         // Map schedule calls to return only required fields with populated details
         const mappedCalls = scheduleCalls.map(call => ({
@@ -1451,7 +1452,7 @@ const getScheduleCallHistoryByType = async (req, res) => {
             ? await ReasonSummary.find({ schedule_call_id: { $in: scheduleIds } })
                 .select('schedule_call_id summary summary_type summary_id created_at')
             : [];
-        
+
         // Create a map of schedule_call_id -> reason_summary
         const reasonSummaryMap = {};
         reasonSummaries.forEach(summary => {
@@ -1467,20 +1468,20 @@ const getScheduleCallHistoryByType = async (req, res) => {
         // Reviews are linked by: review.user_id = schedule_call.advisor_id AND review.created_by = schedule_call.created_by
         const Reviews = require('../models/reviews.model');
         const reviewsMap = {};
-        
+
         // Fetch reviews for each unique advisor_id and created_by combination
         // Handle both populated objects and raw IDs
         const advisorUserPairs = [...new Set(allSchedules.map(s => {
-            const advisorId = (s.advisor_id && typeof s.advisor_id === 'object' && s.advisor_id.user_id) 
-                ? s.advisor_id.user_id 
+            const advisorId = (s.advisor_id && typeof s.advisor_id === 'object' && s.advisor_id.user_id)
+                ? s.advisor_id.user_id
                 : (s.advisor_id || null);
-            const userId = (s.created_by && typeof s.created_by === 'object' && s.created_by.user_id) 
-                ? s.created_by.user_id 
+            const userId = (s.created_by && typeof s.created_by === 'object' && s.created_by.user_id)
+                ? s.created_by.user_id
                 : (s.created_by || null);
             // Only include pairs where both IDs are valid
             return advisorId && userId ? `${advisorId}_${userId}` : null;
         }).filter(Boolean))];
-        
+
         // Fetch all reviews in parallel
         const reviewPromises = advisorUserPairs.map(async (pair) => {
             const [advisorId, userId] = pair.split('_').map(Number);
@@ -1489,9 +1490,9 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 created_by: userId,
                 status: 1 // Only active reviews
             })
-            .select('reviews_id description rating user_id created_by created_at')
-            .sort({ created_at: -1 }); // Get most recent review first
-            
+                .select('reviews_id description rating user_id created_by created_at')
+                .sort({ created_at: -1 }); // Get most recent review first
+
             return {
                 pair,
                 reviews: reviews.length > 0 ? reviews.map(review => ({
@@ -1502,7 +1503,7 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 })) : null
             };
         });
-        
+
         const reviewResults = await Promise.all(reviewPromises);
         reviewResults.forEach(({ pair, reviews }) => {
             reviewsMap[pair] = reviews;
@@ -1518,11 +1519,11 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 .map(schedule => {
                     const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
                     // Handle both populated objects and raw IDs for review key
-                    const advisorId = (schedule.advisor_id && typeof schedule.advisor_id === 'object' && schedule.advisor_id.user_id) 
-                        ? schedule.advisor_id.user_id 
+                    const advisorId = (schedule.advisor_id && typeof schedule.advisor_id === 'object' && schedule.advisor_id.user_id)
+                        ? schedule.advisor_id.user_id
                         : (schedule.advisor_id || null);
-                    const userId = (schedule.created_by && typeof schedule.created_by === 'object' && schedule.created_by.user_id) 
-                        ? schedule.created_by.user_id 
+                    const userId = (schedule.created_by && typeof schedule.created_by === 'object' && schedule.created_by.user_id)
+                        ? schedule.created_by.user_id
                         : (schedule.created_by || null);
                     const reviewKey = advisorId && userId ? `${advisorId}_${userId}` : null;
                     return {
@@ -1588,7 +1589,7 @@ const endCall = async (req, res) => {
         const userId = req.user.user_id;
 
         // Validate callStatus if provided
-    
+
         if (!schedule_id) {
             return res.status(400).json({
                 message: 'schedule_id is required',
@@ -1667,8 +1668,8 @@ const endCall = async (req, res) => {
         }
 
         // Get call type details for commission calculation (optional, for commission rates)
-        const callType = await CallType.findOne({ 
-            mode_name: scheduleCall.call_type 
+        const callType = await CallType.findOne({
+            mode_name: scheduleCall.call_type
         });
 
         // Check if Call_duration already exists in the schedule call
@@ -1709,11 +1710,11 @@ const endCall = async (req, res) => {
                 updated_by: userId,
                 updated_at: new Date()
             };
-            
+
             if (callStatus) {
                 updateData.callStatus = callStatus;
             }
-            
+
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
                 updateData,
@@ -1734,13 +1735,13 @@ const endCall = async (req, res) => {
         // If call status is not Completed (and not completing now), only update schedule call without payment processing
         if (scheduleCall.callStatus !== 'Completed' && !isCompletionRequest) {
             console.log("print callStatus", callStatus);
-            
+
             // Calculate new hold_amount based on updated duration (only relevant for scheduled calls)
             const newHoldAmount = isScheduledCall ? (finalCallDuration || Call_duration) * pricePerMinute : 0;
-            const previousHoldAmount = isScheduledCall && scheduleCall.Call_duration && scheduleCall.perminRate 
-                ? scheduleCall.Call_duration * scheduleCall.perminRate 
+            const previousHoldAmount = isScheduledCall && scheduleCall.Call_duration && scheduleCall.perminRate
+                ? scheduleCall.Call_duration * scheduleCall.perminRate
                 : 0;
-            
+
             if (isScheduledCall && !scheduleCall.package_Subscription_id && scheduleCall.created_by) {
                 // Update wallet hold_amount if not using package subscription
                 const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
@@ -1758,7 +1759,7 @@ const endCall = async (req, res) => {
                     }
                 }
             }
-            
+
             if (isScheduledCall && callStatus === 'Cancelled' && previousHoldAmount > 0 && !scheduleCall.package_Subscription_id && scheduleCall.created_by) {
                 // Release hold_amount if call is cancelled (scheduled calls only)
                 const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
@@ -1766,7 +1767,7 @@ const endCall = async (req, res) => {
                     await Wallet.findOneAndUpdate(
                         { user_id: { $in: [scheduleCall.created_by] } },
                         {
-                            $inc: { 
+                            $inc: {
                                 amount: previousHoldAmount,        // Add back to amount
                                 hold_amount: -previousHoldAmount   // Reduce hold_amount
                             },
@@ -1776,7 +1777,7 @@ const endCall = async (req, res) => {
                     );
                 }
             }
-            
+
             // Update schedule call with duration and amount
             const updateData = {
                 Call_duration: finalCallDuration || Call_duration,
@@ -1785,11 +1786,11 @@ const endCall = async (req, res) => {
                 updated_by: userId,
                 updated_at: new Date()
             };
-            
+
             if (callStatus) {
                 updateData.callStatus = callStatus;
             }
-            
+
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
                 updateData,
@@ -1815,7 +1816,7 @@ const endCall = async (req, res) => {
         const allowedStatusesForCompletion = scheduleCall.schedule_type === 'Instant'
             ? ['Pending']
             : ['Pending'];
-console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompletion, "\n\n\n");
+        console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompletion, "\n\n\n");
         // Check if call status allows ending
         if (!allowedStatusesForCompletion.includes(scheduleCall.callStatus)) {
             return res.status(400).json({
@@ -1943,16 +1944,16 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
             }
 
             // Calculate hold_amount that was previously held (scheduled calls only)
-            const previousHoldAmount = scheduleCall.schedule_type === 'Schedule' && scheduleCall.Call_duration && scheduleCall.perminRate 
-                ? scheduleCall.Call_duration * scheduleCall.perminRate 
+            const previousHoldAmount = scheduleCall.schedule_type === 'Schedule' && scheduleCall.Call_duration && scheduleCall.perminRate
+                ? scheduleCall.Call_duration * scheduleCall.perminRate
                 : 0;
-            
+
             // Check if wallet has sufficient balance (amount + hold_amount should cover totalAmount)
             // Since hold_amount was deducted from amount, we need: amount + hold_amount >= totalAmount
             const totalAvailable = scheduleCall.schedule_type === 'Schedule'
                 ? userWallet.amount + (userWallet.hold_amount || 0)
                 : userWallet.amount;
-            
+
             if (totalAvailable < totalAmount) {
                 return res.status(400).json({
                     message: 'Insufficient wallet balance',
@@ -1969,7 +1970,7 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [scheduleCall.created_by] } },
                     {
-                        $inc: { 
+                        $inc: {
                             amount: previousHoldAmount,        // Add back to amount
                             hold_amount: -previousHoldAmount   // Reduce hold_amount
                         },
@@ -1978,7 +1979,7 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
                     }
                 );
             }
-            
+
             // Calculate amount to deduct (if hold_amount was less than totalAmount)
             let amountToDeduct = totalAmount;
             if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount > 0 && previousHoldAmount < totalAmount) {
@@ -1986,8 +1987,8 @@ console.log("print allowedStatusesForCompletion \n\n\n", allowedStatusesForCompl
             } else if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount >= totalAmount) {
                 amountToDeduct = 0; // Already deducted via hold_amount when created
             }
-            
-console.log("print scheduleCall.schedule_type, callStatus \n\n\n", scheduleCall.schedule_type, callStatus, "\n\n\n");
+
+            console.log("print scheduleCall.schedule_type, callStatus \n\n\n", scheduleCall.schedule_type, callStatus, "\n\n\n");
 
 
             // if(scheduleCall.schedule_type === 'Instant' && callStatus === 'Completed') {
