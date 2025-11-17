@@ -1138,7 +1138,7 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
         const skip = (page - 1) * limit;
 
         // Build query - filter by authenticated advisor
-        const query = { advisor_id: advisorId };
+        const query = { advisor_id: advisorId, schedule_type: 'Schedule' };
 
         // Add call status filter
         if (callStatus) {
