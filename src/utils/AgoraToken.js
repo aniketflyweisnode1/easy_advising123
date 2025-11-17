@@ -3,7 +3,7 @@ const { RtcTokenBuilder } = require('agora-token');
 
 const AGORA_CONFIG = {
     APP_ID: '1a9f54c08e84434bb88fd5d366942cd8',
-    APP_CERTIFICATE: 'd0f6b43b73f343aa93ede05760607b9a',
+    APP_CERTIFICATE: '0f2594c4fb6b4a9f93845b4845fbf831',
     TOKEN_EXPIRATION_TIME: 3600 // 1 hour in seconds
 };
 // 0f2594c4fb6b4a9f93845b4845fbf831    p
