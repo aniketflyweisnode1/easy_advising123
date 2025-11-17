@@ -207,7 +207,7 @@ const getProfile = async (req, res) => {
       });
     }
 
-    
+
     let slotDetails = {
       advisor_slots: [],
       total_days: 0,
@@ -1068,36 +1068,18 @@ const getAdvisorList = async (req, res) => {
 
     const skip = (page - 1) * limit;
 
-    // Normalize login_permission_status (default true)
-  
-    if (login_permission_status !== undefined && login_permission_status !== null) {
-      if (
-        login_permission_status === true ||
-        login_permission_status === 'true' ||
-        login_permission_status === 1 ||
-        login_permission_status === '1'
-      ) {
-        login_permission_status = true;
-      } else if (
-        login_permission_status === false ||
-        login_permission_status === 'false' ||
-        login_permission_status === 0 ||
-        login_permission_status === '0'
-      ) {
-        login_permission_status = false;
-      }
-    }
-
+    
+    query = {};
     // Build query
-    if(!login_permission_status){
-    const query = { role_id: parseInt(role_id)};
-  }else{
-    const query = { role_id: parseInt(role_id), login_permission_status: true };
-  }
+    if (!login_permission_status) {
+       query = { role_id: parseInt(role_id) };
+    } else {
+       query = { role_id: parseInt(role_id), login_permission_status: true };
+    }
 
     // Debug logging
     console.log('getAdvisorList - Query params:', {
-      page, limit, search, role_id, category_id, subcategory_id, status, login_permission_status: loginPermissionStatus
+    //  page, limit, search, role_id, category_id, subcategory_id, status, login_permission_status: loginPermissionStatus
     });
 
     // Add search functionality
@@ -1259,11 +1241,11 @@ const getAdvisorList = async (req, res) => {
       : [];
     const createdByMap = {};
     createdByUsers.forEach(u => { createdByMap[u.user_id] = u; });
-    
+
     // Count reviews with rating 0
     const reviewsWithZeroRating = allReviews.filter(r => r.rating === 0 || r.rating === null || r.rating === undefined).length;
     const reviewsWithValidRating = allReviews.filter(r => r.rating > 0 && r.rating <= 5).length;
-    
+
     console.log('All reviews count:', allReviews.length);
     console.log('Reviews with rating 0:', reviewsWithZeroRating);
     console.log('Reviews with valid rating (1-5):', reviewsWithValidRating);
@@ -1285,7 +1267,7 @@ const getAdvisorList = async (req, res) => {
     // First pass: Count reviews by date category for each advisor
     allReviews.forEach(review => {
       const advisorId = review.user_id;
-      
+
       if (!reviewStatsByAdvisor[advisorId]) {
         reviewStatsByAdvisor[advisorId] = {
           reviews_today_count: 0,
@@ -1296,7 +1278,7 @@ const getAdvisorList = async (req, res) => {
       }
 
       const createdAt = review.created_at ? new Date(review.created_at) : null;
-      
+
       if (createdAt) {
         // Today
         if (createdAt >= startOfToday) {
@@ -1328,7 +1310,7 @@ const getAdvisorList = async (req, res) => {
       }
 
       const createdAt = review.created_at ? new Date(review.created_at) : null;
-      
+
       // Determine review age category
       let reviewAgeCategory = {
         is_today: false,
@@ -1368,7 +1350,7 @@ const getAdvisorList = async (req, res) => {
         created_by: createdByMap[review.created_by] || null,
         reviews_old_days: reviewStatsByAdvisor[advisorId].reviews_old_days_count
       };
-      
+
       reviewsMap[advisorId].push(reviewWithStats);
     });
 
@@ -1431,7 +1413,7 @@ const getAdvisorList = async (req, res) => {
           language: advisor.language,
 
           // Professional Information
-      
+
           experience_year: advisor.experience_year,
           description_Bio: advisor.description_Bio,
           expertise_offer: advisor.expertise_offer,
@@ -2481,10 +2463,10 @@ const updateUser = async (req, res) => {
       }
       // console.log('updateData.user  \n', user_id);
 
-    const slots = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
-    // console.log('slots  \n', slots);
+      const slots = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
+      // console.log('slots  \n', slots);
       for (const slot of slots) {
-      
+
         await ChooseTimeSlot.deleteOne({ choose_Time_slot_id: slot.choose_Time_slot_id });
       }
 
@@ -3121,11 +3103,11 @@ const updateUserSlotAndInstantCall = async (req, res) => {
 
         // Create/update choose_day_Advisor and choose_Time_slot records
         for (const slotItem of slot) {
-            await ChooseTimeSlot.create({
+          await ChooseTimeSlot.create({
             choose_day_Advisor_id: slotItem.Day_id,
-              advisor_id: parseInt(user_id),
+            advisor_id: parseInt(user_id),
             Time_slot: slotItem.times,
-              created_by: parseInt(user_id),
+            created_by: parseInt(user_id),
             created_at: new Date(),
             updated_at: new Date()
           });
@@ -3193,12 +3175,14 @@ const updateAdvisorRate = async (req, res) => {
     user.updated_on = new Date();
     await user.save();
 
-    return res.status(200).json({ success: true, message: 'Rate updated successfully', data: {
-      user_id: user.user_id,
-      chat_Rate: user.chat_Rate,
-      audio_Rate: user.audio_Rate,
-      VideoCall_rate: user.VideoCall_rate
-    }});
+    return res.status(200).json({
+      success: true, message: 'Rate updated successfully', data: {
+        user_id: user.user_id,
+        chat_Rate: user.chat_Rate,
+        audio_Rate: user.audio_Rate,
+        VideoCall_rate: user.VideoCall_rate
+      }
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
