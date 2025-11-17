@@ -881,7 +881,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
             date_to,
             advisor_name,
             call_type,
-            schedule_type,
+            schedule_type, // kept for backward compatibility but overridden below
             approval_status,
             status,
             sort_by = 'created_at',
@@ -892,8 +892,8 @@ const getSchedulecallByuserAuth = async (req, res) => {
         console.log(userId);
         const skip = (page - 1) * limit;
 
-        // Build query - filter by authenticated user as creator
-        const query = { created_by: userId };
+        // Build query - filter by authenticated user as creator and force schedule_type = 'Schedule'
+        const query = { created_by: userId, schedule_type: 'Schedule' };
 
         // Add call status filter
         if (callStatus) {
@@ -919,10 +919,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
             query.call_type = call_type;
         }
 
-        // Add schedule type filter
-        if (schedule_type) {
-            query.schedule_type = schedule_type;
-        }
+        // Intentionally ignore schedule_type filter so this endpoint only returns scheduled appointments
 
         // Add approval status filter
         if (approval_status !== undefined) {

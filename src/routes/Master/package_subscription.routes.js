@@ -28,7 +28,6 @@ router.get('/getByPackageId/:package_id', auth, getPackageSubscriptionsByPackage
 router.get('/getAll', auth, getAllPackageSubscriptions);
 // create by data 2025-07-14
 router.get('/getAllActived', auth, getAllActivedPackageSubscriptions);
-
 // Update subscription status 2025-07-15
 router.patch('/updateStatus', auth, updateSubscriptionStatus);
 // Get subscriptions by status 2025-07-15
