@@ -1068,7 +1068,7 @@ const getAdvisorList = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Build query
-    const query = { role_id: parseInt(role_id) };
+    const query = { role_id: parseInt(role_id), login_permission_status: true };
 
     // Debug logging
     console.log('getAdvisorList - Query params:', {
