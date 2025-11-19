@@ -1584,6 +1584,73 @@ const getScheduleCallHistoryByType = async (req, res) => {
     }
 };
 
+const refreshAgoraToken = async (req, res) => {
+    try {
+        const { schedule_id } = req.body;
+        const requesterId = req.user?.user_id;
+
+        if (!schedule_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'schedule_id is required',
+                status: 400
+            });
+        }
+
+        const schedule = await ScheduleCall.findOne({ schedule_id });
+        if (!schedule) {
+            return res.status(404).json({
+                success: false,
+                message: 'Schedule call not found',
+                status: 404
+            });
+        }
+
+        if (requesterId !== schedule.created_by && requesterId !== schedule.advisor_id && req.user.role_id !== 1) {
+            return res.status(403).json({
+                success: false,
+                message: 'You are not authorized to refresh this call token',
+                status: 403
+            });
+        }
+
+        const channelName = generateAgoraChannelName(Date.now(), schedule.advisor_id, schedule.created_by);
+        const { userToken, advisorToken } = generateAgoraToken(
+            channelName,
+            schedule.created_by,
+            schedule.advisor_id,
+            2
+        );
+
+        schedule.agoraChannelName = channelName;
+        schedule.userAgoraToken = userToken;
+        schedule.advisorAgoraToken = advisorToken;
+        schedule.updated_by = requesterId;
+        schedule.updated_at = new Date();
+        await schedule.save();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Agora credentials refreshed successfully',
+            data: {
+                schedule_id,
+                agoraChannelName: channelName,
+                userAgoraToken: userToken,
+                advisorAgoraToken: advisorToken
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Refresh Agora token error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to refresh Agora credentials',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
 // End Call and Process Payment
 const endCall = async (req, res) => {
     try {
@@ -2102,5 +2169,6 @@ module.exports = {
     getSchedulecallByAdvisorAuth,
     getCallByadvisorId,
     getScheduleCallHistoryByType,
-    endCall
+    endCall,
+    refreshAgoraToken
 }; 

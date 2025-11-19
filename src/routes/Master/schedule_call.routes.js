@@ -13,7 +13,8 @@ const {
     getSchedulecallByAdvisorAuth,
     getCallByadvisorId,
     getScheduleCallHistoryByType,
-    endCall
+    endCall,
+    refreshAgoraToken
 } = require('../../controller/schedule_call.controller.js');
 
 // Create  2025-07-14
@@ -40,5 +41,9 @@ router.get('/getCallByadvisorId/:advisor_id', auth, getCallByadvisorId);
 router.get('/getCallHistory', auth, getScheduleCallHistoryByType);
 // End call and process payment 2025-07-14
 router.post('/endcall', auth, endCall);
+// Refresh Agora tokens for a schedule call
+router.post('/refreshAgoraToken', auth, refreshAgoraToken);
+
+
 
 module.exports = router; 

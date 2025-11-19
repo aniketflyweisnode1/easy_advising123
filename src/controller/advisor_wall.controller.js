@@ -6,45 +6,59 @@ const ScheduleCall = require('../models/schedule_call.model');
 const advisorWallet = async (req, res) => {
     try {
         const user_id = req.user.user_id;
-        // Current balance
+
+        const formatAmount = (value) => Number((Number(value) || 0).toFixed(2));
+
         const wallet = await Wallet.findOne({ user_id });
-        const current_balance = wallet ? wallet.amount : 0;
+        const wallet_amount = formatAmount(wallet ? wallet.amount : 0);
 
-        // Pending withdraw requests
-        const pending_withdraws = await WithdrawRequest.find({ user_id, last_status: 'Panding' });
-        const pending_withdraw_amount = pending_withdraws.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const withdrawRequests = await WithdrawRequest.find({ user_id }).sort({ created_at: -1 });
+        const pendingWithdraws = withdrawRequests.filter(w => w.last_status === 'Panding');
+        const completedWithdraws = withdrawRequests.filter(w => ["Release", "Approved", "Success"].includes(w.last_status));
 
-        // Total withdraw amount (all successful/approved/released)
-        const completed_withdraws = await WithdrawRequest.find({ user_id, last_status: { $in: ["Release", "Approved", "Success"] } });
-        const total_withdraw_amount = completed_withdraws.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const pending_withdraw_amount = formatAmount(pendingWithdraws.reduce((sum, w) => sum + (w.amount || 0), 0));
+        const withdraw_amount = formatAmount(completedWithdraws.reduce((sum, w) => sum + (w.amount || 0), 0));
 
-        // Total earning (sum of all ScheduleCall.Amount for this advisor)
         const calls = await ScheduleCall.find({ advisor_id: user_id });
-        const total_earning = calls.reduce((sum, c) => sum + (c.Amount || 0), 0);
+        const total_earning = formatAmount(calls.reduce((sum, c) => sum + (c.Amount || 0), 0));
 
-        // Withdraw transactions
-        const withdraw_transactions = await Transaction.find({ user_id, transactionType: 'withdraw' }).sort({ transaction_date: -1 });
-
-        // Earning transactions (from ScheduleCall, not Transaction table)
-        const earning_transactions = calls.filter(c => c.Amount > 0).map(c => ({
-            schedule_id: c.schedule_id,
-            amount: c.Amount,
-            call_type: c.call_type,
-            date: c.date,
-            time: c.time
+        const Withdraw_history = withdrawRequests.map(request => ({
+            request_id: request.request_id,
+            amount: formatAmount(request.amount),
+            last_status: request.last_status,
+            transaction_id: request.transaction_id || null,
+            created_at: request.created_at,
+            updated_at: request.updated_at
         }));
 
-        res.status(200).json({
-            current_balance,
-            pending_withdraw_amount,
-            total_withdraw_amount,
-            total_earning,
-            withdraw_transactions,
-            earning_transactions,
+        const Trangection_history = calls
+            .filter(c => c.Amount > 0)
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map(call => ({
+                schedule_id: call.schedule_id,
+                amount: formatAmount(call.Amount),
+                call_type: call.call_type,
+                callStatus: call.callStatus,
+                date: call.date,
+                time: call.time
+            }));
+
+        return res.status(200).json({
+            success: true,
+            message: 'Advisor wallet summary retrieved successfully',
+            data: {
+                total_earning,
+                withdraw_amount,
+                wallet_amount,
+                pending_withdraw_amount,
+                Withdraw_history,
+                Trangection_history
+            },
             status: 200
         });
     } catch (error) {
-        res.status(500).json({ message: error.message || error, status: 500 });
+        console.error('Advisor wallet error:', error);
+        return res.status(500).json({ message: error.message || error, status: 500 });
     }
 };
 
