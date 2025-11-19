@@ -2621,7 +2621,7 @@ const updateVendorRates = async (req, res) => {
     );
 
     // Update advisor package if package rates are provided
-    if (basicPackage !== undefined || EconomyPackage !== undefined || proPackage !== undefined) {
+    // if (basicPackage !== undefined || EconomyPackage !== undefined || proPackage !== undefined) {
       const advisorPackage = await AdvisorPackage.findOne({ advisor_id: parseInt(user_id) });
 
       if (advisorPackage) {
@@ -2646,7 +2646,7 @@ const updateVendorRates = async (req, res) => {
           { new: true, runValidators: true }
         );
       }
-    }
+    // }
 
     return res.status(200).json({
       success: true,

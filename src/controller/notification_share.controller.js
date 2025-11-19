@@ -356,10 +356,139 @@ const getAllNotificationShares = async (req, res) => {
     }
 };
 
+// Get notification shares by authenticated user
+const getNotificationShareByAuth = async (req, res) => {
+    try {
+        const userId = req.user?.user_id;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated',
+                status: 401
+            });
+        }
+
+        const {
+            page = 1,
+            limit = 10,
+            status,
+            notification_id,
+            blog_id,
+            sort_by = 'created_at',
+            sort_order = 'desc'
+        } = req.query;
+
+        const skip = (page - 1) * limit;
+
+        const query = {
+            user_id: { $in: [Number(userId)] }
+        };
+
+        if (status !== undefined) {
+            let statusValue;
+            if (status === 'true' || status === true) {
+                statusValue = 1;
+            } else if (status === 'false' || status === false) {
+                statusValue = 0;
+            } else {
+                const parsed = parseInt(status);
+                statusValue = isNaN(parsed) ? undefined : parsed;
+            }
+            if (statusValue !== undefined) {
+                query.status = statusValue;
+            }
+        }
+
+        if (notification_id) {
+            query.notification_id = parseInt(notification_id);
+        }
+
+        if (blog_id) {
+            query.blog_id = parseInt(blog_id);
+        }
+
+        const sortObj = {};
+        sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
+
+        const notificationShares = await NotificationShare.find(query)
+            .sort(sortObj)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const totalNotificationShares = await NotificationShare.countDocuments(query);
+
+        const userIds = [...new Set([
+            userId,
+            ...notificationShares.map(ns => ns.created_by),
+            ...notificationShares.map(ns => ns.updated_by).filter(Boolean)
+        ])];
+
+        const users = await User.find(
+            { user_id: { $in: userIds } },
+            { user_id: 1, name: 1, email: 1, mobile: 1, role_id: 1, status: 1, _id: 0 }
+        );
+        const userMap = {};
+        users.forEach(u => { userMap[u.user_id] = u; });
+
+        const roleIds = [...new Set(users.map(u => u.role_id).filter(Boolean))];
+        const roles = await Role.find(
+            { role_id: { $in: roleIds } },
+            { role_id: 1, name: 1, description: 1, _id: 0 }
+        );
+        const roleMap = {};
+        roles.forEach(r => { roleMap[r.role_id] = r; });
+
+        const sharesWithDetails = notificationShares.map(share => {
+            const shareObj = share.toObject();
+            return {
+                ...shareObj,
+                created_by_user: userMap[share.created_by] ? {
+                    user_id: userMap[share.created_by].user_id,
+                    name: userMap[share.created_by].name,
+                    email: userMap[share.created_by].email,
+                    mobile: userMap[share.created_by].mobile,
+                    role: roleMap[userMap[share.created_by].role_id] || null
+                } : null,
+                updated_by_user: share.updated_by && userMap[share.updated_by] ? {
+                    user_id: userMap[share.updated_by].user_id,
+                    name: userMap[share.updated_by].name,
+                    email: userMap[share.updated_by].email,
+                    mobile: userMap[share.updated_by].mobile,
+                    role: roleMap[userMap[share.updated_by].role_id] || null
+                } : null
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Notification shares retrieved successfully',
+            data: {
+                notificationShares: sharesWithDetails,
+                pagination: {
+                    current_page: parseInt(page),
+                    total_pages: Math.ceil(totalNotificationShares / limit),
+                    total_items: totalNotificationShares,
+                    items_per_page: parseInt(limit)
+                }
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Get notification shares by auth error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
 module.exports = {
     createNotificationShare,
     createNotificationShareByRole,
     updateNotificationShare,
     getNotificationShareById,
-    getAllNotificationShares
+    getAllNotificationShares,
+    getNotificationShareByAuth
 }; 

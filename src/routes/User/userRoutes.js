@@ -29,7 +29,7 @@ router.get('/getallemployees', getAllEmployees);
 router.put('/update', auth, updateUser);
 
 // Update vendor rates and packages
-router.put('/update-vendor-rates', auth, updateVendorRates);
+router.put('/UpdateAdvisorRates', auth, updateVendorRates);
 
 // Update vendor schedule and availability
 router.put('/updatevendordaytimeschedule', auth, updateVendorSchedule);
@@ -39,5 +39,8 @@ router.get('/vendor-call-statistics/:vendor_id', auth, getVendorCallStatistics);
 
 // Update user slot and instant_call
 router.put('/update-slot-instant-call', auth, updateUserSlotAndInstantCall);
+
+
+
 
 module.exports = router; 
