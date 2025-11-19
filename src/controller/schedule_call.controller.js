@@ -1079,7 +1079,10 @@ const getSchedulecallByuserAuth = async (req, res) => {
             return {
                 ...scheduleObj,
                 Summary: reasonSummaryMap[schedule.schedule_id] || null,
-                Reviews: reviewsMap[schedule.schedule_id] || []
+                Reviews: reviewsMap[schedule.schedule_id] || [],
+                agoraChannelName: schedule.agoraChannelName,
+                userAgoraToken: schedule.userAgoraToken,
+                advisorAgoraToken: schedule.advisorAgoraToken
             };
         });
 
@@ -1277,11 +1280,21 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
         // Get available call statuses for filter options
         const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
 
+        const responseSchedules = filteredSchedules.map(schedule => {
+            const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
+            return {
+                ...scheduleObj,
+                agoraChannelName: schedule.agoraChannelName,
+                userAgoraToken: schedule.userAgoraToken,
+                advisorAgoraToken: schedule.advisorAgoraToken
+            };
+        });
+
         return res.status(200).json({
             success: true,
             message: 'Schedule calls for advisor retrieved successfully',
             data: {
-                schedules: filteredSchedules,
+                schedules: responseSchedules,
                 pagination: {
                     current_page: parseInt(page),
                     total_pages: Math.ceil(totalSchedules / limit),
