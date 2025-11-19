@@ -19,8 +19,29 @@ const advisorWallet = async (req, res) => {
         const pending_withdraw_amount = formatAmount(pendingWithdraws.reduce((sum, w) => sum + (w.amount || 0), 0));
         const withdraw_amount = formatAmount(completedWithdraws.reduce((sum, w) => sum + (w.amount || 0), 0));
 
-        const calls = await ScheduleCall.find({ advisor_id: user_id });
-        const total_earning = formatAmount(calls.reduce((sum, c) => sum + (c.Amount || 0), 0));
+        const calls = await ScheduleCall.find({ advisor_id: user_id })
+            .populate({
+                path: 'created_by',
+                model: 'User',
+                localField: 'created_by',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            })
+            .populate({
+                path: 'advisor_id',
+                model: 'User',
+                localField: 'advisor_id',
+                foreignField: 'user_id',
+                select: 'user_id name email mobile role_id profile_image'
+            });
+        const total_earning = formatAmount(
+            calls.reduce((sum, c) => {
+                if ((c.callStatus || '').toLowerCase() === 'completed') {
+                    return sum + (c.Amount || 0);
+                }
+                return sum;
+            }, 0)
+        );
 
         const Withdraw_history = withdrawRequests.map(request => ({
             request_id: request.request_id,
@@ -32,16 +53,30 @@ const advisorWallet = async (req, res) => {
         }));
 
         const Trangection_history = calls
-            .filter(c => c.Amount > 0)
             .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .map(call => ({
-                schedule_id: call.schedule_id,
-                amount: formatAmount(call.Amount),
-                call_type: call.call_type,
-                callStatus: call.callStatus,
-                date: call.date,
-                time: call.time
-            }));
+            .map(call => {
+                const scheduleObj = call.toObject ? call.toObject() : call;
+                const creator = scheduleObj.created_by && typeof scheduleObj.created_by === 'object'
+                    ? scheduleObj.created_by
+                    : null;
+                return {
+                    schedule_id: scheduleObj.schedule_id,
+                    amount: formatAmount(scheduleObj.Amount),
+                    duration: scheduleObj.Call_duration,
+                    call_type: scheduleObj.call_type,
+                    callStatus: scheduleObj.callStatus,
+                    date: scheduleObj.date,
+                    time: scheduleObj.time,
+                    caller: creator ? {
+                        user_id: creator.user_id,
+                        name: creator.name,
+                        email: creator.email,
+                        mobile: creator.mobile,
+                        role_id: creator.role_id,
+                        profile_image: creator.profile_image || null
+                    } : null
+                };
+            });
 
         return res.status(200).json({
             success: true,
