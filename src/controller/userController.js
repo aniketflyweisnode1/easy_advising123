@@ -8,6 +8,14 @@ const AdvisorPackage = require('../models/Advisor_Package.model.js');
 const ChooseDayAdvisor = require('../models/choose_day_Advisor.model.js');
 const ChooseTimeSlot = require('../models/choose_Time_slot.model.js');
 
+const formatRatingValue = (value, decimals = 1) => {
+  const num = Number(value);
+  if (Number.isFinite(num)) {
+    return Number(num.toFixed(decimals));
+  }
+  return Number((0).toFixed(decimals));
+};
+
 const registerUser = async (req, res) => {
   try {
     const {
@@ -1347,6 +1355,7 @@ const getAdvisorList = async (req, res) => {
       // Add review with age category and advisor statistics to reviewsMap
       const reviewWithStats = {
         ...review.toObject(),
+        rating: formatRatingValue(review.rating || 0),
         created_by: createdByMap[review.created_by] || null,
         reviews_old_days: reviewStatsByAdvisor[advisorId].reviews_old_days_count
       };
@@ -1375,7 +1384,15 @@ const getAdvisorList = async (req, res) => {
       success: true,
       message: `Users with role_id ${role_id} retrieved successfully`,
       data: {
-        users: advisors.map(advisor => ({
+        users: advisors.map(advisor => {
+          const advisorReviews = reviewsMap[advisor.user_id] || [];
+          const totalReviews = advisorReviews.length;
+          const averageRatingRaw = totalReviews > 0
+            ? advisorReviews.reduce((sum, review) => sum + (review.rating || 0), 0) / totalReviews
+            : 0;
+          const averageRating = formatRatingValue(averageRatingRaw);
+
+          return {
           // Primary ID
           user_id: advisor.user_id,
 
@@ -1455,13 +1472,15 @@ const getAdvisorList = async (req, res) => {
           packageDetails: packageMap[advisor.user_id] || [],
 
           // Reviews
-          average_rating: allReviews.length > 0 ? (allReviews.reduce((sum, review) => sum + (review.rating || 0), 0) / allReviews.length) : 0,
-          Total_reviews: (reviewsMap[advisor.user_id] || []).length,
-          reviews: reviewsMap[advisor.user_id] || [],
+          average_rating: averageRating,
+          total_reviews: totalReviews,
+          Total_reviews: totalReviews,
+          reviews: advisorReviews,
 
           // Advisor Time Slots (with populated day details)
           time_slots: timeSlotMap[advisor.user_id] || []
-        })),
+        };
+      }),
         pagination: {
           current_page: parseInt(page),
           total_pages: Math.ceil(totalAdvisors / limit),
