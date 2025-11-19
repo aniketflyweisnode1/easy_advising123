@@ -13,7 +13,7 @@ const advisorWallet = async (req, res) => {
         const wallet_amount = formatAmount(wallet ? wallet.amount : 0);
 
         const withdrawRequests = await WithdrawRequest.find({ user_id }).sort({ created_at: -1 });
-        const pendingWithdraws = withdrawRequests.filter(w => w.last_status === 'Panding');
+        const pendingWithdraws = withdrawRequests.filter(w => w.last_status === 'Pending');
         const completedWithdraws = withdrawRequests.filter(w => ["Release", "Approved", "Success"].includes(w.last_status));
 
         const pending_withdraw_amount = formatAmount(pendingWithdraws.reduce((sum, w) => sum + (w.amount || 0), 0));
@@ -53,7 +53,7 @@ const advisorWallet = async (req, res) => {
         }));
 
         const Trangection_history = calls
-            .filter(call => (call.callStatus || '').toLowerCase() !== 'Pending')
+            .filter(call => (call.callStatus || '').toLowerCase() !== 'pending')
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .map(call => {
                 const scheduleObj = call.toObject ? call.toObject() : call;

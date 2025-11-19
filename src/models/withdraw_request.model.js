@@ -25,8 +25,8 @@ const withdrawRequestSchema = new mongoose.Schema({
   },
   last_status: {
     type: String,
-    enum: ["Release", "Panding", "Failed", "Success", "Reject", "Approved"],
-    default: "Panding",
+    enum: ["Release", "Pending", "Failed", "Success", "Reject", "Approved"],
+    default: "Pending",
     required: true
   },
   status: {
