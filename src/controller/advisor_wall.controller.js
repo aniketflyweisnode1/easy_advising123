@@ -53,6 +53,7 @@ const advisorWallet = async (req, res) => {
         }));
 
         const Trangection_history = calls
+            .filter(call => (call.callStatus || '').toLowerCase() !== 'Pending')
             .sort((a, b) => new Date(b.date) - new Date(a.date))
             .map(call => {
                 const scheduleObj = call.toObject ? call.toObject() : call;
