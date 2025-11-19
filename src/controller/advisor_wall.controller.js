@@ -2,6 +2,7 @@ const Wallet = require('../models/wallet.model');
 const WithdrawRequest = require('../models/withdraw_request.model');
 const Transaction = require('../models/transaction.model');
 const ScheduleCall = require('../models/schedule_call.model');
+const CallType = require('../models/call_type.model');
 
 const advisorWallet = async (req, res) => {
     try {
@@ -34,10 +35,22 @@ const advisorWallet = async (req, res) => {
                 foreignField: 'user_id',
                 select: 'user_id name email mobile role_id profile_image'
             });
+        const callTypes = await CallType.find({ adviser_id: user_id });
+        const adminCommissionMap = {};
+        callTypes.forEach(type => {
+            adminCommissionMap[(type.mode_name || '').toLowerCase()] = Number(type.admin_commission) || 0;
+        });
+
+        const defaultAdminCommission = 30;
+
         const total_earning = formatAmount(
             calls.reduce((sum, c) => {
                 if ((c.callStatus || '').toLowerCase() === 'completed') {
-                    return sum + (c.Amount || 0);
+                    const amount = Number(c.Amount) || 0;
+                    const adminRate = adminCommissionMap[(c.call_type || '').toLowerCase()] ?? defaultAdminCommission;
+                    const adminCut = amount * (adminRate / 100);
+                    const advisorShare = amount - adminCut;
+                    return sum + advisorShare;
                 }
                 return sum;
             }, 0)
@@ -60,9 +73,13 @@ const advisorWallet = async (req, res) => {
                 const creator = scheduleObj.created_by && typeof scheduleObj.created_by === 'object'
                     ? scheduleObj.created_by
                     : null;
+                const rawAmount = Number(scheduleObj.Amount) || 0;
+                const adminRate = adminCommissionMap[(scheduleObj.call_type || '').toLowerCase()] ?? defaultAdminCommission;
+                const adminCut = rawAmount * (adminRate / 100);
+                const advisorShare = rawAmount - adminCut;
                 return {
                     schedule_id: scheduleObj.schedule_id,
-                    amount: formatAmount(scheduleObj.Amount),
+                    amount: formatAmount(advisorShare),
                     duration: scheduleObj.Call_duration,
                     call_type: scheduleObj.call_type,
                     callStatus: scheduleObj.callStatus,
