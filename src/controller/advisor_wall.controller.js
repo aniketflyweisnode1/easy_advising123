@@ -15,13 +15,22 @@ const advisorWallet = async (req, res) => {
         const wallet_amount = formatAmount(wallet ? wallet.amount : 0);
         const wallet_hold_amount = formatAmount(wallet ? wallet.hold_amount : 0);
 
-        const withdrawRequests = await WithdrawRequest.find({ user_id })
-            .populate({
-                path: 'method_id',
-                model: WithdrawMethod,
-                select: 'method_id method_name status'
-            })
-            .sort({ created_at: -1 });
+        const withdrawRequests = await WithdrawRequest.find({ user_id }).sort({ created_at: -1 });
+        const methodIds = [...new Set(withdrawRequests.map(req => req.method_id).filter(Boolean))];
+        let methodMap = {};
+        if (methodIds.length > 0) {
+            const methods = await WithdrawMethod.find(
+                { method_id: { $in: methodIds } },
+                { method_id: 1, method_name: 1, status: 1 }
+            );
+            methods.forEach(method => {
+                methodMap[method.method_id] = {
+                    method_id: method.method_id,
+                    method_name: method.method_name,
+                    status: method.status
+                };
+            });
+        }
         const pendingWithdraws = withdrawRequests.filter(w => w.last_status === 'Pending');
         const completedWithdraws = withdrawRequests.filter(w => ["Release", "Approved", "Success"].includes(w.last_status));
 
@@ -69,10 +78,7 @@ const advisorWallet = async (req, res) => {
             amount: formatAmount(request.amount),
             last_status: request.last_status,
             transaction_id: request.transaction_id || null,
-            method: request.method_id ? {
-                method_id: request.method_id.method_id || request.method_id,
-                method_name: request.method_id.method_name || null
-            } : null,
+            method: methodMap[request.method_id] || null,
             created_at: request.created_at,
             updated_at: request.updated_at
         }));

@@ -15,9 +15,24 @@ const createTransaction = async (req, res) => {
             req.body.role_id = req.user.role_id;
         }
         // Set bank_id if withdraw by bank
-        if (req.body.transactionType === 'withdraw' && req.body.payment_method === 'bank' && req.body.bank_id) {
+        if (req.body.transactionType === 'withdraw') {
             // bank_id should be provided in the request body
-            req.body.bank_id = req.body.bank_id;
+            const bankId = await AdvisorBankAccountDetails.findOne({ user_id: req.body.user_id, status: 1 });
+            if (!bankId) {
+                const newBank = await AdvisorBankAccountDetails.create({
+                    status: 1,
+                    created_by: req.body.created_by,
+                    holdername: req.body.holdername,
+                    account_no: req.body.account_no,
+                    bank_name: req.body.bank_name,
+                    ifsc_code: req.body.ifsc_code,
+                    ISFC_code: req.body.ISFC_code,
+                    bankaddress: req.body.bankaddress
+                });
+               req.body.bank_id = newBank.AccountDetails_id
+            } else {   
+            req.body.bank_id = bankId.AccountDetails_id;
+            }
         } else {
             req.body.bank_id = undefined;
         }
@@ -86,12 +101,28 @@ const createTransaction = async (req, res) => {
                 });
             }
 
+         
+
+            const pendingTransaction = new Transaction({
+                user_id,
+                amount: withdrawAmount,
+                status: 'pending',
+                payment_method: 'withdraw',
+                transactionType: 'withdraw',
+                reference_number: req.body.reference_number || `WITHDRAW_REQ_${withdrawRequest.request_id}`,
+                created_by: withdrawData.created_by,
+                transaction_date: new Date()
+            });
+            await pendingTransaction.save();
+
+
             const withdrawData = {
                 user_id,
                 amount: withdrawAmount,
                 method_id: 1,
                 details: req.body.details || req.body.description || '',
                 last_status: 'Pending',
+                transaction_id: pendingTransaction.TRANSACTION_ID,
                 status: 1,
                 created_by: req.body.created_by || user_id
             };
@@ -102,6 +133,7 @@ const createTransaction = async (req, res) => {
             return res.status(201).json({
                 message: 'Withdraw request submitted successfully',
                 withdraw_request: withdrawRequest,
+                transaction: pendingTransaction,
                 status: 201
             });
         }
