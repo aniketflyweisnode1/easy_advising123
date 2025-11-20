@@ -53,7 +53,7 @@ const createTransaction = async (req, res) => {
         // Create withdraw request instead of direct wallet deduction
         if (transactionType === 'withdraw') {
             const withdrawAmount = Number(amount);
-            const methodId = req.body.method_id || req.body.withdraw_method_id;
+            const methodId = 1;
 
             if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
                 return res.status(400).json({
