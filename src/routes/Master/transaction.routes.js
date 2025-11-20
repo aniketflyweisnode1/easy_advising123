@@ -12,11 +12,14 @@ const {
     updateDownloadStatus,
     getTransactionsByAdvisorId
 } = require('../../controller/transaction.controller');
+const { createWithdrawRequest } = require('../../controller/withdraw_request.controller');
 const { auth } = require('../../middleware/authMiddleware');
 
 router.post('/', auth, createTransaction);
 // Admin recharge user wallet
 router.post('/admin-recharge', auth, createTransactionByAdmin);
+// Advisor/user withdraw request via transaction API namespace
+router.post('/withdraw-request', auth, createWithdrawRequest);
 router.get('/my-transactions', auth, getTransactionsbyauth);
 
 // Get transactions by advisor ID - must be before /:id to avoid conflicts

@@ -140,7 +140,6 @@ const createScheduleCall = async (req, res) => {
             // For scheduled calls, estimate hold amount (30 minutes average)
             holdAmount = 30 * data.perminRate;
         }
-        data.hold_amount = holdAmount;
 
         // Add hold_amount to user's wallet if not using package subscription (only for Schedule calls)
         if (holdAmount > 0 && !data.package_Subscription_id) {
@@ -221,16 +220,12 @@ const updateScheduleCall = async (req, res) => {
         } else if (existingSchedule.Call_duration && existingSchedule.perminRate) {
             newHoldAmount = existingSchedule.Call_duration * existingSchedule.perminRate;
         }
-        if (existingSchedule.schedule_type === 'Schedule' && newHoldAmount === 0 && existingSchedule.hold_amount) {
-            newHoldAmount = existingSchedule.hold_amount;
-        }
 
         // Calculate previous hold amount
-        let previousHoldAmount = existingSchedule.schedule_type === 'Schedule'
-            ? (existingSchedule.hold_amount || (existingSchedule.Call_duration && existingSchedule.perminRate
-                ? existingSchedule.Call_duration * existingSchedule.perminRate
-                : 0))
-            : 0;
+        let previousHoldAmount = 0;
+        if (existingSchedule.Call_duration && existingSchedule.perminRate) {
+            previousHoldAmount = existingSchedule.Call_duration * existingSchedule.perminRate;
+        }
 
         // Update wallet hold_amount if not using package subscription
         if (!existingSchedule.package_Subscription_id && existingSchedule.created_by) {
@@ -254,11 +249,6 @@ const updateScheduleCall = async (req, res) => {
                 }
             }
         }
-        if (existingSchedule.schedule_type === 'Schedule') {
-            data.hold_amount = newHoldAmount;
-        } else if (data.schedule_type === 'Instant') {
-            data.hold_amount = 0;
-        }
 
         // Release hold_amount if call is completed or cancelled
         if ((data.callStatus === 'Completed' || data.callStatus === 'Cancelled') &&
@@ -280,7 +270,6 @@ const updateScheduleCall = async (req, res) => {
                     }
                 );
             }
-            data.hold_amount = 0;
         }
 
         const schedule = await ScheduleCall.findOneAndUpdate(
@@ -1817,16 +1806,10 @@ const endCall = async (req, res) => {
             console.log("print callStatus", callStatus);
 
             // Calculate new hold_amount based on updated duration (only relevant for scheduled calls)
-            const previousHoldAmount = isScheduledCall
-                ? (scheduleCall.hold_amount
-                    || (scheduleCall.Call_duration && scheduleCall.perminRate
-                        ? scheduleCall.Call_duration * scheduleCall.perminRate
-                        : 30 * pricePerMinute))
+            const newHoldAmount = isScheduledCall ? (finalCallDuration || Call_duration) * pricePerMinute : 0;
+            const previousHoldAmount = isScheduledCall && scheduleCall.Call_duration && scheduleCall.perminRate
+                ? scheduleCall.Call_duration * scheduleCall.perminRate
                 : 0;
-            let newHoldAmount = previousHoldAmount;
-            if (isScheduledCall && (finalCallDuration || Call_duration)) {
-                newHoldAmount = (finalCallDuration || Call_duration) * pricePerMinute;
-            }
 
             if (isScheduledCall && !scheduleCall.package_Subscription_id && scheduleCall.created_by) {
                 // Update wallet hold_amount if not using package subscription
@@ -1869,7 +1852,6 @@ const endCall = async (req, res) => {
                 Call_duration: finalCallDuration || Call_duration,
                 perminRate: pricePerMinute,
                 Amount: totalAmount,
-                hold_amount: isScheduledCall ? newHoldAmount : 0,
                 updated_by: userId,
                 updated_at: new Date()
             };
@@ -1973,7 +1955,6 @@ const endCall = async (req, res) => {
                     Call_duration: finalCallDuration,
                     perminRate: pricePerMinute,
                     Amount: totalAmount,
-                    hold_amount: 0,
                     updated_by: userId,
                     updated_at: new Date()
                 },
@@ -2032,12 +2013,8 @@ const endCall = async (req, res) => {
             }
 
             // Calculate hold_amount that was previously held (scheduled calls only)
-            const fallbackHoldAmount = scheduleCall.schedule_type === 'Schedule' ? 30 * pricePerMinute : 0;
-            const previousHoldAmount = scheduleCall.schedule_type === 'Schedule'
-                ? (scheduleCall.hold_amount
-                    || (scheduleCall.Call_duration && scheduleCall.perminRate
-                        ? scheduleCall.Call_duration * scheduleCall.perminRate
-                        : fallbackHoldAmount))
+            const previousHoldAmount = scheduleCall.schedule_type === 'Schedule' && scheduleCall.Call_duration && scheduleCall.perminRate
+                ? scheduleCall.Call_duration * scheduleCall.perminRate
                 : 0;
 
             // Check if wallet has sufficient balance (amount + hold_amount should cover totalAmount)
@@ -2111,7 +2088,7 @@ const endCall = async (req, res) => {
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [scheduleCall.advisor_id] } },
                     {
-                        $inc: { amount: advisorCommission },
+                        amount: advisorWallet.amount + advisorCommission,
                         updated_At: new Date(),
                         updated_by: userId
                     }
@@ -2123,8 +2100,7 @@ const endCall = async (req, res) => {
                     role_id: 2, // Assuming role_id 2 is for advisors
                     amount: advisorCommission,
                     created_At: new Date(),
-                    updated_At: new Date(),
-                    updated_by: userId
+                    updated_At: new Date()
                 });
                 await newAdvisorWallet.save();
             }
@@ -2135,7 +2111,7 @@ const endCall = async (req, res) => {
                 await Wallet.findOneAndUpdate(
                     { role_id: 1 },
                     {
-                        $inc: { amount: adminCommission },
+                        amount: adminWallet.amount + adminCommission,
                         updated_At: new Date(),
                         updated_by: userId
                     }
@@ -2147,8 +2123,7 @@ const endCall = async (req, res) => {
                     role_id: 1,
                     amount: adminCommission,
                     created_At: new Date(),
-                    updated_At: new Date(),
-                    updated_by: userId
+                    updated_At: new Date()
                 });
                 await newAdminWallet.save();
             }

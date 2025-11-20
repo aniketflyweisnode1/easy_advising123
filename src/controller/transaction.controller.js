@@ -1,6 +1,7 @@
 const Transaction = require('../models/transaction.model.js');
 const Wallet = require('../models/wallet.model.js');
 const User = require('../models/User.model.js');
+const WithdrawRequest = require('../models/withdraw_request.model.js');
 
 
 const createTransaction = async (req, res) => {
@@ -47,11 +48,68 @@ const createTransaction = async (req, res) => {
             }
         }
 
+        const { user_id, amount, transactionType, role_id } = req.body;
+
+        // Create withdraw request instead of direct wallet deduction
+        if (transactionType === 'withdraw') {
+            const withdrawAmount = Number(amount);
+            const methodId = req.body.method_id || req.body.withdraw_method_id;
+
+            if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+                return res.status(400).json({
+                    message: 'Withdraw amount must be a number greater than 0',
+                    status: 400
+                });
+            }
+
+            if (!methodId) {
+                return res.status(400).json({
+                    message: 'method_id is required for withdraw transactions',
+                    status: 400
+                });
+            }
+
+            const wallet = await Wallet.findOne({ user_id });
+            if (!wallet) {
+                return res.status(404).json({
+                    message: 'Wallet not found for user',
+                    status: 404
+                });
+            }
+
+            if ((Number(wallet.amount) || 0) < withdrawAmount) {
+                return res.status(400).json({
+                    message: 'Insufficient funds in wallet',
+                    balance: Number(wallet.amount) || 0,
+                    requested_amount: withdrawAmount,
+                    status: 400
+                });
+            }
+
+            const withdrawData = {
+                user_id,
+                amount: withdrawAmount,
+                method_id: parseInt(methodId),
+                details: req.body.details || req.body.description || '',
+                last_status: 'Pending',
+                status: 1,
+                created_by: req.body.created_by || user_id
+            };
+
+            const withdrawRequest = new WithdrawRequest(withdrawData);
+            await withdrawRequest.save();
+
+            return res.status(201).json({
+                message: 'Withdraw request submitted successfully',
+                withdraw_request: withdrawRequest,
+                status: 201
+            });
+        }
+
         console.log(req.body, req.user)
         const transaction = new Transaction(req.body);
         await transaction.save();
 
-        const { user_id, amount, transactionType, role_id } = req.body;
         const wallet = await Wallet.findOne({ user_id });
         if (!wallet) {
             const newWallet = new Wallet({ user_id, role_id, amount: Number(amount) });
@@ -63,7 +121,7 @@ const createTransaction = async (req, res) => {
         
         if (transactionType === 'deposit' || transactionType === 'Recharge') {
             newAmount += transactionAmount;
-        } else if (transactionType === 'registration_fee' || transactionType === 'withdraw') {
+        } else if (transactionType === 'registration_fee') {
             if (newAmount < transactionAmount) {
                 return res.status(400).json({ message: 'Insufficient funds in wallet', status: 400 });
             }

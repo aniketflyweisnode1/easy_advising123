@@ -1,5 +1,6 @@
 const Wallet = require('../models/wallet.model');
 const WithdrawRequest = require('../models/withdraw_request.model');
+const WithdrawMethod = require('../models/withdraw_method.model');
 const Transaction = require('../models/transaction.model');
 const ScheduleCall = require('../models/schedule_call.model');
 const CallType = require('../models/call_type.model');
@@ -10,10 +11,17 @@ const advisorWallet = async (req, res) => {
 
         const formatAmount = (value) => Number((Number(value) || 0).toFixed(2));
 
-        const wallet = await Wallet.findOne({ user_id });
+        const wallet = await Wallet.findOne({ user_id: { $in: [user_id] } });
         const wallet_amount = formatAmount(wallet ? wallet.amount : 0);
+        const wallet_hold_amount = formatAmount(wallet ? wallet.hold_amount : 0);
 
-        const withdrawRequests = await WithdrawRequest.find({ user_id }).sort({ created_at: -1 });
+        const withdrawRequests = await WithdrawRequest.find({ user_id })
+            .populate({
+                path: 'method_id',
+                model: WithdrawMethod,
+                select: 'method_id method_name status'
+            })
+            .sort({ created_at: -1 });
         const pendingWithdraws = withdrawRequests.filter(w => w.last_status === 'Pending');
         const completedWithdraws = withdrawRequests.filter(w => ["Release", "Approved", "Success"].includes(w.last_status));
 
@@ -61,6 +69,10 @@ const advisorWallet = async (req, res) => {
             amount: formatAmount(request.amount),
             last_status: request.last_status,
             transaction_id: request.transaction_id || null,
+            method: request.method_id ? {
+                method_id: request.method_id.method_id || request.method_id,
+                method_name: request.method_id.method_name || null
+            } : null,
             created_at: request.created_at,
             updated_at: request.updated_at
         }));
@@ -103,6 +115,7 @@ const advisorWallet = async (req, res) => {
                 total_earning,
                 withdraw_amount,
                 wallet_amount,
+                wallet_hold_amount,
                 pending_withdraw_amount,
                 Withdraw_history,
                 Trangection_history
