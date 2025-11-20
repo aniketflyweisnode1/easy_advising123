@@ -3134,7 +3134,12 @@ const updateUserSlotAndInstantCall = async (req, res) => {
       }
     }
 
-    const updatedUser = await User.findOne({ user_id: parseInt(user_id) });
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: parseInt(user_id) },
+      updateData,
+      { new: true, runValidators: true }
+    );
+
     const updatedSlot = await ChooseTimeSlot.find({ advisor_id: parseInt(user_id) });
     return res.status(200).json({
       success: true,
