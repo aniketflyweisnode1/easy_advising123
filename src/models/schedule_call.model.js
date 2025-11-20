@@ -83,6 +83,10 @@ const scheduleCallSchema = new mongoose.Schema({
   perminRate: {
     type: Number
   },
+  hold_amount: {
+    type: Number,
+    default: 0
+  },
   Call_duration: {
     type: Number
   },
