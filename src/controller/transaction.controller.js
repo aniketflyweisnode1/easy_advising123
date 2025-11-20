@@ -6,10 +6,10 @@ const WithdrawRequest = require('../models/withdraw_request.model.js');
 
 const createTransaction = async (req, res) => {
     try {
-        console.log(req.user)
         if (req.user && req.user.user_id) {
             req.body.user_id = req.user.user_id;
             req.body.created_by = req.user.user_id;
+            req.body.method_id = 1;
         }
         if (req.user && req.user.role_id) {
             req.body.role_id = req.user.role_id;
@@ -89,7 +89,7 @@ const createTransaction = async (req, res) => {
             const withdrawData = {
                 user_id,
                 amount: withdrawAmount,
-                method_id: parseInt(methodId),
+                method_id: 1,
                 details: req.body.details || req.body.description || '',
                 last_status: 'Pending',
                 status: 1,
