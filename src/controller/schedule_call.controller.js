@@ -1020,7 +1020,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
         // Get reviews for all schedule calls based on schedule_call_id
         const Reviews = require('../models/reviews.model');
         const scheduleReviews = scheduleIds.length > 0
-            ? await Reviews.find({ user_id: advisorId, schedule_call_id: { $in: scheduleIds } })
+            ? await Reviews.find({ schedule_call_id: { $in: scheduleIds } })
                 .select('schedule_call_id reviews_id description rating user_id created_by created_at')
                 .sort({ created_at: -1 })
             : [];
