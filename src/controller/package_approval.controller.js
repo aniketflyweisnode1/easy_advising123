@@ -231,8 +231,6 @@ const getPackageApprovalById = async (req, res) => {
 const getAllPackageApprovals = async (req, res) => {
   try {
     const {
-      page = 1,
-      limit = 10,
       approve_status,
       status,
       sort_by = 'created_at',
@@ -262,21 +260,13 @@ const getAllPackageApprovals = async (req, res) => {
       ];
     }
 
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
     // Build sort object
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
     // Get packages
     const packages = await AdvisorPackage.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalPackages = await AdvisorPackage.countDocuments(query);
+      .sort(sortObj);
 
     // Get user details for all packages
     const userIds = [...new Set([
@@ -311,21 +301,10 @@ const getAllPackageApprovals = async (req, res) => {
       inactive: await AdvisorPackage.countDocuments({ status: false })
     };
 
-    // Pagination info
-    const totalPages = Math.ceil(totalPackages / parseInt(limit));
-
     res.status(200).json({
       success: true,
       message: 'Advisor package approvals retrieved successfully',
       data: packagesWithDetails,
-      pagination: {
-        current_page: parseInt(page),
-        total_pages: totalPages,
-        total_items: totalPackages,
-        limit: parseInt(limit),
-        has_next_page: parseInt(page) < totalPages,
-        has_prev_page: parseInt(page) > 1
-      },
       statistics: stats,
       status: 200
     });
@@ -343,8 +322,6 @@ const getPackageApprovalsByAuth = async (req, res) => {
     const userId = req.user.user_id;
 
     const {
-      page = 1,
-      limit = 10,
       approve_status,
       status,
       sort_by = 'created_at',
@@ -364,21 +341,13 @@ const getPackageApprovalsByAuth = async (req, res) => {
       query.status = status === 'true';
     }
 
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
     // Build sort object
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
     // Get packages
     const packages = await AdvisorPackage.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalPackages = await AdvisorPackage.countDocuments(query);
+      .sort(sortObj);
 
     // Get approver details
     const approverIds = [...new Set(packages.map(p => p.approve_by).filter(id => id))];
@@ -408,21 +377,10 @@ const getPackageApprovalsByAuth = async (req, res) => {
       inactive: await AdvisorPackage.countDocuments({ created_by: userId, status: false })
     };
 
-    // Pagination info
-    const totalPages = Math.ceil(totalPackages / parseInt(limit));
-
     res.status(200).json({
       success: true,
       message: 'Your advisor package approvals retrieved successfully',
       data: packagesWithDetails,
-      pagination: {
-        current_page: parseInt(page),
-        total_pages: totalPages,
-        total_items: totalPackages,
-        limit: parseInt(limit),
-        has_next_page: parseInt(page) < totalPages,
-        has_prev_page: parseInt(page) > 1
-      },
       statistics: userStats,
       status: 200
     });

@@ -187,8 +187,7 @@ const getLanguageById = async (req, res) => {
 // Get all languages
 const getAllLanguages = async (req, res) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const { status } = req.query;
 
     // Build query
     const query = {};
@@ -211,14 +210,9 @@ const getAllLanguages = async (req, res) => {
       }
     }
 
-    // Get languages with pagination
+    // Get languages without pagination
     const languages = await Language.find(query)
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalLanguages = await Language.countDocuments(query);
+      .sort({ created_at: -1 });
 
     return res.status(200).json({
       success: true,
@@ -233,13 +227,7 @@ const getAllLanguages = async (req, res) => {
           created_at: language.created_at,
           updated_by: language.updated_by,
           updated_on: language.updated_on
-        })),
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalLanguages / limit),
-          total_items: totalLanguages,
-          items_per_page: parseInt(limit)
-        }
+        }))
       }
     });
 

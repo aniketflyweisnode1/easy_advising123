@@ -175,8 +175,7 @@ const getRoleById = async (req, res) => {
 // Get all roles
 const getAllRoles = async (req, res) => {
   try {
-    const { status = true, page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const { status = true } = req.query;
 
     // Build query
     const query = {};
@@ -199,14 +198,9 @@ const getAllRoles = async (req, res) => {
       }
     }
 
-    // Get roles with pagination
+    // Get roles without pagination
     const roles = await Role.find(query)
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalRoles = await Role.countDocuments(query);
+      .sort({ created_at: -1 });
 
     return res.status(200).json({
       success: true,
@@ -222,13 +216,7 @@ const getAllRoles = async (req, res) => {
           created_at: role.created_at,
           updated_by: role.updated_by,
           updated_on: role.updated_on
-        })),
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalRoles / limit),
-          total_items: totalRoles,
-          items_per_page: parseInt(limit)
-        }
+        }))
       }
     });
 
@@ -246,8 +234,6 @@ const getAllRoles = async (req, res) => {
 const getUsersByRoleId = async (req, res) => {
   try {
     const { role_id } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
 
     // Check if role exists
     const role = await Role.findOne({ role_id: parseInt(role_id) });
@@ -260,12 +246,7 @@ const getUsersByRoleId = async (req, res) => {
 
     // Get users with this role
     const users = await User.find({ role_id: parseInt(role_id) })
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalUsers = await User.countDocuments({ role_id: parseInt(role_id) });
+      .sort({ created_at: -1 });
 
     return res.status(200).json({
       success: true,
@@ -283,13 +264,7 @@ const getUsersByRoleId = async (req, res) => {
           login_permission_status: user.login_permission_status,
           status: user.status,
           created_at: user.created_at
-        })),
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalUsers / limit),
-          total_items: totalUsers,
-          items_per_page: parseInt(limit)
-        }
+        }))
       }
     });
 

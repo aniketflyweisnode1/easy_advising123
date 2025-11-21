@@ -168,8 +168,7 @@ const getDeleteAccountById = async (req, res) => {
 // Get all delete account requests
 const getAllDeleteAccounts = async (req, res) => {
     try {
-        const { page = 1, limit = 10, status, Delete_status } = req.query;
-        const skip = (page - 1) * limit;
+        const { status, Delete_status } = req.query;
 
         // Build query
         const query = {};
@@ -194,14 +193,9 @@ const getAllDeleteAccounts = async (req, res) => {
             query.Delete_status = Delete_status;
         }
 
-        // Get delete accounts with pagination
+        // Get delete accounts without pagination
         const deleteAccounts = await DeleteAccount.find(query)
-            .sort({ created_at: -1 })
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalDeleteAccounts = await DeleteAccount.countDocuments(query);
+            .sort({ created_at: -1 });
 
         // Get all unique user IDs from delete accounts
         const userIds = [...new Set([
@@ -256,13 +250,7 @@ const getAllDeleteAccounts = async (req, res) => {
             success: true,
             message: 'Delete account requests retrieved successfully',
             data: {
-                deleteAccounts: populatedDeleteAccounts,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalDeleteAccounts / limit),
-                    total_items: totalDeleteAccounts,
-                    items_per_page: parseInt(limit)
-                }
+                deleteAccounts: populatedDeleteAccounts
             },
             status: 200
         });

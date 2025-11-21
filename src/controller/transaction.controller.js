@@ -385,8 +385,6 @@ const getAllTransactions = async (req, res) => {
         
         // Get query parameters
         const { 
-            page = 1, 
-            limit = 10, 
             search, 
             transaction_type,
             payment_method,
@@ -400,8 +398,6 @@ const getAllTransactions = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
@@ -493,14 +489,9 @@ const getAllTransactions = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-        // Get transactions with pagination and filters
+        // Get transactions with filters
         const transactions = await Transaction.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalTransactions = await Transaction.countDocuments(query);
+            .sort(sortObj);
         
         // Get all unique user IDs from transactions
         const userIds = [...new Set([
@@ -637,12 +628,6 @@ const getAllTransactions = async (req, res) => {
             message: 'Transactions retrieved successfully',
             data: {
                 transactions: transactionsWithDetails,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalTransactions / limit),
-                    total_items: totalTransactions,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_statuses: availableStatuses,
                     available_transaction_types: availableTransactionTypes,
@@ -735,8 +720,6 @@ const getTransactionsbyauth = async (req, res) => {
 
         // Get query parameters
         const { 
-            page = 1, 
-            limit = 10, 
             search, 
             transaction_type,
             payment_method,
@@ -749,8 +732,6 @@ const getTransactionsbyauth = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-
-        const skip = (page - 1) * limit;
 
         // Build query - filter by authenticated user's ID
         const query = { user_id: authenticatedUserId };
@@ -816,14 +797,8 @@ const getTransactionsbyauth = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-        // Get transactions with pagination and filters
         const transactions = await Transaction.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalTransactions = await Transaction.countDocuments(query);
+            .sort(sortObj);
         
         // Get user details for the authenticated user
         const user = await User.findOne(
@@ -947,12 +922,6 @@ const getTransactionsbyauth = async (req, res) => {
                     email: user.email,
                     mobile: user.mobile,
                     role_id: user.role_id
-                },
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalTransactions / limit),
-                    total_items: totalTransactions,
-                    items_per_page: parseInt(limit)
                 },
                 filters: {
                     available_statuses: availableStatuses,
@@ -1199,8 +1168,6 @@ const getTransactionsByAdvisorId = async (req, res) => {
 
         // Get query parameters
         const { 
-            page = 1, 
-            limit = 10, 
             search, 
             transaction_type,
             status: transaction_status,
@@ -1224,8 +1191,6 @@ const getTransactionsByAdvisorId = async (req, res) => {
                 status: 404
             });
         }
-
-        const skip = (parseInt(page) - 1) * parseInt(limit);
 
         // Build query - filter by advisor's user_id
         const query = { user_id: Number(advisor_id) };
@@ -1305,12 +1270,7 @@ const getTransactionsByAdvisorId = async (req, res) => {
 
         // Get transactions with pagination and filters
         const transactions = await Transaction.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalTransactions = await Transaction.countDocuments(query);
+            .sort(sortObj);
 
         // Get all unique created_by user IDs from transactions
         const createdByUserIds = [...new Set(transactions.map(t => t.created_by))];
@@ -1425,11 +1385,6 @@ const getTransactionsByAdvisorId = async (req, res) => {
         const availableTransactionTypes = [...new Set(allAdvisorTransactions.map(t => t.transactionType))];
         const availablePaymentMethods = [...new Set(allAdvisorTransactions.map(t => t.payment_method))];
 
-        // Calculate pagination info
-        const totalPages = Math.ceil(totalTransactions / parseInt(limit));
-        const hasNextPage = parseInt(page) < totalPages;
-        const hasPrevPage = parseInt(page) > 1;
-
         // Get wallet information
         const wallet = await Wallet.findOne({ user_id: Number(advisor_id) });
 
@@ -1455,16 +1410,6 @@ const getTransactionsByAdvisorId = async (req, res) => {
                     created_At: wallet.created_At,
                     updated_At: wallet.updated_At
                 } : null,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: totalPages,
-                    total_transactions: totalTransactions,
-                    limit: parseInt(limit),
-                    has_next_page: hasNextPage,
-                    has_prev_page: hasPrevPage,
-                    next_page: hasNextPage ? parseInt(page) + 1 : null,
-                    prev_page: hasPrevPage ? parseInt(page) - 1 : null
-                },
                 filters: {
                     available_statuses: availableStatuses,
                     available_transaction_types: availableTransactionTypes,

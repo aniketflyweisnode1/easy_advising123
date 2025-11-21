@@ -157,8 +157,6 @@ const getSupportRequestById = async (req, res) => {
 const getAllSupportRequests = async (req, res) => {
   try {
     const {
-      page = 1,
-      limit = 10,
       search,
       status,
       user_id,
@@ -169,8 +167,6 @@ const getAllSupportRequests = async (req, res) => {
       sort_by = 'CreateAt',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query
     const query = {};
@@ -221,12 +217,7 @@ const getAllSupportRequests = async (req, res) => {
 
     // Get support requests with pagination and filters
     const supportRequests = await SupportRequest.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalRequests = await SupportRequest.countDocuments(query);
+      .sort(sortObj);
 
     // Get all unique user IDs
     const userIds = [...new Set([
@@ -295,13 +286,7 @@ const getAllSupportRequests = async (req, res) => {
       success: true,
       message: 'Support requests retrieved successfully',
       data: {
-        requests: requestsWithDetails,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalRequests / limit),
-          total_items: totalRequests,
-          items_per_page: parseInt(limit)
-        }
+        requests: requestsWithDetails
       },
       status: 200
     });
@@ -361,8 +346,6 @@ const getSupportRequestsByAuth = async (req, res) => {
     }
 
     const {
-      page = 1,
-      limit = 10,
       search,
       status,
       created_date_from,
@@ -372,8 +355,6 @@ const getSupportRequestsByAuth = async (req, res) => {
       sort_by = 'CreateAt',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query - filter by authenticated user
     const query = {
@@ -424,12 +405,7 @@ const getSupportRequestsByAuth = async (req, res) => {
 
     // Get support requests with pagination and filters
     const supportRequests = await SupportRequest.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalRequests = await SupportRequest.countDocuments(query);
+      .sort(sortObj);
 
     // Get all unique user IDs
     const userIds = [...new Set([
@@ -498,13 +474,7 @@ const getSupportRequestsByAuth = async (req, res) => {
       success: true,
       message: 'Your support requests retrieved successfully',
       data: {
-        requests: requestsWithDetails,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalRequests / limit),
-          total_items: totalRequests,
-          items_per_page: parseInt(limit)
-        }
+        requests: requestsWithDetails
       },
       status: 200
     });

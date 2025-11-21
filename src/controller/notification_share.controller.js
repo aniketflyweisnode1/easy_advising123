@@ -164,8 +164,6 @@ const getNotificationShareById = async (req, res) => {
 const getAllNotificationShares = async (req, res) => {
     try {
         const { 
-            page = 1, 
-            limit = 10, 
             search, 
             status,
             role_id,
@@ -174,8 +172,6 @@ const getAllNotificationShares = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
@@ -212,14 +208,10 @@ const getAllNotificationShares = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-        // Get notification shares with pagination and filters
+        // Get notification shares with filters
         const notificationShares = await NotificationShare.find(query)
             .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalNotificationShares = await NotificationShare.countDocuments(query);
+            ;
 
         // Get all unique user IDs from notification shares
         const userIds = [...new Set([
@@ -330,12 +322,6 @@ const getAllNotificationShares = async (req, res) => {
             message: 'Notification shares retrieved successfully',
             data: {
                 notificationShares: notificationSharesWithDetails,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalNotificationShares / limit),
-                    total_items: totalNotificationShares,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_notification_ids: availableNotificationIds,
                     available_blog_ids: availableBlogIds,
@@ -369,16 +355,12 @@ const getNotificationShareByAuth = async (req, res) => {
         }
 
         const {
-            page = 1,
-            limit = 10,
             status,
             notification_id,
             blog_id,
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-
-        const skip = (page - 1) * limit;
 
         const query = {
             user_id: { $in: [Number(userId)] }
@@ -411,11 +393,7 @@ const getNotificationShareByAuth = async (req, res) => {
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
         const notificationShares = await NotificationShare.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        const totalNotificationShares = await NotificationShare.countDocuments(query);
+            .sort(sortObj);
 
         const userIds = [...new Set([
             userId,
@@ -463,13 +441,7 @@ const getNotificationShareByAuth = async (req, res) => {
             success: true,
             message: 'Notification shares retrieved successfully',
             data: {
-                notificationShares: sharesWithDetails,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalNotificationShares / limit),
-                    total_items: totalNotificationShares,
-                    items_per_page: parseInt(limit)
-                }
+                notificationShares: sharesWithDetails
             },
             status: 200
         });

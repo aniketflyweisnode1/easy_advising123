@@ -52,15 +52,11 @@ const getSkillById = async (req, res) => {
 const getAllSkills = async (req, res) => {
   try {
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       status,
       sort_by = 'created_at',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query
     const query = {};
@@ -97,12 +93,7 @@ const getAllSkills = async (req, res) => {
 
     // Get skills with pagination and filters
     const skills = await Skill.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalSkills = await Skill.countDocuments(query);
+      .sort(sortObj);
 
     // Get skills with adviser counts
     const skillsWithCounts = await Promise.all(
@@ -140,13 +131,7 @@ const getAllSkills = async (req, res) => {
       success: true,
       message: 'Skills retrieved successfully',
       data: {
-        skills: skillsWithCounts,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalSkills / limit),
-          total_items: totalSkills,
-          items_per_page: parseInt(limit)
-        }
+        skills: skillsWithCounts
       },
       status: 200
     });

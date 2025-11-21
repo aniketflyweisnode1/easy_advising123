@@ -375,8 +375,6 @@ const getScheduleCallById = async (req, res) => {
 const getAllScheduleCalls = async (req, res) => {
     try {
         const {
-            page = 1,
-            limit = 10,
             search,
             callStatus,
             date_from,
@@ -390,8 +388,6 @@ const getAllScheduleCalls = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
@@ -499,13 +495,8 @@ const getAllScheduleCalls = async (req, res) => {
                 foreignField: 'PkSubscription_id',
                 select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
+            .sort(sortObj);
         console.log(schedules);
-        // Get total count
-        const totalSchedules = await ScheduleCall.countDocuments(query);
-
         // If name search is provided, filter by user names
         let filteredSchedules = schedules;
         if (search || advisor_name || creator_name) {
@@ -549,12 +540,6 @@ const getAllScheduleCalls = async (req, res) => {
             message: 'Schedule calls retrieved successfully',
             data: {
                 schedules: filteredSchedules,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalSchedules / limit),
-                    total_items: totalSchedules,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_call_statuses: availableCallStatuses,
                     available_schedule_types: ['Schedule', 'Instant']
@@ -670,8 +655,6 @@ const getScheduleCallsByType = async (req, res) => {
     try {
         const { schedule_type } = req.params;
         const {
-            page = 1,
-            limit = 10,
             search,
             callStatus,
             date_from,
@@ -693,8 +676,6 @@ const getScheduleCallsByType = async (req, res) => {
                 status: 400
             });
         }
-
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = { schedule_type };
@@ -796,12 +777,7 @@ const getScheduleCallsByType = async (req, res) => {
                 foreignField: 'PkSubscription_id',
                 select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalSchedules = await ScheduleCall.countDocuments(query);
+            .sort(sortObj);
 
         // If name search is provided, filter by user names
         let filteredSchedules = schedules;
@@ -847,12 +823,6 @@ const getScheduleCallsByType = async (req, res) => {
             data: {
                 schedule_type: schedule_type,
                 schedules: filteredSchedules,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalSchedules / limit),
-                    total_items: totalSchedules,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_call_statuses: availableCallStatuses
                 }
@@ -874,8 +844,6 @@ const getScheduleCallsByType = async (req, res) => {
 const getSchedulecallByuserAuth = async (req, res) => {
     try {
         const {
-            page = 1,
-            limit = 10,
             search,
             callStatus,
             date_from,
@@ -891,8 +859,6 @@ const getSchedulecallByuserAuth = async (req, res) => {
 
         const userId = req.user.user_id;
         console.log(userId);
-        const skip = (page - 1) * limit;
-
         // Build query - filter by authenticated user as creator and force schedule_type = 'Schedule'
         const query = { created_by: userId, schedule_type: 'Schedule' };
 
@@ -996,15 +962,11 @@ const getSchedulecallByuserAuth = async (req, res) => {
                 foreignField: 'PkSubscription_id',
                 select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
+            .sort(sortObj);
 
         console.log("schedules", schedules);
 
         // Get total count
-        const totalSchedules = await ScheduleCall.countDocuments(query);
-
         // If name search is provided, filter by advisor names
         let filteredSchedules = schedules;
         if (search || advisor_name) {
@@ -1094,12 +1056,6 @@ const getSchedulecallByuserAuth = async (req, res) => {
             message: 'Your schedule calls retrieved successfully',
             data: {
                 schedules: schedulesWithSummary,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalSchedules / limit),
-                    total_items: totalSchedules,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_call_statuses: availableCallStatuses,
                     available_schedule_types: ['Schedule', 'Instant']
@@ -1122,8 +1078,6 @@ const getSchedulecallByuserAuth = async (req, res) => {
 const getSchedulecallByAdvisorAuth = async (req, res) => {
     try {
         const {
-            page = 1,
-            limit = 10,
             search,
             callStatus,
             date_from,
@@ -1138,8 +1092,6 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
         } = req.query;
 
         const advisorId = req.user.user_id;
-        const skip = (page - 1) * limit;
-
         // Build query - filter by authenticated advisor
         const query = { advisor_id: advisorId, schedule_type: 'Schedule' };
 
@@ -1244,12 +1196,7 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
                 foreignField: 'PkSubscription_id',
                 select: 'PkSubscription_id package_id Remaining_minute Remaining_Schedule Subscription_status Expire_status'
             })
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalSchedules = await ScheduleCall.countDocuments(query);
+            .sort(sortObj);
 
         // If name search is provided, filter by creator names
         let filteredSchedules = schedules;
@@ -1295,12 +1242,6 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
             message: 'Schedule calls for advisor retrieved successfully',
             data: {
                 schedules: responseSchedules,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalSchedules / limit),
-                    total_items: totalSchedules,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_call_statuses: availableCallStatuses,
                     available_schedule_types: ['Schedule', 'Instant']

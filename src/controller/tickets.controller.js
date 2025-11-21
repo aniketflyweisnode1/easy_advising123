@@ -83,8 +83,6 @@ const getAllTickets = async (req, res) => {
         
         // Get query parameters
         const { 
-            page = 1, 
-            limit = 10, 
             status, 
             ticket_status,
             search,
@@ -95,8 +93,6 @@ const getAllTickets = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-        
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
@@ -157,12 +153,7 @@ const getAllTickets = async (req, res) => {
 
         // Get tickets with pagination and sorting
         const tickets = await Tickets.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalTickets = await Tickets.countDocuments(query);
+            .sort(sortObj);
 
         // Get all unique user IDs from tickets
         const userIds = [...new Set([
@@ -254,12 +245,6 @@ const getAllTickets = async (req, res) => {
             message: 'Tickets retrieved successfully',
             data: {
                 tickets: populatedTickets,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalTickets / limit),
-                    total_items: totalTickets,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_ticket_statuses: availableTicketStatuses
                 }

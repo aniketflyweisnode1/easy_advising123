@@ -197,8 +197,6 @@ const getAllWithdrawRequests = async (req, res) => {
     
     // Get query parameters
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       status,
       method_id,
@@ -213,8 +211,6 @@ const getAllWithdrawRequests = async (req, res) => {
       sort_by = 'created_at',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query
     const query = {};
@@ -303,14 +299,9 @@ const getAllWithdrawRequests = async (req, res) => {
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-    // Get requests with pagination and filters
+    // Get requests with filters
     const requests = await WithdrawRequest.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalRequests = await WithdrawRequest.countDocuments(query);
+      .sort(sortObj);
     
     // Get all unique user IDs from requests (including updated_by)
     const userIds = [...new Set([
@@ -439,12 +430,6 @@ const getAllWithdrawRequests = async (req, res) => {
       message: 'Withdraw requests retrieved successfully',
       data: {
         requests: requestsWithDetails,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalRequests / limit),
-          total_items: totalRequests,
-          items_per_page: parseInt(limit)
-        },
         filters: {
           available_statuses: availableStatuses,
           available_methods: availableMethods
@@ -478,8 +463,6 @@ const getWithdrawRequestsByAuth = async (req, res) => {
 
     // Get query parameters
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       status,
       method_id,
@@ -493,8 +476,6 @@ const getWithdrawRequestsByAuth = async (req, res) => {
       sort_by = 'created_at',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query - filter by authenticated user
     const query = {
@@ -578,12 +559,7 @@ const getWithdrawRequestsByAuth = async (req, res) => {
 
     // Get requests with pagination and filters
     const requests = await WithdrawRequest.find(query)
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalRequests = await WithdrawRequest.countDocuments(query);
+      .sort(sortObj);
     
     // Get all unique user IDs from requests
     const userIds = [...new Set([
@@ -716,12 +692,6 @@ const getWithdrawRequestsByAuth = async (req, res) => {
       message: 'Your withdraw requests retrieved successfully',
       data: {
         requests: requestsWithDetails,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalRequests / limit),
-          total_items: totalRequests,
-          items_per_page: parseInt(limit)
-        },
         filters: {
           available_statuses: availableStatuses,
           available_methods: availableMethods

@@ -80,8 +80,6 @@ const getAllTicketReplies = async (req, res) => {
         
         // Get query parameters
         const { 
-            page = 1, 
-            limit = 10, 
             search,
             ticket_id,
             reply_status,
@@ -90,8 +88,6 @@ const getAllTicketReplies = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-        
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
@@ -127,12 +123,7 @@ const getAllTicketReplies = async (req, res) => {
 
         // Get ticket replies with pagination and sorting
         const ticketReplies = await TicketReply.find(query)
-            .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalTicketReplies = await TicketReply.countDocuments(query);
+            .sort(sortObj);
 
         // Get all unique user IDs from ticket replies
         const userIds = [...new Set(ticketReplies.map(tr => tr.created_by))];
@@ -193,12 +184,6 @@ const getAllTicketReplies = async (req, res) => {
             message: 'Ticket replies retrieved successfully',
             data: {
                 ticketReplies: ticketRepliesWithDetails,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalTicketReplies / limit),
-                    total_items: totalTicketReplies,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_reply_statuses: availableReplyStatuses,
                     available_ticket_ids: availableTicketIds

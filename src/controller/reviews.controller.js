@@ -187,8 +187,6 @@ const getReviewsByAdvisorId = async (req, res) => {
   try {
     const { advisor_id } = req.params;
     const { 
-      page = 1, 
-      limit = 10, 
       status,
       sort_by = 'created_at',
       sort_order = 'desc'
@@ -210,21 +208,14 @@ const getReviewsByAdvisorId = async (req, res) => {
       query.status = parseInt(status);
     }
 
-    // Calculate pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
     // Build sort object
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-    // Get reviews with pagination
+    // Get reviews with filters
     const reviews = await Reviews.find(query)
       .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count for pagination
-    const totalReviews = await Reviews.countDocuments(query);
+      ;
 
     // Get all unique user IDs from reviews (advisor and reviewers)
     const userIds = [...new Set([
@@ -265,11 +256,6 @@ const getReviewsByAdvisorId = async (req, res) => {
       };
     });
 
-    // Calculate pagination info
-    const totalPages = Math.ceil(totalReviews / parseInt(limit));
-    const hasNextPage = parseInt(page) < totalPages;
-    const hasPrevPage = parseInt(page) > 1;
-
     // Calculate review statistics
     const allReviews = await Reviews.find(query);
     
@@ -305,17 +291,7 @@ const getReviewsByAdvisorId = async (req, res) => {
       data: {
         advisor: advisorDetails,
         reviews: reviewsWithDetails,
-        statistics: reviewStats,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: totalPages,
-          total_reviews: totalReviews,
-          limit: parseInt(limit),
-          has_next_page: hasNextPage,
-          has_prev_page: hasPrevPage,
-          next_page: hasNextPage ? parseInt(page) + 1 : null,
-          prev_page: hasPrevPage ? parseInt(page) - 1 : null
-        }
+        statistics: reviewStats
       },
       status: 200
     });

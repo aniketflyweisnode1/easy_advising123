@@ -130,9 +130,7 @@ const getFaqById = async (req, res) => {
 // Get all FAQs
 const getAllFaqs = async (req, res) => {
     try {
-        const { 
-            page = 1, 
-            limit = 10, 
+    const { 
             search, 
             status,
             faq_status,
@@ -140,8 +138,6 @@ const getAllFaqs = async (req, res) => {
             sort_by = 'created_at',
             sort_order = 'desc'
         } = req.query;
-
-        const skip = (page - 1) * limit;
 
         // Build query
         const query = {};
@@ -178,14 +174,10 @@ const getAllFaqs = async (req, res) => {
         const sortObj = {};
         sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
 
-        // Get FAQs with pagination and filters
+        // Get FAQs with filters
         const faqs = await Faq.find(query)
             .sort(sortObj)
-            .skip(skip)
-            .limit(parseInt(limit));
-
-        // Get total count
-        const totalFaqs = await Faq.countDocuments(query);
+            ;
 
         // Get all unique user IDs from FAQs
         const userIds = [...new Set([
@@ -292,12 +284,6 @@ const getAllFaqs = async (req, res) => {
             message: 'FAQs retrieved successfully',
             data: {
                 faqs: faqsWithDetails,
-                pagination: {
-                    current_page: parseInt(page),
-                    total_pages: Math.ceil(totalFaqs / limit),
-                    total_items: totalFaqs,
-                    items_per_page: parseInt(limit)
-                },
                 filters: {
                     available_faq_statuses: availableFaqStatuses,
                     available_roles: availableRoles

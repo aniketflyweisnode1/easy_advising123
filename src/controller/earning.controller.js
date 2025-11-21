@@ -129,8 +129,6 @@ const filterByCallTypeEarning = async (req, res) => {
   try {
     const { call_type, date_from, date_to } = req.params;
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       category_id,
       sort_by = 'total_earning',
@@ -145,8 +143,6 @@ const filterByCallTypeEarning = async (req, res) => {
         status: 400
       });
     }
-
-    const skip = (page - 1) * limit;
 
     // Build user query
     let userQuery = { role_id: 2 };
@@ -261,10 +257,6 @@ const filterByCallTypeEarning = async (req, res) => {
       return sort_order === 'desc' ? bVal - aVal : aVal - bVal;
     });
 
-    // Apply pagination
-    const totalItems = results.length;
-    const paginatedResults = results.slice(skip, skip + parseInt(limit));
-
     // Get available call types for filter options
     const availableCallTypes = ['CHAT', 'AUDIO', 'VIDEO'];
 
@@ -276,13 +268,7 @@ const filterByCallTypeEarning = async (req, res) => {
       message: `Earnings filtered by call type: ${call_type}`,
       data: {
         call_type: call_type,
-        earnings: paginatedResults,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalItems / limit),
-          total_items: totalItems,
-          items_per_page: parseInt(limit)
-        },
+        earnings: results,
         filters: {
           available_call_types: availableCallTypes,
           available_categories: allCategories
@@ -306,8 +292,6 @@ const filterByCategoryEarning = async (req, res) => {
   try {
     const { category_id, date_from, date_to } = req.params;
     const { 
-      page = 1, 
-      limit = 10, 
       search, 
       call_type,
       sort_by = 'total_earning',
@@ -322,8 +306,6 @@ const filterByCategoryEarning = async (req, res) => {
         status: 400
       });
     }
-
-    const skip = (page - 1) * limit;
 
     // Find advisers with the specified category
     const advisers = await User.find({ 
@@ -446,10 +428,6 @@ const filterByCategoryEarning = async (req, res) => {
       return sort_order === 'desc' ? bVal - aVal : aVal - bVal;
     });
 
-    // Apply pagination
-    const totalItems = results.length;
-    const paginatedResults = results.slice(skip, skip + parseInt(limit));
-
     // Get available call types for filter options
     const availableCallTypes = ['CHAT', 'AUDIO', 'VIDEO'];
 
@@ -462,13 +440,7 @@ const filterByCategoryEarning = async (req, res) => {
           category_name: category.category_name,
           description: category.description
         },
-        earnings: paginatedResults,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalItems / limit),
-          total_items: totalItems,
-          items_per_page: parseInt(limit)
-        },
+        earnings: results,
         filters: {
           available_call_types: availableCallTypes
         }

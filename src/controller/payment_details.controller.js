@@ -126,15 +126,11 @@ const getPaymentDetailsById = async (req, res) => {
 const getAllPaymentDetails = async (req, res) => {
   try {
     const {
-      page = 1,
-      limit = 10,
       search,
       Status,
       sort_by = 'CreateAt',
       sort_order = 'desc'
     } = req.query;
-
-    const skip = (page - 1) * limit;
 
     // Build query
     const query = {};
@@ -172,24 +168,13 @@ const getAllPaymentDetails = async (req, res) => {
       .populate('user_id', 'name email mobile')
       .populate('CreateBy', 'name email')
       .populate('UpdatedBy', 'name email')
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalPaymentDetails = await PaymentDetails.countDocuments(query);
+      .sort(sortObj);
 
     res.status(200).json({
       success: true,
       message: 'Payment details retrieved successfully',
       data: {
-        payment_details: paymentDetails,
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalPaymentDetails / limit),
-          total_items: totalPaymentDetails,
-          items_per_page: parseInt(limit)
-        }
+        payment_details: paymentDetails
       },
       status: 200
     });

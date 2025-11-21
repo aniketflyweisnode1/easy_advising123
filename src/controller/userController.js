@@ -831,15 +831,13 @@ const getAllUserFullDetails = async (req, res) => {
 
 
   try {
-    // Get query parameters for pagination and search
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    // Get query parameters for search
     const search = req.query.search || '';
     const role_id = 1;
 
     // Debug logging
     console.log('getAllUserFullDetails - Query params:', {
-      page, limit, search, role_id, status: req.query.status
+      search, role_id, status: req.query.status
     });
 
     // Handle status parsing with proper validation
@@ -856,9 +854,6 @@ const getAllUserFullDetails = async (req, res) => {
         }
       }
     }
-
-    // Calculate skip value for pagination
-    const skip = (page - 1) * limit;
 
     // Build search query
     let searchQuery = {};
@@ -885,13 +880,11 @@ const getAllUserFullDetails = async (req, res) => {
     // Debug logging - show final search query
     console.log('getAllUserFullDetails - Final search query:', JSON.stringify(searchQuery, null, 2));
 
-    // Get total count for pagination
+    // Get total count
     const totalUsers = await User.countDocuments(searchQuery);
 
-    // Get users with pagination and search
+    // Get users without pagination
     const users = await User.find(searchQuery)
-      .skip(skip)
-      .limit(limit)
       .sort({ created_at: -1 }); // Sort by newest first
 
     // Get all appointments, transactions, wallets, and subscriptions
@@ -1025,21 +1018,10 @@ const getAllUserFullDetails = async (req, res) => {
     });
 
     // Calculate pagination info
-    const totalPages = Math.ceil(totalUsers / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
-
     return res.status(200).json({
       users: usersWithFullDetails,
       pagination: {
-        current_page: page,
-        total_pages: totalPages,
-        total_users: totalUsers,
-        limit: limit,
-        has_next_page: hasNextPage,
-        has_prev_page: hasPrevPage,
-        next_page: hasNextPage ? page + 1 : null,
-        prev_page: hasPrevPage ? page - 1 : null
+        total_users: totalUsers
       },
       filters: {
         search: search,
@@ -1058,8 +1040,6 @@ const getAllUserFullDetails = async (req, res) => {
 const getAdvisorList = async (req, res) => {
   try {
     const {
-      page = 1,
-      limit = 10,
       search,
       role_id = 2, // Default to advisors (role_id = 2)
       category_id,
@@ -1074,8 +1054,6 @@ const getAdvisorList = async (req, res) => {
       sort_order = 'desc'
     } = req.query;
 
-    const skip = (page - 1) * limit;
-
     
     query = {};
     // Build query
@@ -1085,10 +1063,6 @@ const getAdvisorList = async (req, res) => {
        query = { role_id: parseInt(role_id), login_permission_status: true };
     }
 
-    // Debug logging
-    console.log('getAdvisorList - Query params:', {
-    //  page, limit, search, role_id, category_id, subcategory_id, status, login_permission_status: loginPermissionStatus
-    });
 
     // Add search functionality
     if (search) {
@@ -1207,9 +1181,7 @@ const getAdvisorList = async (req, res) => {
       //   foreignField: 'package_id',
       //   select: 'package_id packege_name Chat_price Chat_minute Chat_Schedule Chat_discription Audio_price Audio_minute Audio_Schedule Audio_discription Video_price Video_minute Video_Schedule Video_discription status'
       // })
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
+      .sort(sortObj);
 
     // Get total count
     const totalAdvisors = await User.countDocuments(query);
@@ -1482,10 +1454,7 @@ const getAdvisorList = async (req, res) => {
         };
       }),
         pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalAdvisors / limit),
-          total_items: totalAdvisors,
-          items_per_page: parseInt(limit)
+          total_items: totalAdvisors
         },
         filters: {
           available_categories: availableCategories
@@ -2047,12 +2016,13 @@ const getAdminDashboard = async (req, res) => {
     }));
 
     // Top Advisers (by sessions)
-    const topAdvisers = await require('../models/schedule_call.model').aggregate([
+    const topAdvisersAgg = await require('../models/schedule_call.model').aggregate([
       ...(Object.keys(dateFilter).length > 0 ? [{ $match: dateFilter }] : []),
       { $group: { _id: '$advisor_id', sessionCount: { $sum: 1 } } },
-      { $sort: { sessionCount: -1 } },
-      { $limit: 10 }
+      { $sort: { sessionCount: -1 } }
     ]);
+
+    const topAdvisers = topAdvisersAgg;
 
     const topAdvisersWithDetails = await Promise.all(topAdvisers.map(async (advisor) => {
       const user = await User.findOne({ user_id: Number(advisor._id) });

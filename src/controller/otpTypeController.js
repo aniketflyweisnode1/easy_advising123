@@ -167,8 +167,7 @@ const getOTPTypeById = async (req, res) => {
 // Get all OTP types
 const getAllOTPTypes = async (req, res) => {
   try {
-    const { status, page = 1, limit = 10 } = req.query;
-    const skip = (page - 1) * limit;
+    const { status } = req.query;
 
     // Build query
     const query = {};
@@ -191,14 +190,9 @@ const getAllOTPTypes = async (req, res) => {
       }
     }
 
-    // Get OTP types with pagination
+    // Get OTP types without pagination
     const otpTypes = await OTPType.find(query)
-      .sort({ created_at: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalOTPTypes = await OTPType.countDocuments(query);
+      .sort({ created_at: -1 });
 
     return res.status(200).json({
       success: true,
@@ -213,13 +207,7 @@ const getAllOTPTypes = async (req, res) => {
           created_at: otpType.created_at,
           updated_by: otpType.updated_by,
           updated_on: otpType.updated_on
-        })),
-        pagination: {
-          current_page: parseInt(page),
-          total_pages: Math.ceil(totalOTPTypes / limit),
-          total_items: totalOTPTypes,
-          items_per_page: parseInt(limit)
-        }
+        }))
       }
     });
 

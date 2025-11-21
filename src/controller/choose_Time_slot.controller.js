@@ -175,8 +175,6 @@ const getChooseTimeSlotById = async (req, res) => {
 const getAllChooseTimeSlots = async (req, res) => {
   try {
     const {
-      page = 1,
-      limit = 10,
       advisor_id,
       choose_day_Advisor_id,
       status,
@@ -191,9 +189,6 @@ const getAllChooseTimeSlots = async (req, res) => {
     if (choose_day_Advisor_id) query.choose_day_Advisor_id = parseInt(choose_day_Advisor_id);
     if (status !== undefined) query.Status = status === 'true';
 
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
     // Build sort object
     const sortObj = {};
     sortObj[sort_by] = sort_order === 'desc' ? -1 : 1;
@@ -204,28 +199,12 @@ const getAllChooseTimeSlots = async (req, res) => {
       .populate('advisor_id', 'user_id name email mobile role_id')
       .populate('created_by', 'user_id name email mobile role_id')
       .populate('updated_by', 'user_id name email mobile role_id')
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalTimeSlots = await ChooseTimeSlot.countDocuments(query);
-
-    // Pagination info
-    const totalPages = Math.ceil(totalTimeSlots / parseInt(limit));
+      .sort(sortObj);
 
     res.status(200).json({
       success: true,
       message: 'Choose time slots retrieved successfully',
-      data: chooseTimeSlots,
-      pagination: {
-        current_page: parseInt(page),
-        total_pages: totalPages,
-        total_items: totalTimeSlots,
-        limit: parseInt(limit),
-        has_next_page: parseInt(page) < totalPages,
-        has_prev_page: parseInt(page) > 1
-      }
+      data: chooseTimeSlots
     });
   } catch (error) {
     res.status(500).json({
@@ -242,8 +221,6 @@ const getChooseTimeSlotsByAuth = async (req, res) => {
     const userId = req.user.user_id;
 
     const {
-      page = 1,
-      limit = 10,
       status,
       sort_by = 'created_at',
       sort_order = 'desc'
@@ -253,9 +230,6 @@ const getChooseTimeSlotsByAuth = async (req, res) => {
     const query = { created_by: userId };
 
     if (status !== undefined) query.Status = status === 'true';
-
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build sort object
     const sortObj = {};
@@ -267,28 +241,12 @@ const getChooseTimeSlotsByAuth = async (req, res) => {
       .populate('advisor_id', 'user_id name email mobile role_id')
       .populate('created_by', 'user_id name email mobile role_id')
       .populate('updated_by', 'user_id name email mobile role_id')
-      .sort(sortObj)
-      .skip(skip)
-      .limit(parseInt(limit));
-
-    // Get total count
-    const totalTimeSlots = await ChooseTimeSlot.countDocuments(query);
-
-    // Pagination info
-    const totalPages = Math.ceil(totalTimeSlots / parseInt(limit));
+      .sort(sortObj);
 
     res.status(200).json({
       success: true,
       message: 'Your choose time slots retrieved successfully',
-      data: chooseTimeSlots,
-      pagination: {
-        current_page: parseInt(page),
-        total_pages: totalPages,
-        total_items: totalTimeSlots,
-        limit: parseInt(limit),
-        has_next_page: parseInt(page) < totalPages,
-        has_prev_page: parseInt(page) > 1
-      }
+      data: chooseTimeSlots
     });
   } catch (error) {
     res.status(500).json({
