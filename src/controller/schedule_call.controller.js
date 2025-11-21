@@ -1621,13 +1621,7 @@ const endCall = async (req, res) => {
             });
         }
 
-        if (scheduleCall.schedule_type !== 'Schedule') {
-            return res.status(400).json({
-                message: 'Only scheduled calls can be completed through this endpoint',
-                status: 400
-            });
-        }
-
+      
         // Check if call status is in the restricted list (calls in these statuses cannot be ended)
         const restrictedCallStatuses = ['Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
         if (restrictedCallStatuses.includes(scheduleCall.callStatus)) {
@@ -2087,7 +2081,56 @@ const endCall = async (req, res) => {
     }
 };
 
+const updateJoinStatusByScheduleId = async (req, res) => {
+    try {
+        const { schedule_id, JoinStatus } = req.body;
 
+        if (!schedule_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'schedule_id is required',
+                status: 400
+            });
+        }
+
+        if (typeof JoinStatus !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'JoinStatus must be a boolean value',
+                status: 400
+            });
+        }
+
+        const updatedSchedule = await ScheduleCall.findOneAndUpdate(
+            { schedule_id },
+            { JoinStatus, updated_by: req.user.user_id, updated_at: new Date() },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedSchedule) {
+            return res.status(404).json({
+                success: false,
+                message: 'Schedule call not found',
+                status: 404
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Join status updated successfully',
+            schedule_call: updatedSchedule,
+            status: 200
+        });
+    } catch (error) {
+        console.error('Update join status error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
 
 module.exports = {
     createScheduleCall,
@@ -2102,5 +2145,6 @@ module.exports = {
     getCallByadvisorId,
     getScheduleCallHistoryByType,
     endCall,
-    refreshAgoraToken
+    refreshAgoraToken,
+    updateJoinStatusByScheduleId
 }; 

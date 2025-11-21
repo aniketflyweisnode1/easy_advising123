@@ -93,6 +93,10 @@ const scheduleCallSchema = new mongoose.Schema({
   Amount: {
     type: Number
   },
+  JoinStatus: {
+    type: Boolean,
+    default: false
+  },
   agoraChannelName: {
     type: String,
     default: null
