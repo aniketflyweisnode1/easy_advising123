@@ -7,7 +7,9 @@ const {
   updateNotificationShare,
   getNotificationShareById,
   getAllNotificationShares,
-  getNotificationShareByAuth
+  getNotificationShareByAuth,
+  markNotificationShareViewed,
+  markAllNotificationSharesViewed
 } = require('../../controller/notification_share.controller');
 
 // Create notification  2025-07-16
@@ -22,5 +24,9 @@ router.get('/getById/:share_id', auth, getNotificationShareById);
 router.get('/getAll', getAllNotificationShares);
 // Get notification shares for authenticated user
 router.get('/getByAuth', auth, getNotificationShareByAuth);
+// Mark single notification share as viewed
+router.get('/markViewed/:share_id', auth, markNotificationShareViewed);
+// Mark all notification shares as viewed for authenticated user
+router.post('/markAllViewed', auth, markAllNotificationSharesViewed);
 
 module.exports = router; 

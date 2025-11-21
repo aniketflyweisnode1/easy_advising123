@@ -73,7 +73,7 @@ const createNotificationShareByRole = async (req, res) => {
             blog_id: parseInt(blog_id),
             user_id: user_ids,
             viewbyUser: 0,
-            status:  1,
+            status: 1,
             created_by: created_by
         };
 
@@ -165,8 +165,8 @@ const getNotificationShareById = async (req, res) => {
 // Get all notification shares
 const getAllNotificationShares = async (req, res) => {
     try {
-        const { 
-            search, 
+        const {
+            search,
             status,
             role_id,
             notification_id,
@@ -248,7 +248,7 @@ const getAllNotificationShares = async (req, res) => {
         // Map notification shares to include populated details
         let notificationSharesWithDetails = notificationShares.map(notificationShare => {
             const notificationShareObj = notificationShare.toObject();
-            
+
             // Populate users with role information
             const populatedUsers = notificationShare.user_id.map(userId => {
                 const user = userMap[userId];
@@ -288,7 +288,7 @@ const getAllNotificationShares = async (req, res) => {
 
         // Apply role_id filter if provided
         if (role_id) {
-            notificationSharesWithDetails = notificationSharesWithDetails.filter(ns => 
+            notificationSharesWithDetails = notificationSharesWithDetails.filter(ns =>
                 ns.users.some(user => user.role && user.role.role_id === parseInt(role_id))
             );
         }
@@ -298,7 +298,7 @@ const getAllNotificationShares = async (req, res) => {
             notificationSharesWithDetails = notificationSharesWithDetails.filter(ns => {
                 const searchLower = search.toLowerCase();
                 return (
-                    ns.users.some(user => 
+                    ns.users.some(user =>
                         user.name?.toLowerCase().includes(searchLower) ||
                         user.email?.toLowerCase().includes(searchLower) ||
                         user.mobile?.includes(search)
@@ -499,11 +499,121 @@ const getNotificationShareByAuth = async (req, res) => {
     }
 };
 
+const markNotificationShareViewed = async (req, res) => {
+    try {
+        const userId = req.user?.user_id;
+        const { share_id } = req.params;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated',
+                status: 401
+            });
+        }
+
+        if (!share_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'share_id is required',
+                status: 400
+            });
+        }
+
+        const share = await NotificationShare.findOne({
+            share_id: parseInt(share_id),
+
+        });
+
+
+        share.viewbyUser = 1;
+        share.updated_by = Number(userId);
+        share.updated_at = new Date();
+        await share.save();
+
+        return res.status(200).json({
+            success: true,
+            message: hasViewed ? 'Notification share already marked as viewed' : 'Notification share marked as viewed',
+            data: {
+                share_id: share.share_id,
+                total_views: share.viewbyUser,
+                viewed_by: share.viewed_by
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Mark notification share viewed error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
+const markAllNotificationSharesViewed = async (req, res) => {
+    try {
+        const userId = req.user?.user_id;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not authenticated',
+                status: 401
+            });
+        }
+
+        const filter = {
+            user_id: { $in: [Number(userId)] },
+            $or: [
+                { viewed_by: { $exists: false } },
+                { viewed_by: { $nin: [Number(userId)] } }
+            ]
+        };
+
+        const update = {
+            $addToSet: { viewed_by: Number(userId) },
+            $inc: { viewbyUser: 1 },
+            $set: {
+                updated_by: Number(userId),
+                updated_at: new Date()
+            }
+        };
+
+        const result = await NotificationShare.updateMany(filter, update);
+        const matchedCount = result?.matchedCount ?? result?.n ?? 0;
+        const modifiedCount = result?.modifiedCount ?? result?.nModified ?? 0;
+
+        return res.status(200).json({
+            success: true,
+            message: modifiedCount > 0
+                ? 'All notification shares marked as viewed'
+                : 'No notification shares required updating',
+            data: {
+                totalMatched: matchedCount,
+                totalUpdated: modifiedCount
+            },
+            status: 200
+        });
+    } catch (error) {
+        console.error('Mark all notification shares viewed error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+            error: error.message,
+            status: 500
+        });
+    }
+};
+
 module.exports = {
     createNotificationShare,
     createNotificationShareByRole,
     updateNotificationShare,
     getNotificationShareById,
     getAllNotificationShares,
-    getNotificationShareByAuth
+    getNotificationShareByAuth,
+    markNotificationShareViewed,
+    markAllNotificationSharesViewed
 }; 
