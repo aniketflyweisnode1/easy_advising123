@@ -11,7 +11,7 @@ const createScheduleCall = async (req, res) => {
     try {
         const data = req.body;
         data.created_by = req.user.user_id;
-        console.log(data.created_by);
+        // console.log(data.created_by);
         const activeSubscription = await PackageSubscription.findOne({
             subscribe_by: data.created_by,
             Expire_status: false,
@@ -25,7 +25,7 @@ const createScheduleCall = async (req, res) => {
             // Check wallet balance for both Instant and Schedule calls
             if (data.schedule_type === 'Instant' || data.schedule_type === 'Schedule') {
                 // Validate required fields
-                console.log(data.call_type, data.advisor_id);
+                console.log("3", data.call_type, data.advisor_id);
                 if (!data.call_type || !data.advisor_id) {
                     console.log('call_type and advisor_id are required for Instant and Schedule calls');
                     return res.status(400).json({
@@ -34,15 +34,17 @@ const createScheduleCall = async (req, res) => {
                     });
                 }
 
+                console.log("2", data.schedule_type);
                 // Get call type details to calculate minimum balance
                 const advisorRate = await User.findOne({
                     user_id: data.advisor_id
                 });
-                console.log(advisorRate);
+                // console.log(advisorRate);
                 if (data.call_type === 'Chat') {
                     data.perminRate = advisorRate.chat_Rate;
                 } else if (data.call_type === 'Audio') {
                     data.perminRate = advisorRate.audio_Rate;
+                    console.log("5", data.perminRate);
                 } else if (data.call_type === 'Video') {
                     data.perminRate = advisorRate.VideoCall_rate;
                 }
@@ -57,6 +59,7 @@ const createScheduleCall = async (req, res) => {
                 minimumBalanceRequired = 5 * data.perminRate; // 5 minutes for Instant
                 callTypeDescription = '5 minutes';
             } else if (data.schedule_type === 'Schedule') {
+            
                 minimumBalanceRequired = 30 * data.perminRate; // 30 minutes for Schedule
                 callTypeDescription = '30 minutes';
             }
@@ -126,6 +129,7 @@ const createScheduleCall = async (req, res) => {
         } else {
             // Check Package Subscription availability (if user has subscription package)
             if (data.schedule_type === 'Instant' || data.schedule_type === 'Schedule') {
+                console.log("1", data.schedule_type);
                 // User has active package subscription - set package details and skip wallet deduction
                 data.package_Subscription_id = activeSubscription.PkSubscription_id;
                 data.remaining_minutes = activeSubscription.Remaining_minute;
@@ -139,6 +143,7 @@ const createScheduleCall = async (req, res) => {
         if (data.schedule_type === 'Schedule' && data.perminRate) {
             // For scheduled calls, estimate hold amount (30 minutes average)
             holdAmount = 30 * data.perminRate;
+            console.log("4", holdAmount, data.perminRate);
         }
 
         // Add hold_amount to user's wallet if not using package subscription (only for Schedule calls)
@@ -1616,6 +1621,13 @@ const endCall = async (req, res) => {
             });
         }
 
+        if (scheduleCall.schedule_type !== 'Schedule') {
+            return res.status(400).json({
+                message: 'Only scheduled calls can be completed through this endpoint',
+                status: 400
+            });
+        }
+
         // Check if call status is in the restricted list (calls in these statuses cannot be ended)
         const restrictedCallStatuses = ['Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
         if (restrictedCallStatuses.includes(scheduleCall.callStatus)) {
@@ -1896,6 +1908,7 @@ const endCall = async (req, res) => {
                     Call_duration: finalCallDuration,
                     perminRate: pricePerMinute,
                     Amount: totalAmount,
+                    hold_amount: 0,
                     updated_by: userId,
                     updated_at: new Date()
                 },
@@ -1944,7 +1957,7 @@ const endCall = async (req, res) => {
                 await adminTransaction.save();
             }
 
-            // Deduct amount from user's wallet
+            // Deduct amount from user's wallet (using held balance first)
             const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
             if (!userWallet) {
                 return res.status(404).json({
@@ -1953,75 +1966,52 @@ const endCall = async (req, res) => {
                 });
             }
 
-            // Calculate hold_amount that was previously held (scheduled calls only)
-            const previousHoldAmount = scheduleCall.schedule_type === 'Schedule' && scheduleCall.Call_duration && scheduleCall.perminRate
-                ? scheduleCall.Call_duration * scheduleCall.perminRate
-                : 0;
+            const trackedHoldAmount = scheduleCall.hold_amount !== undefined && scheduleCall.hold_amount !== null
+                ? Number(scheduleCall.hold_amount)
+                : (scheduleCall.Call_duration && scheduleCall.perminRate ? Number(scheduleCall.Call_duration) * Number(scheduleCall.perminRate) : 0);
 
-            // Check if wallet has sufficient balance (amount + hold_amount should cover totalAmount)
-            // Since hold_amount was deducted from amount, we need: amount + hold_amount >= totalAmount
-            const totalAvailable = scheduleCall.schedule_type === 'Schedule'
-                ? userWallet.amount + (userWallet.hold_amount || 0)
-                : userWallet.amount;
+            const walletHoldAvailable = Math.min(Number(userWallet.hold_amount || 0), trackedHoldAmount);
+            let availableBalance = Number(userWallet.amount || 0);
+            const totalAvailable = availableBalance + walletHoldAvailable;
 
             if (totalAvailable < totalAmount) {
                 return res.status(400).json({
                     message: 'Insufficient wallet balance',
                     status: 400,
-                    current_balance: userWallet.amount,
-                    hold_amount: userWallet.hold_amount || 0,
-                    total_available: totalAvailable,
-                    required_amount: totalAmount
+                    current_balance: availableBalance,
+                    hold_amount: Number(userWallet.hold_amount || 0),
+                    required_amount: totalAmount,
+                    available_to_use: totalAvailable
                 });
             }
 
-            // Release hold_amount if it exists (add back to amount, reduce hold_amount)
-            if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount > 0 && userWallet.hold_amount >= previousHoldAmount) {
+            let releasedHoldAmount = 0;
+            if (walletHoldAvailable > 0) {
                 await Wallet.findOneAndUpdate(
                     { user_id: { $in: [scheduleCall.created_by] } },
                     {
                         $inc: {
-                            amount: previousHoldAmount,        // Add back to amount
-                            hold_amount: -previousHoldAmount   // Reduce hold_amount
+                            amount: walletHoldAvailable,
+                            hold_amount: -walletHoldAvailable
                         },
                         updated_At: new Date(),
                         updated_by: userId
                     }
                 );
+                releasedHoldAmount = walletHoldAvailable;
+                availableBalance += walletHoldAvailable;
             }
 
-            // Calculate amount to deduct (if hold_amount was less than totalAmount)
-            let amountToDeduct = totalAmount;
-            if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount > 0 && previousHoldAmount < totalAmount) {
-                amountToDeduct = totalAmount - previousHoldAmount;
-            } else if (scheduleCall.schedule_type === 'Schedule' && previousHoldAmount >= totalAmount) {
-                amountToDeduct = 0; // Already deducted via hold_amount when created
-            }
+            await Wallet.findOneAndUpdate(
+                { user_id: { $in: [scheduleCall.created_by] } },
+                {
+                    $inc: { amount: -totalAmount },
+                    updated_At: new Date(),
+                    updated_by: userId
+                }
+            );
 
-            console.log("print scheduleCall.schedule_type, callStatus \n\n\n", scheduleCall.schedule_type, callStatus, "\n\n\n");
-
-
-            // if(scheduleCall.schedule_type === 'Instant' && callStatus === 'Completed') {
-            //     await Wallet.findOneAndUpdate(
-            //         { user_id: { $in: [scheduleCall.created_by] } },
-            //         {
-            //             $inc: { amount: -totalAmount },
-            //             updated_At: new Date(),
-            //             updated_by: userId
-            //         }
-            //     );
-            // }
-            // Update user wallet (deduct call amount after releasing hold)
-            if (amountToDeduct > 0) {
-                await Wallet.findOneAndUpdate(
-                    { user_id: { $in: [scheduleCall.created_by] } },
-                    {
-                        $inc: { amount: -amountToDeduct },
-                        updated_At: new Date(),
-                        updated_by: userId
-                    }
-                );
-            }
+            availableBalance -= totalAmount;
 
             // Add commission to advisor's wallet
             const advisorWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.advisor_id] } });
@@ -2079,6 +2069,7 @@ const endCall = async (req, res) => {
                     advisor_commission: advisorCommission,
                     admin_commission: adminCommission,
                     user_wallet_deducted: totalAmount,
+                    user_wallet_balance: Number(availableBalance),
                     duration_used: finalCallDuration,
                     duration_source: scheduleCall.Call_duration ? 'existing' : 'provided'
                 },
