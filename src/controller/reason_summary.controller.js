@@ -8,6 +8,34 @@ const createReasonSummary = async (req, res) => {
     if (req.user && req.user.user_id) {
       data.created_by = req.user.user_id;
     }
+    if (!data.schedule_call_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'schedule_call_id is required',
+        status: 400
+      });
+    }
+    if (!data.summary || !data.summary.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'summary is required',
+        status: 400
+      });
+    }
+
+    const existingReason = await ReasonSummary.findOne({
+      schedule_call_id: data.schedule_call_id,
+      summary: data.summary.trim(),
+      summary_type: data.summary_type || 'Reason'
+    });
+
+    if (existingReason) {
+      return res.status(409).json({
+        success: false,
+        message: 'A reason summary with the same summary already exists for this schedule call',
+        status: 409
+      });
+    }
     // Auto-fill fields from schedule_call
     const schedule = await ScheduleCall.findOne({ schedule_id: data.schedule_call_id });
     if (!schedule) {
