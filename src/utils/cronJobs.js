@@ -35,6 +35,7 @@ const parseScheduleDateTime = (scheduleCall) => {
 };
 
 const cancelUnjoinedScheduleCalls = async () => {
+    console.log("\n\ncancelUnjoinedScheduleCalls\n");
     const now = moment();
 
     try {
@@ -89,6 +90,7 @@ const cancelUnjoinedScheduleCalls = async () => {
 };
 
 const refreshAgoraCredentialsForUpcomingCalls = async () => {
+    console.log("refreshAgoraCredentialsForUpcomingCalls\n");
     const now = moment();
 
     try {

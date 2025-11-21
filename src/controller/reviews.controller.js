@@ -1,5 +1,6 @@
 const Reviews = require('../models/reviews.model');
 const User = require('../models/User.model');
+const ScheduleCall = require('../models/schedule_call.model');
 const createReview = async (req, res) => {
   try {
     const { description, user_id, rating, schedule_call_id } = req.body;
@@ -9,6 +10,13 @@ const createReview = async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         message: 'description and user_id are required' 
+      });
+    }
+
+    if (schedule_call_id === undefined || schedule_call_id === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'schedule_call_id is required'
       });
     }
 
@@ -23,23 +31,29 @@ const createReview = async (req, res) => {
       }
     }
 
+    const scheduleIdNum = Number(schedule_call_id);
+    if (!Number.isInteger(scheduleIdNum) || scheduleIdNum <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'schedule_call_id must be a positive integer'
+      });
+    }
+
+    const linkedSchedule = await ScheduleCall.findOne({ schedule_id: scheduleIdNum });
+    if (!linkedSchedule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Schedule call not found'
+      });
+    }
+
     const reviewData = {
       description,
       user_id,
       rating: rating !== undefined ? Number(rating) : 0, // Default to 0 if not provided
-      created_by: req.user.user_id
+      created_by: req.user.user_id,
+      schedule_call_id: scheduleIdNum
     };
-
-    if (schedule_call_id !== undefined && schedule_call_id !== null) {
-      const scheduleIdNum = Number(schedule_call_id);
-      if (!Number.isInteger(scheduleIdNum) || scheduleIdNum <= 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'schedule_call_id must be a positive integer'
-        });
-      }
-      reviewData.schedule_call_id = scheduleIdNum;
-    }
 
     const review = new Reviews(reviewData);
     await review.save();
@@ -78,6 +92,15 @@ const updateReview = async (req, res) => {
           message: 'schedule_call_id must be a positive integer'
         });
       }
+
+      const linkedSchedule = await ScheduleCall.findOne({ schedule_id: scheduleIdNum });
+      if (!linkedSchedule) {
+        return res.status(404).json({
+          success: false,
+          message: 'Schedule call not found'
+        });
+      }
+
       updateData.schedule_call_id = scheduleIdNum;
     }
     
@@ -102,6 +125,13 @@ const getReviewById = async (req, res) => {
       User.findOne({ user_id: review.created_by }, { user_id: 1, name: 1, _id: 0 })
     ]);
 
+    const scheduleDetails = review.schedule_call_id
+      ? await ScheduleCall.findOne(
+          { schedule_id: review.schedule_call_id },
+          { schedule_id: 1, schedule_type: 1, date: 1, time: 1, advisor_id: 1, created_by: 1, _id: 0 }
+        )
+      : null;
+
     const reviewWithDetails = {
       ...review.toObject(),
       user: user ? {
@@ -113,7 +143,8 @@ const getReviewById = async (req, res) => {
       created_by_user: createdByUser ? {
         user_id: createdByUser.user_id,
         name: createdByUser.name
-      } : null
+      } : null,
+      schedule_call: scheduleDetails
     };
 
     res.status(200).json({ 
@@ -139,15 +170,29 @@ const getAllReviews = async (req, res) => {
       ...reviews.map(r => r.user_id),
       ...reviews.map(r => r.created_by)
     ])];
+
+    const scheduleIds = [...new Set(
+      reviews
+        .map(r => r.schedule_call_id)
+        .filter(id => Number.isInteger(id))
+    )];
     
     // Fetch user details for all user IDs
   
-    const users = await User.find(
-      { user_id: { $in: userIds } }, 
-      { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
-    );
+    const [users, schedules] = await Promise.all([
+      User.find(
+        { user_id: { $in: userIds } }, 
+        { user_id: 1, name: 1, email: 1, mobile: 1, _id: 0 }
+      ),
+      ScheduleCall.find(
+        { schedule_id: { $in: scheduleIds } },
+        { schedule_id: 1, schedule_type: 1, date: 1, time: 1, advisor_id: 1, created_by: 1, _id: 0 }
+      )
+    ]);
     const userMap = {};
     users.forEach(u => { userMap[u.user_id] = u; });
+    const scheduleMap = {};
+    schedules.forEach(s => { scheduleMap[s.schedule_id] = s; });
     
     // Map reviews to include user details
     const reviewsWithDetails = reviews.map(review => {
@@ -163,7 +208,8 @@ const getAllReviews = async (req, res) => {
         created_by_user: userMap[review.created_by] ? {
           user_id: userMap[review.created_by].user_id,
           name: userMap[review.created_by].name
-        } : null
+        } : null,
+        schedule_call: review.schedule_call_id ? scheduleMap[review.schedule_call_id] || null : null
       };
     });
 
@@ -214,8 +260,7 @@ const getReviewsByAdvisorId = async (req, res) => {
 
     // Get reviews with filters
     const reviews = await Reviews.find(query)
-      .sort(sortObj)
-      ;
+      .sort(sortObj);
 
     // Get all unique user IDs from reviews (advisor and reviewers)
     const userIds = [...new Set([
@@ -223,13 +268,27 @@ const getReviewsByAdvisorId = async (req, res) => {
       ...reviews.map(r => r.created_by)
     ])];
 
+    const scheduleIds = [...new Set(
+      reviews
+        .map(r => r.schedule_call_id)
+        .filter(id => Number.isInteger(id))
+    )];
+
     // Fetch user details for all user IDs
-    const users = await User.find(
-      { user_id: { $in: userIds } },
-      { user_id: 1, name: 1, email: 1, mobile: 1, profile_image: 1, rating: 1, _id: 0 }
-    );
+    const [users, schedules] = await Promise.all([
+      User.find(
+        { user_id: { $in: userIds } },
+        { user_id: 1, name: 1, email: 1, mobile: 1, profile_image: 1, rating: 1, _id: 0 }
+      ),
+      ScheduleCall.find(
+        { schedule_id: { $in: scheduleIds } },
+        { schedule_id: 1, schedule_type: 1, date: 1, time: 1, advisor_id: 1, created_by: 1, _id: 0 }
+      )
+    ]);
     const userMap = {};
     users.forEach(u => { userMap[u.user_id] = u; });
+    const scheduleMap = {};
+    schedules.forEach(s => { scheduleMap[s.schedule_id] = s; });
 
     // Get advisor details
     const advisorDetails = userMap[Number(advisor_id)] || null;
@@ -252,12 +311,14 @@ const getReviewsByAdvisorId = async (req, res) => {
           name: userMap[review.created_by].name,
           email: userMap[review.created_by].email,
           mobile: userMap[review.created_by].mobile
-        } : null
+        } : null,
+        schedule_call: review.schedule_call_id ? scheduleMap[review.schedule_call_id] || null : null
       };
     });
 
     // Calculate review statistics
     const allReviews = await Reviews.find(query);
+    const totalReviews = allReviews.length;
     
     // Filter out reviews with rating 0 for average calculation
     const reviewsWithRating = allReviews.filter(r => r.rating > 0);

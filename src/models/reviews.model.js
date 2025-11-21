@@ -19,7 +19,8 @@ const reviewsSchema = new mongoose.Schema({
   },
   schedule_call_id: {
     type: Number,
-    ref: 'ScheduleCall'
+    ref: 'ScheduleCall',
+    default: null
   },
   user_id: {
     type: Number,

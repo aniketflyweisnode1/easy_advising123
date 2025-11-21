@@ -59,7 +59,7 @@ const createScheduleCall = async (req, res) => {
                 minimumBalanceRequired = 5 * data.perminRate; // 5 minutes for Instant
                 callTypeDescription = '5 minutes';
             } else if (data.schedule_type === 'Schedule') {
-            
+
                 minimumBalanceRequired = 30 * data.perminRate; // 30 minutes for Schedule
                 callTypeDescription = '30 minutes';
             }
@@ -1020,7 +1020,7 @@ const getSchedulecallByuserAuth = async (req, res) => {
         // Get reviews for all schedule calls based on schedule_call_id
         const Reviews = require('../models/reviews.model');
         const scheduleReviews = scheduleIds.length > 0
-            ? await Reviews.find({ schedule_call_id: { $in: scheduleIds }, status: 1 })
+            ? await Reviews.find({ user_id: advisorId, schedule_call_id: { $in: scheduleIds } })
                 .select('schedule_call_id reviews_id description rating user_id created_by created_at')
                 .sort({ created_at: -1 })
             : [];
@@ -1487,14 +1487,14 @@ const getScheduleCallHistoryByType = async (req, res) => {
                 });
 
             // Apply pagination to each call type
-           
+
             const totalCount = schedulesOfType.length;
 
             historyByType[callType] = {
                 call_type: callType,
                 schedules: schedulesOfType,
                 count: totalCount,
-              
+
             };
         });
 
@@ -1621,7 +1621,7 @@ const endCall = async (req, res) => {
             });
         }
 
-      
+
         // Check if call status is in the restricted list (calls in these statuses cannot be ended)
         const restrictedCallStatuses = ['Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
         if (restrictedCallStatuses.includes(scheduleCall.callStatus)) {
