@@ -4,6 +4,7 @@ const http = require("http");
 const connectDB = require('./src/config/database');
 const cors = require('cors');
 const routes = require('./src/routes/index');
+const registerCronJobs = require('./src/utils/cronJobs');
 const app = express();
 const port = process.env.PORT || 3011;
 const server = http.createServer(app);
@@ -48,6 +49,7 @@ app.use((error, req, res, next) => {
   next();
 });
 connectDB();
+registerCronJobs();
 // Initialize routes
 routes(app);
 app.get("/", (req, res) => {

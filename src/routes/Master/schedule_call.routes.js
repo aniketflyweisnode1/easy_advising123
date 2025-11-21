@@ -14,7 +14,8 @@ const {
     getCallByadvisorId,
     getScheduleCallHistoryByType,
     endCall,
-    refreshAgoraToken
+    refreshAgoraToken,
+    updateJoinStatusByScheduleId
 } = require('../../controller/schedule_call.controller.js');
 
 // Create  2025-07-14
@@ -44,6 +45,6 @@ router.post('/endcall', auth, endCall);
 // Refresh Agora tokens for a schedule call
 router.post('/refreshAgoraToken', auth, refreshAgoraToken);
 
-
+router.post('/update-join-status', auth, updateJoinStatusByScheduleId);
 
 module.exports = router; 

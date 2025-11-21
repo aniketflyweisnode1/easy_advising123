@@ -1,6 +1,8 @@
 const NotificationShare = require('../models/notification_share.model');
 const User = require('../models/User.model');
 const Role = require('../models/role.model');
+const Notification = require('../models/notification.model');
+const Blog = require('../models/blog.model');
 
 // Create notification share
 const createNotificationShare = async (req, res) => {
@@ -395,8 +397,11 @@ const getNotificationShareByAuth = async (req, res) => {
         const notificationShares = await NotificationShare.find(query)
             .sort(sortObj);
 
+        const recipientIds = notificationShares.flatMap(ns => ns.user_id || []);
+
         const userIds = [...new Set([
             userId,
+            ...recipientIds,
             ...notificationShares.map(ns => ns.created_by),
             ...notificationShares.map(ns => ns.updated_by).filter(Boolean)
         ])];
@@ -416,10 +421,48 @@ const getNotificationShareByAuth = async (req, res) => {
         const roleMap = {};
         roles.forEach(r => { roleMap[r.role_id] = r; });
 
+        const notificationIds = [...new Set(notificationShares.map(ns => ns.notification_id).filter(Boolean))];
+        const blogIds = [...new Set(notificationShares.map(ns => ns.blog_id).filter(Boolean))];
+
+        const notifications = notificationIds.length > 0
+            ? await Notification.find(
+                { notification_id: { $in: notificationIds } },
+                { notification_id: 1, content: 1, otherinfo: 1, status: 1, created_By: 1, _id: 0 }
+            )
+            : [];
+        const blogs = blogIds.length > 0
+            ? await Blog.find(
+                { blog_id: { $in: blogIds } },
+                { blog_id: 1, title: 1, bannerimage: 1, status: 1, created_By: 1, _id: 0 }
+            )
+            : [];
+
+        const notificationMap = {};
+        notifications.forEach(notification => { notificationMap[notification.notification_id] = notification; });
+
+        const blogMap = {};
+        blogs.forEach(blog => { blogMap[blog.blog_id] = blog; });
+
         const sharesWithDetails = notificationShares.map(share => {
             const shareObj = share.toObject();
+            const recipients = (shareObj.user_id || []).map(recipientId => {
+                const recipientUser = userMap[recipientId];
+                if (!recipientUser) {
+                    return { user_id: recipientId };
+                }
+                return {
+                    user_id: recipientUser.user_id,
+                    name: recipientUser.name,
+                    email: recipientUser.email,
+                    mobile: recipientUser.mobile,
+                    role: roleMap[recipientUser.role_id] || null
+                };
+            });
             return {
                 ...shareObj,
+                notification_details: notificationMap[share.notification_id] || null,
+                blog_details: blogMap[share.blog_id] || null,
+                recipients,
                 created_by_user: userMap[share.created_by] ? {
                     user_id: userMap[share.created_by].user_id,
                     name: userMap[share.created_by].name,

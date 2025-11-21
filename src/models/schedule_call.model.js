@@ -97,6 +97,10 @@ const scheduleCallSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  tokenRefreshed: {
+    type: Boolean,
+    default: false
+  },
   agoraChannelName: {
     type: String,
     default: null
