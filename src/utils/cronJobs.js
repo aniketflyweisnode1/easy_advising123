@@ -41,7 +41,7 @@ const cancelUnjoinedScheduleCalls = async () => {
         const candidateCalls = await ScheduleCall.find({
             schedule_type: 'Schedule',
             JoinStatus: false,
-            callStatus: { $in: SCHEDULE_CALL_STATUSES_FOR_CANCELLATION }
+            callStatus: 'Pending',
         }).lean();
 
         for (const schedule of candidateCalls) {
@@ -144,6 +144,5 @@ const registerCronJobs = () => {
     cron.schedule('* * * * *', cancelUnjoinedScheduleCalls);
     cron.schedule('* * * * *', refreshAgoraCredentialsForUpcomingCalls);
 };
-
 module.exports = registerCronJobs;
 

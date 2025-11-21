@@ -36,6 +36,7 @@ const adminFaqReplyRoutes = require('./Admin/faq_Reply.routes');
 const adminDeleteAccountRoutes = require('./Admin/delete.account.routes');
 const pageManagementRoutes = require('./Admin/page_management.routes');
 const fileUploadRoutes = require('./Master/file_upload.routes');
+const fileSendRoutes = require('./Master/file_send.routes');
 const bank = require('./Advisor/Advisor_bankAccountDetails.routes');
 const agoraRoutes = require('./agora.routes');
 const paymentDetailsRoutes = require('./Master/payment_details.routes');
@@ -90,6 +91,7 @@ function routes(app) {
     app.use('/api/advisor', advisorRoutes);
     app.use('/api/admin/page-management', pageManagementRoutes);
     app.use('/api/file-upload', fileUploadRoutes);
+    app.use('/api/file-send', fileSendRoutes);
     app.use('/api/agora', agoraRoutes);
     app.use('/api/payment-details', paymentDetailsRoutes);
     app.use('/api/admin/package-approval', adminPackageApprovalRoutes);
