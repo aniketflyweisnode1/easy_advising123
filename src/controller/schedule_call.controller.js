@@ -1861,67 +1861,86 @@ const endCall = async (req, res) => {
             });
         }
 
-        // Only process payment and complete call if status is allowed
-        if (allowedStatusesForCompletion.includes(scheduleCall.callStatus)) {
-            // Calculate commissions for payment processing
-            // Use callType commission rates if available, otherwise use default (80% advisor, 20% admin)
-            const advisorCommissionRate = callType?.adviser_commission || 70;
-            const adminCommissionRate = callType?.admin_commission || 30;
-            const advisorCommission = (totalAmount * advisorCommissionRate) / 100;
-            const adminCommission = (totalAmount * adminCommissionRate) / 100;
-
-            // Check if transactions already exist for this call to prevent duplicates
-            const existingUserTransaction = await Transaction.findOne({
-                reference_number: `CALL_${schedule_id}`,
-                transactionType: 'Call'
+        // 1. First check if callStatus === 'Completed'
+        if (callStatus !== 'Completed') {
+            return res.status(400).json({
+                message: 'Call status must be Completed to process payment',
+                status: 400
             });
-            const existingAdvisorTransaction = await Transaction.findOne({
-                reference_number: `CALL_${schedule_id}_ADVISOR`,
-                transactionType: 'Call'
+        }
+
+        // 2. Check call_type to get rate (already done above)
+        // 3. Work with schedule_type === 'Schedule'
+        if (scheduleCall.schedule_type !== 'Schedule') {
+            return res.status(400).json({
+                message: 'This payment processing is only for Schedule type calls',
+                status: 400
             });
-            const existingAdminTransaction = await Transaction.findOne({
-                reference_number: `CALL_${schedule_id}_ADMIN`,
-                transactionType: 'Call'
+        }
+
+        // 4. Get scheduleCall holdAmount by schedule_id
+        const holdAmount = Number(scheduleCall.hold_amount || 0);
+        if (holdAmount <= 0) {
+            return res.status(400).json({
+                message: 'No hold amount found for this schedule call',
+                status: 400
             });
+        }
 
-            // If transactions already exist, skip payment processing and just update call status
-            if (existingUserTransaction || existingAdvisorTransaction || existingAdminTransaction) {
-                // Update schedule call status and duration only (skip payment processing)
-                const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
-                    { schedule_id },
-                    {
-                        callStatus: callStatus || 'Completed',
-                        Call_duration: finalCallDuration,
-                        perminRate: pricePerMinute,
-                        Amount: totalAmount,
-                        updated_by: userId,
-                        updated_at: new Date()
-                    },
-                    { new: true, runValidators: true }
-                );
+        // Validate Call_duration
+        if (!Call_duration || Call_duration <= 0) {
+            return res.status(400).json({
+                message: 'Call duration is required and must be greater than 0',
+                status: 400
+            });
+        }
 
-                return res.status(200).json({
-                    message: 'Call updated successfully. Transactions already exist - payment already processed.',
-                    schedule_call: updatedScheduleCall,
-                    transaction: existingUserTransaction,
-                    note: 'No new transactions created - using existing transactions',
-                    existing_transactions: {
-                        user_transaction: existingUserTransaction ? existingUserTransaction.TRANSACTION_ID : null,
-                        advisor_transaction: existingAdvisorTransaction ? existingAdvisorTransaction.TRANSACTION_ID : null,
-                        admin_transaction: existingAdminTransaction ? existingAdminTransaction.TRANSACTION_ID : null
-                    },
-                    status: 200
-                });
-            }
+        // Calculate commission amount: (Call_duration * rate)
+        const commissionAmount = parseFloat(Call_duration) * pricePerMinute;
 
-            // Update schedule call status and duration
+        // Calculate refund amount: holdAmount - (Call_duration * rate)
+        const refundAmount = holdAmount - commissionAmount;
+
+        if (refundAmount < 0) {
+            return res.status(400).json({
+                message: 'Hold amount is insufficient for the call duration',
+                status: 400,
+                hold_amount: holdAmount,
+                required_amount: commissionAmount,
+                shortfall: Math.abs(refundAmount)
+            });
+        }
+
+        // Get call type details for commission calculation
+        const advisorCommissionRate = callType?.adviser_commission || 70;
+        const adminCommissionRate = callType?.admin_commission || 30;
+        const advisorCommission = (commissionAmount * advisorCommissionRate) / 100;
+        const adminCommission = (commissionAmount * adminCommissionRate) / 100;
+
+        // Check if transactions already exist for this call to prevent duplicates
+        const existingUserTransaction = await Transaction.findOne({
+            reference_number: `CALL_${schedule_id}`,
+            transactionType: 'Call'
+        });
+        const existingAdvisorTransaction = await Transaction.findOne({
+            reference_number: `CALL_${schedule_id}_ADVISOR`,
+            transactionType: 'Call'
+        });
+        const existingAdminTransaction = await Transaction.findOne({
+            reference_number: `CALL_${schedule_id}_ADMIN`,
+            transactionType: 'Call'
+        });
+
+        // If transactions already exist, skip payment processing and just update call status
+        if (existingUserTransaction || existingAdvisorTransaction || existingAdminTransaction) {
+            // Update schedule call status and duration only (skip payment processing)
             const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
                 { schedule_id },
                 {
-                    callStatus: callStatus || 'Completed',
-                    Call_duration: finalCallDuration,
+                    callStatus: 'Completed',
+                    Call_duration: Call_duration,
                     perminRate: pricePerMinute,
-                    Amount: totalAmount,
+                    Amount: commissionAmount,
                     hold_amount: 0,
                     updated_by: userId,
                     updated_at: new Date()
@@ -1929,167 +1948,201 @@ const endCall = async (req, res) => {
                 { new: true, runValidators: true }
             );
 
-            // Create transaction for the call (only once)
-            const transaction = new Transaction({
-                user_id: scheduleCall.created_by, // User who made the call
-                amount: totalAmount,
-                status: 'completed',
-                payment_method: 'wallet',
-                transactionType: 'Call',
-                reference_number: `CALL_${schedule_id}`,
-                created_by: userId
+            return res.status(200).json({
+                message: 'Call updated successfully. Transactions already exist - payment already processed.',
+                schedule_call: updatedScheduleCall,
+                transaction: existingUserTransaction,
+                note: 'No new transactions created - using existing transactions',
+                existing_transactions: {
+                    user_transaction: existingUserTransaction ? existingUserTransaction.TRANSACTION_ID : null,
+                    advisor_transaction: existingAdvisorTransaction ? existingAdvisorTransaction.TRANSACTION_ID : null,
+                    admin_transaction: existingAdminTransaction ? existingAdminTransaction.TRANSACTION_ID : null
+                },
+                status: 200
             });
-            await transaction.save();
+        }
 
-            // Record advisor commission transaction (only once)
-            let advisorTransaction = null;
-            if (advisorCommission > 0) {
-                advisorTransaction = new Transaction({
-                    user_id: scheduleCall.advisor_id,
-                    amount: advisorCommission,
-                    status: 'completed',
-                    payment_method: 'wallet',
-                    transactionType: 'Call',
-                    reference_number: `CALL_${schedule_id}_ADVISOR`,
-                    created_by: userId
-                });
-                await advisorTransaction.save();
-            }
+        // Get user wallet
+        const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
+        if (!userWallet) {
+            return res.status(404).json({
+                message: 'User wallet not found',
+                status: 404
+            });
+        }
 
-            // Record admin commission transaction (only once)
-            let adminTransaction = null;
-            if (adminCommission > 0) {
-                adminTransaction = new Transaction({
-                    user_id: 1,
-                    amount: adminCommission,
-                    status: 'completed',
-                    payment_method: 'wallet',
-                    transactionType: 'Call',
-                    reference_number: `CALL_${schedule_id}_ADMIN`,
-                    created_by: userId
-                });
-                await adminTransaction.save();
-            }
-
-            // Deduct amount from user's wallet (using held balance first)
-            const userWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
-            if (!userWallet) {
-                return res.status(404).json({
-                    message: 'User wallet not found',
-                    status: 404
-                });
-            }
-
-            const trackedHoldAmount = scheduleCall.hold_amount !== undefined && scheduleCall.hold_amount !== null
-                ? Number(scheduleCall.hold_amount)
-                : (scheduleCall.Call_duration && scheduleCall.perminRate ? Number(scheduleCall.Call_duration) * Number(scheduleCall.perminRate) : 0);
-
-            const walletHoldAvailable = Math.min(Number(userWallet.hold_amount || 0), trackedHoldAmount);
-            let availableBalance = Number(userWallet.amount || 0);
-            const totalAvailable = availableBalance + walletHoldAvailable;
-
-            if (totalAvailable < totalAmount) {
-                return res.status(400).json({
-                    message: 'Insufficient wallet balance',
-                    status: 400,
-                    current_balance: availableBalance,
-                    hold_amount: Number(userWallet.hold_amount || 0),
-                    required_amount: totalAmount,
-                    available_to_use: totalAvailable
-                });
-            }
-
-            let releasedHoldAmount = 0;
-            if (walletHoldAvailable > 0) {
-                await Wallet.findOneAndUpdate(
-                    { user_id: { $in: [scheduleCall.created_by] } },
-                    {
-                        $inc: {
-                            amount: walletHoldAvailable,
-                            hold_amount: -walletHoldAvailable
-                        },
-                        updated_At: new Date(),
-                        updated_by: userId
-                    }
-                );
-                releasedHoldAmount = walletHoldAvailable;
-                availableBalance += walletHoldAvailable;
-            }
-
+        // 5. Debit holdAmount from schedule call and release from user wallet hold_amount
+        // Release hold_amount from user wallet
+        if (userWallet.hold_amount >= holdAmount) {
             await Wallet.findOneAndUpdate(
                 { user_id: { $in: [scheduleCall.created_by] } },
                 {
-                    $inc: { amount: -totalAmount },
+                    $inc: {
+                        hold_amount: -holdAmount
+                    },
                     updated_At: new Date(),
                     updated_by: userId
                 }
             );
+        }
 
-            availableBalance -= totalAmount;
-
-            // Add commission to advisor's wallet
-            const advisorWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.advisor_id] } });
-            if (advisorWallet) {
-                await Wallet.findOneAndUpdate(
-                    { user_id: { $in: [scheduleCall.advisor_id] } },
-                    {
-                        amount: advisorWallet.amount + advisorCommission,
-                        updated_At: new Date(),
-                        updated_by: userId
-                    }
-                );
-            } else {
-                // Create advisor wallet if it doesn't exist
-                const newAdvisorWallet = new Wallet({
-                    user_id: [scheduleCall.advisor_id],
-                    role_id: 2, // Assuming role_id 2 is for advisors
-                    amount: advisorCommission,
-                    created_At: new Date(),
-                    updated_At: new Date()
-                });
-                await newAdvisorWallet.save();
-            }
-
-            // Add commission to admin wallet (assuming admin has role_id 1)
-            const adminWallet = await Wallet.findOne({ role_id: 1 });
-            if (adminWallet) {
-                await Wallet.findOneAndUpdate(
-                    { role_id: 1 },
-                    {
-                        amount: adminWallet.amount + adminCommission,
-                        updated_At: new Date(),
-                        updated_by: userId
-                    }
-                );
-            } else {
-                // Create admin wallet if it doesn't exist
-                const newAdminWallet = new Wallet({
-                    user_id: [1], // Assuming user_id 1 is admin
-                    role_id: 1,
-                    amount: adminCommission,
-                    created_At: new Date(),
-                    updated_At: new Date()
-                });
-                await newAdminWallet.save();
-            }
-
-            res.status(200).json({
-                message: 'Call ended successfully and payment processed',
-                schedule_call: updatedScheduleCall,
-                transaction: transaction,
-                payment_details: {
-                    total_amount: totalAmount,
-                    duration_minutes: durationInMinutes,
-                    advisor_commission: advisorCommission,
-                    admin_commission: adminCommission,
-                    user_wallet_deducted: totalAmount,
-                    user_wallet_balance: Number(availableBalance),
-                    duration_used: finalCallDuration,
-                    duration_source: scheduleCall.Call_duration ? 'existing' : 'provided'
+        // 6. Add refundAmount to user wallet balance
+        await Wallet.findOneAndUpdate(
+            { user_id: { $in: [scheduleCall.created_by] } },
+            {
+                $inc: {
+                    amount: refundAmount
                 },
-                status: 200
+                updated_At: new Date(),
+                updated_by: userId
+            }
+        );
+
+        // Get updated user wallet balance
+        const updatedUserWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.created_by] } });
+        const userWalletBalance = Number(updatedUserWallet.amount || 0);
+
+        // 7. Distribute commissionAmount to advisor and admin, create transactions
+        // Add commission to advisor's wallet
+        const advisorWallet = await Wallet.findOne({ user_id: { $in: [scheduleCall.advisor_id] } });
+        if (advisorWallet) {
+            await Wallet.findOneAndUpdate(
+                { user_id: { $in: [scheduleCall.advisor_id] } },
+                {
+                    $inc: {
+                        amount: advisorCommission
+                    },
+                    updated_At: new Date(),
+                    updated_by: userId
+                }
+            );
+        } else {
+            // Create advisor wallet if it doesn't exist
+            const newAdvisorWallet = new Wallet({
+                user_id: [scheduleCall.advisor_id],
+                role_id: 2, // Assuming role_id 2 is for advisors
+                amount: advisorCommission,
+                created_At: new Date(),
+                updated_At: new Date()
             });
-        } // End of if block for Accepted/Upcoming status
+            await newAdvisorWallet.save();
+        }
+
+        // Add commission to admin wallet (assuming admin has role_id 1)
+        const adminWallet = await Wallet.findOne({ role_id: 1 });
+        if (adminWallet) {
+            await Wallet.findOneAndUpdate(
+                { role_id: 1 },
+                {
+                    $inc: {
+                        amount: adminCommission
+                    },
+                    updated_At: new Date(),
+                    updated_by: userId
+                }
+            );
+        } else {
+            // Create admin wallet if it doesn't exist
+            const newAdminWallet = new Wallet({
+                user_id: [1], // Assuming user_id 1 is admin
+                role_id: 1,
+                amount: adminCommission,
+                created_At: new Date(),
+                updated_At: new Date()
+            });
+            await newAdminWallet.save();
+        }
+
+        // Update schedule call status and clear hold_amount
+        const updatedScheduleCall = await ScheduleCall.findOneAndUpdate(
+            { schedule_id },
+            {
+                callStatus: 'Completed',
+                Call_duration: Call_duration,
+                perminRate: pricePerMinute,
+                Amount: commissionAmount,
+                hold_amount: 0,
+                updated_by: userId,
+                updated_at: new Date()
+            },
+            { new: true, runValidators: true }
+        );
+
+        // Create transaction for the user (refund)
+        const userTransaction = new Transaction({
+            user_id: scheduleCall.created_by,
+            amount: refundAmount,
+            status: 'completed',
+            payment_method: 'wallet',
+            transactionType: 'Refund',
+            reference_number: `CALL_${schedule_id}_REFUND`,
+            created_by: userId
+        });
+        await userTransaction.save();
+
+        // Create transaction for the commission (deduction from hold)
+        const commissionTransaction = new Transaction({
+            user_id: scheduleCall.created_by,
+            amount: commissionAmount,
+            status: 'completed',
+            payment_method: 'wallet',
+            transactionType: 'Call',
+            reference_number: `CALL_${schedule_id}`,
+            created_by: userId
+        });
+        await commissionTransaction.save();
+
+        // Record advisor commission transaction
+        let advisorTransaction = null;
+        if (advisorCommission > 0) {
+            advisorTransaction = new Transaction({
+                user_id: scheduleCall.advisor_id,
+                amount: advisorCommission,
+                status: 'completed',
+                payment_method: 'wallet',
+                transactionType: 'Call',
+                reference_number: `CALL_${schedule_id}_ADVISOR`,
+                created_by: userId
+            });
+            await advisorTransaction.save();
+        }
+
+        // Record admin commission transaction
+        let adminTransaction = null;
+        if (adminCommission > 0) {
+            adminTransaction = new Transaction({
+                user_id: 1,
+                amount: adminCommission,
+                status: 'completed',
+                payment_method: 'wallet',
+                transactionType: 'Call',
+                reference_number: `CALL_${schedule_id}_ADMIN`,
+                created_by: userId
+            });
+            await adminTransaction.save();
+        }
+
+        res.status(200).json({
+            message: 'Call ended successfully and payment processed',
+            schedule_call: updatedScheduleCall,
+            payment_details: {
+                hold_amount: holdAmount,
+                commission_amount: commissionAmount,
+                refund_amount: refundAmount,
+                call_duration: Call_duration,
+                rate_per_minute: pricePerMinute,
+                advisor_commission: advisorCommission,
+                admin_commission: adminCommission,
+                user_wallet_balance: userWalletBalance
+            },
+            transactions: {
+                refund_transaction: userTransaction,
+                commission_transaction: commissionTransaction,
+                advisor_transaction: advisorTransaction,
+                admin_transaction: adminTransaction
+            },
+            status: 200
+        });
 
     } catch (error) {
         console.error('End call error:', error);
