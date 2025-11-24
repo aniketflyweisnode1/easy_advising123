@@ -1229,6 +1229,25 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
             });
         }
 
+        // Get reason summaries for all schedule calls
+        const scheduleIds = filteredSchedules.map(schedule => schedule.schedule_id);
+        const ReasonSummary = require('../models/reason_summary.model');
+        const reasonSummaries = scheduleIds.length > 0
+            ? await ReasonSummary.find({ schedule_call_id: { $in: scheduleIds } })
+                .select('schedule_call_id summary summary_type summary_id created_at')
+            : [];
+
+        // Create a map of schedule_call_id -> reason_summary
+        const reasonSummaryMap = {};
+        reasonSummaries.forEach(summary => {
+            reasonSummaryMap[summary.schedule_call_id] = {
+                summary_id: summary.summary_id,
+                summary: summary.summary,
+                summary_type: summary.summary_type,
+                created_at: summary.created_at
+            };
+        });
+
         // Get available call statuses for filter options
         const availableCallStatuses = ['Pending', 'Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
 
@@ -1236,6 +1255,7 @@ const getSchedulecallByAdvisorAuth = async (req, res) => {
             const scheduleObj = schedule.toObject ? schedule.toObject() : schedule;
             return {
                 ...scheduleObj,
+                Summary: reasonSummaryMap[schedule.schedule_id] || null,
                 agoraChannelName: schedule.agoraChannelName,
                 userAgoraToken: schedule.userAgoraToken,
                 advisorAgoraToken: schedule.advisorAgoraToken
