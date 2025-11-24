@@ -1644,8 +1644,11 @@ const endCall = async (req, res) => {
             });
         }
 
+        console.log("print scheduleCall\n", scheduleCall);
+
 
         // Check if call status is in the restricted list (calls in these statuses cannot be ended)
+        console.log("\n\n\nprint scheduleCall.callStatus", scheduleCall.callStatus);
         const restrictedCallStatuses = ['Accepted', 'Completed', 'Cancelled', 'Upcoming', 'Ongoing', 'Not Answered'];
         if (restrictedCallStatuses.includes(scheduleCall.callStatus)) {
             return res.status(400).json({

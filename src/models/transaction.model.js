@@ -7,7 +7,7 @@ const TransactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
   payment_method: { type: String, required: true },
-  transactionType: { type: String, enum: ['registration_fee', 'deposit', 'withdraw', 'RechargeByAdmin', 'Call', 'Package_Buy', 'Recharge'], required: true },
+  transactionType: { type: String, enum: ['registration_fee', 'deposit', 'withdraw', 'RechargeByAdmin', 'Call', 'Package_Buy', 'Recharge', 'Refund'], required: true },
   transaction_date: { type: Date, default: Date.now },
   reference_number: { type: String},
   CGST: { type: Number, default: 0, min: 0 }, // Central Goods and Services Tax
