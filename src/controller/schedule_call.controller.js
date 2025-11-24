@@ -143,7 +143,8 @@ const createScheduleCall = async (req, res) => {
         if (data.schedule_type === 'Schedule' && data.perminRate) {
             // For scheduled calls, estimate hold amount (30 minutes average)
             holdAmount = 30 * data.perminRate;
-            console.log("4", holdAmount, data.perminRate);
+            // console.log("4", holdAmount, data.perminRate);
+            data.hold_amount = holdAmount;
         }
 
         // Add hold_amount to user's wallet if not using package subscription (only for Schedule calls)
@@ -152,6 +153,7 @@ const createScheduleCall = async (req, res) => {
             if (userWallet) {
                 // Verify wallet has sufficient balance for hold_amount
                 if (userWallet.amount < holdAmount) {
+                   
                     return res.status(400).json({
                         message: `Insufficient wallet balance to hold amount. Current: ₹${userWallet.amount}, Required: ₹${holdAmount}`,
                         status: 400,
@@ -1712,9 +1714,6 @@ const endCall = async (req, res) => {
         // Check if Call_duration already exists in the schedule call
         let finalCallDuration = Call_duration;
         let durationInMinutes;
-
-
-
         // Calculate call amount based on duration
         console.log("print durationInMinutes", Call_duration);
         if (callType) {
@@ -1965,7 +1964,8 @@ const endCall = async (req, res) => {
             // ============================================
             
             // 4. Get scheduleCall holdAmount by schedule_id
-            const holdAmount = Number(scheduleCall.hold_amount || 0);
+            console.log("print scheduleCall", scheduleCall.Amount);
+            const holdAmount = Number(scheduleCall.Amount || 0);
             if (holdAmount <= 0) {
                 return res.status(400).json({
                     message: 'No hold amount found for this schedule call',
