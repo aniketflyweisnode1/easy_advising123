@@ -1,33 +1,8 @@
 const admin = require('firebase-admin');
 const User = require('../models/User.model');
+const firebaseServiceAccount = require('../config/firebase.config');
 
-// Initialize Firebase Admin SDK
-// Note: You need to set up Firebase credentials
-// Option 1: Using service account JSON file
-// const serviceAccount = require('../config/firebase-service-account.json');
-// admin.initializeApp({
-//   credential: admin.credential.cert(serviceAccount)
-// });
-
-// Option 2: Using environment variables
-// Make sure to set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL in .env
 let firebaseInitialized = false;
-
-// Firebase Configuration - Use environment variables or leave empty
-const FIREBASE_CONFIG = {
-  PROJECT_ID: 'easy-advising-543d4',
-  PRIVATE_KEY: 'AIzaSyDmRgngxr4VVV43kGSK_uu3iYfCmoYETlY',
-  CLIENT_EMAIL: 'easyadvisingofficial@gmail.com'
-};
-
-// Helper function to check if private key is in valid PEM format
-const isValidPEMKey = (key) => {
-  if (!key || typeof key !== 'string') return false;
-  const trimmedKey = key.trim();
-  return trimmedKey.startsWith('-----BEGIN') && 
-         (trimmedKey.includes('PRIVATE KEY') || trimmedKey.includes('RSA PRIVATE KEY')) && 
-         trimmedKey.endsWith('-----');
-};
 
 const initializeFirebase = () => {
   if (firebaseInitialized) {
@@ -36,29 +11,9 @@ const initializeFirebase = () => {
 
   try {
     if (admin.apps.length === 0) {
-      // Check if credentials are provided
-      if (!FIREBASE_CONFIG.PROJECT_ID || !FIREBASE_CONFIG.PRIVATE_KEY || !FIREBASE_CONFIG.CLIENT_EMAIL) {
-        console.warn('Firebase credentials not configured. Firebase notifications will not work.');
-        console.warn('Please set FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables.');
-        return;
-      }
-
-      // Validate private key format
-      const privateKey = FIREBASE_CONFIG.PRIVATE_KEY.replace(/\\n/g, '\n');
-      if (!isValidPEMKey(privateKey)) {
-        console.warn('Firebase PRIVATE_KEY is not in valid PEM format. Firebase notifications will not work.');
-        console.warn('Private key should start with "-----BEGIN PRIVATE KEY-----" and end with "-----END PRIVATE KEY-----"');
-        console.warn('The provided value appears to be an API key, not a private key.');
-        return;
-      }
-
-      // Initialize Firebase
+      // Initialize Firebase using service account from config file
       admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: FIREBASE_CONFIG.PROJECT_ID,
-          privateKey: privateKey,
-          clientEmail: FIREBASE_CONFIG.CLIENT_EMAIL
-        })
+        credential: admin.credential.cert(firebaseServiceAccount)
       });
       firebaseInitialized = true;
       console.log('Firebase Admin SDK initialized successfully');

@@ -3280,13 +3280,13 @@ const sendOTP = async (req, res) => {
     }
 
     // Import OTP utilities
-    const { generateOTP, sendOTPViaMSG91, sendOTP } = require('../utils/otpUtils');
+    const { generateOTP, sendOTPViaMSG91 } = require('../utils/otpUtils');
 
     // Generate OTP if not provided
     const generatedOTP = otp || generateOTP();
 
     // Send OTP via MSG91 only (no database storage)
-    const result = await sendOTP(mobile, generatedOTP);
+    const result = await sendOTPViaMSG91(mobile, generatedOTP);
 
     if (result.success) {
       return res.status(200).json({

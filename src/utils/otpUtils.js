@@ -5,7 +5,7 @@ const https = require('https');
 // MSG91 Configuration
 const MSG91_CONFIG = {
   AUTH_KEY: '455171AwMCnr3fbI69242faaP1',
-  SENDER_ID: 'easy28',
+  SENDER_ID: 'MSG91',
   SMS_API_URL: 'https://control.msg91.com/api/sendhttp.php',
   OTP_API_URL: 'https://control.msg91.com/api/v5/otp'
 };
