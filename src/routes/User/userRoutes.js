@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall } = require('../../controller/userController');
+const { registerUser,updateUserOnlineStatus, getProfile, updateProfile, updateFirebaseToken, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, deleteUser, updateUserStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall, sendOTP } = require('../../controller/userController');
 const { auth } = require('../../middleware/authMiddleware');
 
 router.post('/register', registerUser);
+router.post('/send-otp', sendOTP);
 router.get('/profile', auth, getProfile);
 router.put('/update-profile', auth, updateProfile);
+router.put('/update-firebase-token', auth, updateFirebaseToken);
 router.post('/logout', auth, logout);
 // Created: 2025-07-14
 router.get('/byRole/:role_id', auth, getUsersByRoleId);

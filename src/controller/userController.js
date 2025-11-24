@@ -522,6 +522,70 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// Update firebase_token
+const updateFirebaseToken = async (req, res) => {
+  try {
+    const userId = req.user.user_id;
+    const { firebase_token } = req.body;
+
+    if (!firebase_token) {
+      return res.status(400).json({
+        success: false,
+        message: 'firebase_token is required',
+        status: 400
+      });
+    }
+
+    // Check if user exists
+    const existingUser = await User.findOne({ user_id: userId });
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        status: 404
+      });
+    }
+
+    // Update firebase_token
+    const updatedUser = await User.findOneAndUpdate(
+      { user_id: userId },
+      {
+        firebase_token: firebase_token,
+        updated_by: userId,
+        updated_on: new Date()
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update firebase_token',
+        status: 500
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Firebase token updated successfully',
+      data: {
+        user_id: updatedUser.user_id,
+        firebase_token: updatedUser.firebase_token
+      },
+      status: 200
+    });
+
+  } catch (error) {
+    console.error('Update firebase token error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
 const logout = async (req, res) => {
   try {
     // Update user_online status to false
@@ -1054,13 +1118,13 @@ const getAdvisorList = async (req, res) => {
       sort_order = 'desc'
     } = req.query;
 
-    
+
     query = {};
     // Build query
     if (!login_permission_status) {
-       query = { role_id: parseInt(role_id) };
+      query = { role_id: parseInt(role_id) };
     } else {
-       query = { role_id: parseInt(role_id), login_permission_status: true };
+      query = { role_id: parseInt(role_id), login_permission_status: true };
     }
 
 
@@ -1365,94 +1429,94 @@ const getAdvisorList = async (req, res) => {
           const averageRating = formatRatingValue(averageRatingRaw);
 
           return {
-          // Primary ID
-          user_id: advisor.user_id,
+            // Primary ID
+            user_id: advisor.user_id,
 
-          // Basic Information
-          name: advisor.name,
-          email: advisor.email,
-          mobile: advisor.mobile,
-          gender: advisor.gender,
-          DOB: advisor.DOB,
-          address: advisor.address,
-          pincode: advisor.pincode,
+            // Basic Information
+            name: advisor.name,
+            email: advisor.email,
+            mobile: advisor.mobile,
+            gender: advisor.gender,
+            DOB: advisor.DOB,
+            address: advisor.address,
+            pincode: advisor.pincode,
 
-          // ID References
-          role_id: advisor.role_id,
-          created_by: advisor.created_by,
-          updated_by: advisor.updated_by,
+            // ID References
+            role_id: advisor.role_id,
+            created_by: advisor.created_by,
+            updated_by: advisor.updated_by,
 
-          // Location IDs
-          state: advisor.state,
-          city: advisor.city,
+            // Location IDs
+            state: advisor.state,
+            city: advisor.city,
 
-          // Professional IDs
-          Current_Designation: advisor.Current_Designation,
-          Current_Designation_Name: advisor.Current_Designation_Name,
-          Current_Company_Name: advisor.Current_Company_Name,
-          current_company_name: advisor.current_company_name,
-          package_id: advisor.package_id,
+            // Professional IDs
+            Current_Designation: advisor.Current_Designation,
+            Current_Designation_Name: advisor.Current_Designation_Name,
+            Current_Company_Name: advisor.Current_Company_Name,
+            current_company_name: advisor.current_company_name,
+            package_id: advisor.package_id,
 
-          // Category and Subcategory IDs
-          Category: advisor.Category,
-          Subcategory: advisor.Subcategory,
+            // Category and Subcategory IDs
+            Category: advisor.Category,
+            Subcategory: advisor.Subcategory,
 
-          // Skill and Language IDs
-          skill: advisor.skill,
-          language: advisor.language,
+            // Skill and Language IDs
+            skill: advisor.skill,
+            language: advisor.language,
 
-          // Professional Information
+            // Professional Information
 
-          experience_year: advisor.experience_year,
-          description_Bio: advisor.description_Bio,
-          expertise_offer: advisor.expertise_offer,
-          IntroductionVideo: advisor.IntroductionVideo,
+            experience_year: advisor.experience_year,
+            description_Bio: advisor.description_Bio,
+            expertise_offer: advisor.expertise_offer,
+            IntroductionVideo: advisor.IntroductionVideo,
 
-          // Rates
-          chat_Rate: advisor.chat_Rate,
-          audio_Rate: advisor.audio_Rate,
-          VideoCall_rate: advisor.VideoCall_rate,
+            // Rates
+            chat_Rate: advisor.chat_Rate,
+            audio_Rate: advisor.audio_Rate,
+            VideoCall_rate: advisor.VideoCall_rate,
 
-          // Documents and Social Links
-          supporting_Document: advisor.supporting_Document,
-          social_linkdin_link: advisor.social_linkdin_link,
-          social_instagorm_link: advisor.social_instagorm_link,
-          social_twitter_link: advisor.social_twitter_link,
-          social_facebook_link: advisor.social_facebook_link,
+            // Documents and Social Links
+            supporting_Document: advisor.supporting_Document,
+            social_linkdin_link: advisor.social_linkdin_link,
+            social_instagorm_link: advisor.social_instagorm_link,
+            social_twitter_link: advisor.social_twitter_link,
+            social_facebook_link: advisor.social_facebook_link,
 
-          // Schedule and Availability
-          instant_call: advisor.instant_call,
-          applyslots_remainingDays: advisor.applyslots_remainingDays,
-          vacation_status: advisor.vacation_status,
-          vacation: advisor.vacation,
+            // Schedule and Availability
+            instant_call: advisor.instant_call,
+            applyslots_remainingDays: advisor.applyslots_remainingDays,
+            vacation_status: advisor.vacation_status,
+            vacation: advisor.vacation,
 
-          // Status and Permissions
-          status: advisor.status,
-          login_permission_status: advisor.login_permission_status,
-          user_online: advisor.user_online,
-          suspended_reason: advisor.suspended_reason,
+            // Status and Permissions
+            status: advisor.status,
+            login_permission_status: advisor.login_permission_status,
+            user_online: advisor.user_online,
+            suspended_reason: advisor.suspended_reason,
 
-          // Terms and Firebase
-          AgreeTermsCondition: advisor.AgreeTermsCondition,
-          firebase_token: advisor.firebase_token,
+            // Terms and Firebase
+            AgreeTermsCondition: advisor.AgreeTermsCondition,
+            firebase_token: advisor.firebase_token,
 
-          // Timestamps
-          created_at: advisor.created_at,
-          updated_on: advisor.updated_on,
+            // Timestamps
+            created_at: advisor.created_at,
+            updated_on: advisor.updated_on,
 
-          // Package Details
-          packageDetails: packageMap[advisor.user_id] || [],
+            // Package Details
+            packageDetails: packageMap[advisor.user_id] || [],
 
-          // Reviews
-          average_rating: averageRating,
-          total_reviews: totalReviews,
-          Total_reviews: totalReviews,
-          reviews: advisorReviews,
+            // Reviews
+            average_rating: averageRating,
+            total_reviews: totalReviews,
+            Total_reviews: totalReviews,
+            reviews: advisorReviews,
 
-          // Advisor Time Slots (with populated day details)
-          time_slots: timeSlotMap[advisor.user_id] || []
-        };
-      }),
+            // Advisor Time Slots (with populated day details)
+            time_slots: timeSlotMap[advisor.user_id] || []
+          };
+        }),
         pagination: {
           total_items: totalAdvisors
         },
@@ -2592,30 +2656,30 @@ const updateVendorRates = async (req, res) => {
 
     // Update advisor package if package rates are provided
     // if (basicPackage !== undefined || EconomyPackage !== undefined || proPackage !== undefined) {
-      const advisorPackage = await AdvisorPackage.findOne({ advisor_id: parseInt(user_id) });
+    const advisorPackage = await AdvisorPackage.findOne({ advisor_id: parseInt(user_id) });
 
-      if (advisorPackage) {
-        const packageUpdateData = {
-          updated_by: adminId,
-          updated_at: new Date()
-        };
+    if (advisorPackage) {
+      const packageUpdateData = {
+        updated_by: adminId,
+        updated_at: new Date()
+      };
 
-        if (basicPackage !== undefined) {
-          packageUpdateData.Basic_price = basicPackage;
-        }
-        if (EconomyPackage !== undefined) {
-          packageUpdateData.Economy_price = EconomyPackage;
-        }
-        if (proPackage !== undefined) {
-          packageUpdateData.Pro_price = proPackage;
-        }
-
-        await AdvisorPackage.findOneAndUpdate(
-          { advisor_id: parseInt(user_id) },
-          packageUpdateData,
-          { new: true, runValidators: true }
-        );
+      if (basicPackage !== undefined) {
+        packageUpdateData.Basic_price = basicPackage;
       }
+      if (EconomyPackage !== undefined) {
+        packageUpdateData.Economy_price = EconomyPackage;
+      }
+      if (proPackage !== undefined) {
+        packageUpdateData.Pro_price = proPackage;
+      }
+
+      await AdvisorPackage.findOneAndUpdate(
+        { advisor_id: parseInt(user_id) },
+        packageUpdateData,
+        { new: true, runValidators: true }
+      );
+    }
     // }
 
     return res.status(200).json({
@@ -3201,4 +3265,59 @@ const getAdvisorRatesById = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, getProfile, updateProfile, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall, updateAdvisorRate, getAdvisorRatesById };
+// Send OTP to user (test function - only sends SMS, does not store in database)
+const sendOTP = async (req, res) => {
+  try {
+    const { mobile, otp } = req.body;
+
+    // Validate mobile number
+    if (!mobile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number is required',
+        status: 400
+      });
+    }
+
+    // Import OTP utilities
+    const { generateOTP, sendOTPViaMSG91, sendOTP } = require('../utils/otpUtils');
+
+    // Generate OTP if not provided
+    const generatedOTP = otp || generateOTP();
+
+    // Send OTP via MSG91 only (no database storage)
+    const result = await sendOTP(mobile, generatedOTP);
+
+    if (result.success) {
+      return res.status(200).json({
+        success: true,
+        message: 'OTP sent successfully via SMS',
+        data: {
+          mobile: mobile,
+          smsSent: true,
+          requestId: result.requestId || null,
+          // OTP is only returned for testing - remove in production
+          otp: generatedOTP
+        },
+        status: 200
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send OTP via SMS',
+        error: result.error,
+        status: 500
+      });
+    }
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+      status: 500
+    });
+  }
+};
+
+module.exports = { registerUser, getProfile, updateProfile, updateFirebaseToken, logout, getUsersByRoleId, getUserFullDetails, getAllUserFullDetails, getAdvisorList, getAdviserById, getAdminDashboard, deleteUser, updateUserStatus, updateUserOnlineStatus, getAllEmployees, updateUser, updateVendorRates, updateVendorSchedule, getVendorCallStatistics, updateUserSlotAndInstantCall, updateAdvisorRate, getAdvisorRatesById, sendOTP };

@@ -1,12 +1,28 @@
 const User = require('../models/User.model');
-const { generateOTP, storeOTP, verifyOTP: verifyStoredOTP } = require('../utils/otpUtils');
+const { generateOTP, storeOTP, verifyOTP: verifyStoredOTP, sendAndStoreOTP, sendOTPViaMSG91 } = require('../utils/otpUtils');
 const { generateToken, generateTokenWithExpiry, generateUserTokenData } = require('../utils/jwtUtils');
 
-// Send OTP (mock function - replace with actual SMS service)
+// Send OTP via MSG91 (integrated with database storage)
 const sendOTP = async (mobile, otp) => {
-  // TODO: Integrate with actual SMS service
-  console.log(`OTP ${otp} sent to ${mobile}`);
-  return true;
+  try {
+    // Use sendAndStoreOTP which combines MSG91 SMS + database storage
+    const result = await sendAndStoreOTP(mobile, otp, 'login', 1, 5);
+    
+    if (result.success) {
+      console.log(`OTP ${otp} sent to ${mobile} via MSG91`);
+      return true;
+    } else {
+      console.warn(`Failed to send OTP via MSG91: ${result.error}`);
+      // Fallback: still store in database even if SMS fails
+      await storeOTP(mobile, otp, 'login', 1, 5);
+      return true; // Return true to allow login flow to continue
+    }
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    // Fallback: store in database
+    await storeOTP(mobile, otp, 'login', 1, 5);
+    return true;
+  }
 };
 
 // Login API
@@ -38,37 +54,31 @@ console.log(existingUser);
           message: 'Login permission denied'
         });
       }
-      // User is registered - send OTP for login
+      // User is registered - send OTP for login via MSG91
       const otp = generateOTP();
       
-      // Store OTP for verification
-      const otpStored = await storeOTP(mobile, otp, 'login', 1); // Default OTP type ID
-      if (!otpStored) {
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to store OTP'
-        });
-      }
+      // Send and store OTP (combines MSG91 SMS + database storage)
+      const otpResult = await sendAndStoreOTP(mobile, otp, 'login', 1, 5);
       
-      const otpSent = await sendOTP(mobile, otp);
-     
-      if (otpSent) {
+      if (otpResult.success || otpResult.stored) {
         return res.status(200).json({
           success: true,
-          message: 'OTP sent successfully for login',
+          message: otpResult.smsSent ? 'OTP sent successfully for login' : 'OTP generated (SMS may not have been sent)',
           data: {
-            OTP: otp,
+            OTP: otp, // Only in development - remove in production
             user_id: existingUser.user_id,
             name: existingUser.name,
             role_id: existingUser.role_id,
             mobile: existingUser.mobile,
-            isRegistered: true
+            isRegistered: true,
+            smsSent: otpResult.smsSent || false
           }
         });
       } else {
         return res.status(500).json({
           success: false,
-          message: 'Failed to send OTP'
+          message: 'Failed to send OTP',
+          error: otpResult.error
         });
       }
     } else {
@@ -92,7 +102,7 @@ console.log(existingUser);
 // Verify OTP and complete login/registration
 const verifyOTP = async (req, res) => {
   try {
-    const { mobile, otp } = req.body;
+    const { mobile, otp, firebase_token } = req.body;
 
     if (!mobile || !otp) {
       return res.status(400).json({
@@ -128,21 +138,36 @@ const verifyOTP = async (req, res) => {
         });
       }
 
+      // Update firebase_token if provided
+      const updateData = {};
+      if (firebase_token) {
+        updateData.firebase_token = firebase_token;
+        await User.findOneAndUpdate(
+          { mobile },
+          { firebase_token: firebase_token },
+          { new: true }
+        );
+      }
+
       // Generate JWT token and return user details
       const userTokenData = generateUserTokenData(existingUser);
       const token = generateToken(userTokenData);
+
+      // Fetch updated user to get latest firebase_token
+      const updatedUser = await User.findOne({ mobile });
 
       return res.status(200).json({
         success: true,
         message: 'Login successful',
         data: {
           user: {
-            user_id: existingUser.user_id,
-            name: existingUser.name,
-            mobile: existingUser.mobile,
-            role_id: existingUser.role_id,
-            login_permission_status: existingUser.login_permission_status,
-            status: existingUser.status
+            user_id: updatedUser.user_id,
+            name: updatedUser.name,
+            mobile: updatedUser.mobile,
+            role_id: updatedUser.role_id,
+            login_permission_status: updatedUser.login_permission_status,
+            status: updatedUser.status,
+            firebase_token: updatedUser.firebase_token
           },
           token: token
         }
@@ -166,7 +191,7 @@ const verifyOTP = async (req, res) => {
 // Admin login API
 const adminLogin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, firebase_token } = req.body;
 console.log(email, password);
     if (!email || !password) {
       return res.status(400).json({
@@ -216,9 +241,21 @@ console.log(email, password);
       });
     }
 
+    // Update firebase_token if provided
+    if (firebase_token) {
+      await User.findOneAndUpdate(
+        { email },
+        { firebase_token: firebase_token },
+        { new: true }
+      );
+    }
+
     // Generate token with custom expiration
     const userData = generateUserTokenData(user);
     const token = generateTokenWithExpiry(userData);
+
+    // Fetch updated user to get latest firebase_token
+    const updatedUser = await User.findOne({ email });
 
     // Return admin details and token
     return res.status(200).json({
@@ -227,13 +264,14 @@ console.log(email, password);
       data: {
         token,
         user: {
-          user_id: user.user_id,
-          name: user.name,
-          email: user.email,
-          role_id: user.role_id,
-          mobile: user.mobile,
-          login_permission_status: user.login_permission_status,
-          status: user.status
+          user_id: updatedUser.user_id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role_id: updatedUser.role_id,
+          mobile: updatedUser.mobile,
+          login_permission_status: updatedUser.login_permission_status,
+          status: updatedUser.status,
+          firebase_token: updatedUser.firebase_token
         }
       }
     });
