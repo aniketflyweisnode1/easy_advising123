@@ -91,7 +91,7 @@ const Notification = async (scheduleData, userName, advisorName) => {
       image,
       data: {},
       sound: 'default',
-      channelId: 'default_channel'
+      channelId: 'high_importance_channel'
     };
 
     const advisorNotification = {
@@ -100,7 +100,7 @@ const Notification = async (scheduleData, userName, advisorName) => {
       image,
       data: {},
       sound: 'default',
-      channelId: 'default_channel'
+      channelId: 'high_importance_channel'
     };
 
     // Send notifications to both user and advisor

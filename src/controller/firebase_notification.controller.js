@@ -50,7 +50,7 @@ const sendFirebaseNotificationToAuth = async (req, res) => {
       image: image || null,
       data: data || {},
       sound: sound || 'default',
-      channelId: channelId || 'default_channel'
+      channelId: 'high_importance_channel'
     };
 
     // Send notification
@@ -123,7 +123,7 @@ const sendFirebaseNotificationToUser = async (req, res) => {
       image,
       data: {},
       sound: 'default',
-      channelId: 'default_channel'
+      channelId: 'high_importance_channel'
     };
 
     // Send notification (function will fetch firebase_token from database)
@@ -194,7 +194,7 @@ const sendFirebaseNotificationToMultipleUsers = async (req, res) => {
       body,
       data: data || {},
       sound: sound || 'default',
-      channelId: channelId || 'default_channel'
+      channelId:'high_importance_channel'
     };
 
     // Send notifications (function will fetch firebase_tokens from database)
@@ -254,7 +254,7 @@ const sendFirebaseNotificationToAllUsers = async (req, res) => {
       body,
       data: data || {},
       sound: sound || 'default',
-      channelId: channelId || 'default_channel'
+      channelId: 'high_importance_channel'
     };
 
     // Send notifications to all users (function will fetch firebase_tokens from database)
