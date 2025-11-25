@@ -141,10 +141,10 @@ const Notification = async (scheduleData, userName, advisorName) => {
       channelId: 'high_importance_channel'
     };
 
-    const userResult = await user.findOne({ user_id: scheduleData.user_id });
+    const userResult = await User.findOne({ user_id: scheduleData.user_id });
     const advisorResult = await advisor.findOne({ user_id: scheduleData.advisor_id });
     const Usermessage = {
-      token: firebaseToken,
+      token: userResult.firebase_token,
       notification: {
         title: userNotification.title,
         body: userNotification.body
@@ -167,10 +167,6 @@ const Notification = async (scheduleData, userName, advisorName) => {
     };
 
     const userResponse = await admin.messaging().send(Usermessage);
-
-
-
-
 
     const advisorMessage = {
       token: advisorResult.firebase_token,
