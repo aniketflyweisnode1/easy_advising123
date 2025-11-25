@@ -1,4 +1,5 @@
 const User = require('../models/User.model');
+const admin = require('firebase-admin');
 const {
   sendNotificationToToken,
   sendNotificationToUser,
@@ -71,12 +72,30 @@ const sendFirebaseNotificationToAuth = async (req, res) => {
         status: 200
       });
     } else {
-      return res.status(500).json({
+      // Check if it's a credential error and provide more helpful message
+      const isCredentialError = result.error?.includes('Firebase credentials are invalid') || 
+                                result.code === 'app/invalid-credential';
+      
+      return res.status(isCredentialError ? 503 : 500).json({
         success: false,
-        message: 'Failed to send Firebase notification',
+        message: isCredentialError 
+          ? 'Firebase service account credentials are invalid or revoked. Please update your Firebase credentials in src/config/easy-advising.json'
+          : 'Failed to send Firebase notification',
         error: result.error,
         code: result.code,
-        status: 500
+        status: isCredentialError ? 503 : 500,
+        ...(isCredentialError && {
+          help: {
+            message: 'To fix this issue, generate a new Firebase service account key:',
+            steps: [
+              '1. Go to: https://console.firebase.google.com/project/easy-advising-543d4/settings/serviceaccounts/adminsdk',
+              '2. Click "Generate new private key"',
+              '3. Download the new JSON file',
+              '4. Replace the contents of src/config/easy-advising.json with the new credentials',
+              '5. Restart your server'
+            ]
+          }
+        })
       });
     }
   } catch (error) {
@@ -126,15 +145,41 @@ const sendFirebaseNotificationToUser = async (req, res) => {
       channelId: 'high_importance_channel'
     };
 
-    // Send notification (function will fetch firebase_token from database)
-    const result = await sendNotificationToUser(parseInt(user_id), notification);
+    const user = await User.findOne({ user_id: parseInt(user_id) });
 
-    if (result.success) {
+  
+    const message = {
+      token: user.firebase_token,
+      notification: {
+        title: notification.title,
+        body: notification.body
+      },
+      data: notification.data || {},
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'high_importance_channel'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
+    };
+
+    const response = await admin.messaging().send(message);
+
+
+    if (response.success) {
       return res.status(200).json({
         success: true,
         message: 'Firebase notification sent successfully',
         data: {
-          messageId: result.messageId,
+          messageId: response,
           userId: parseInt(user_id),
           result: result,
           notification: {
@@ -144,14 +189,7 @@ const sendFirebaseNotificationToUser = async (req, res) => {
         },
         status: 200
       });
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: result.error || 'Failed to send Firebase notification',
-        error: result.error,
-        status: 400
-      });
-    }
+    } 
   } catch (error) {
     console.error('Error sending Firebase notification to user:', error);
     return res.status(500).json({

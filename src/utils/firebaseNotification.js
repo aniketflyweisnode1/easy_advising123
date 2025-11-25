@@ -10,10 +10,31 @@ const initializeFirebase = () => {
   }
 
   try {
-    if (admin.apps.length === 0) {     // Initialize Firebase using service account from config file
+    if (admin.apps.length === 0) {
+      // Validate required fields
+      if (!firebaseServiceAccount || !firebaseServiceAccount.private_key || !firebaseServiceAccount.client_email) {
+        throw new Error('Firebase service account credentials are incomplete. Please check easy-advising.json file.');
+      }
+
+      // Ensure private key has proper newlines
+      // When JSON is parsed, \n should already be converted, but handle both cases
+      let privateKey = firebaseServiceAccount.private_key;
+      if (privateKey && typeof privateKey === 'string') {
+        // If it contains literal \n (not actual newlines), replace them
+        if (privateKey.includes('\\n') && !privateKey.includes('\n')) {
+          privateKey = privateKey.replace(/\\n/g, '\n');
+        }
+      }
+
+      const serviceAccount = {
+        ...firebaseServiceAccount,
+        private_key: privateKey
+      };
+
+      // Initialize Firebase using service account from config file
       admin.initializeApp({
-        credential: admin.credential.cert(firebaseServiceAccount),
-        projectId: firebaseServiceAccount.project_id
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id
       });
       firebaseInitialized = true;
       console.log('Firebase Admin SDK initialized successfully');
@@ -22,7 +43,24 @@ const initializeFirebase = () => {
     }
   } catch (error) {
     console.error('Error initializing Firebase Admin SDK:', error.message);
-    console.warn('Firebase notifications will not work. Please check your Firebase credentials.');
+    if (error.code === 'app/invalid-credential' || error.message?.includes('Invalid JWT Signature') || error.message?.includes('invalid_grant')) {
+      console.error('═══════════════════════════════════════════════════════════');
+      console.error('FIREBASE CREDENTIAL ERROR DETECTED');
+      console.error('═══════════════════════════════════════════════════════════');
+      console.error('The Firebase service account key appears to be invalid or revoked.');
+      console.error('');
+      console.error('To fix this issue:');
+      console.error('1. Go to: https://console.firebase.google.com/project/easy-advising-543d4/settings/serviceaccounts/adminsdk');
+      console.error('2. Click "Generate new private key"');
+      console.error('3. Download the new JSON file');
+      console.error('4. Replace the contents of src/config/easy-advising.json with the new credentials');
+      console.error('5. Restart your server');
+      console.error('');
+      console.error('Or verify the key is still valid at:');
+      console.error('https://console.firebase.google.com/iam-admin/serviceaccounts/project');
+      console.error('═══════════════════════════════════════════════════════════');
+    }
+    console.warn('Firebase notifications will not work until valid credentials are provided.');
     // Don't throw error - allow app to continue without Firebase
     firebaseInitialized = false;
   }
@@ -63,13 +101,13 @@ try {
 const Notification = async (scheduleData, userName, advisorName) => {
   try {
     const image = 'https://easyadv.s3.ap-south-1.amazonaws.com/upload/1763985845166_12.jpeg';
-    
+
     // Format date
     const appointmentDate = new Date(scheduleData.date);
-    const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const formattedDate = appointmentDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
     const formattedTime = scheduleData.time || '';
 
@@ -103,17 +141,74 @@ const Notification = async (scheduleData, userName, advisorName) => {
       channelId: 'high_importance_channel'
     };
 
-    // Send notifications to both user and advisor
-    const [userResult, advisorResult] = await Promise.allSettled([
-      sendNotificationToUser(scheduleData.user_id, userNotification),
-      sendNotificationToUser(scheduleData.advisor_id, advisorNotification)
-    ]);
-
-    return {
-      success: true,
-      userNotification: userResult.status === 'fulfilled' ? userResult.value : { success: false, error: userResult.reason },
-      advisorNotification: advisorResult.status === 'fulfilled' ? advisorResult.value : { success: false, error: advisorResult.reason }
+    const userResult = await user.findOne({ user_id: scheduleData.user_id });
+    const advisorResult = await advisor.findOne({ user_id: scheduleData.advisor_id });
+    const Usermessage = {
+      token: firebaseToken,
+      notification: {
+        title: userNotification.title,
+        body: userNotification.body
+      },
+      data: userNotification.data || {},
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'high_importance_channel'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
     };
+
+    const userResponse = await admin.messaging().send(Usermessage);
+
+
+
+
+
+    const advisorMessage = {
+      token: advisorResult.firebase_token,
+      notification: {
+        title: advisorNotification.title,
+        body: advisorNotification.body
+      },
+      data: advisorNotification.data || {},
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'high_importance_channel'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
+    };
+
+    const advisorResponse = await admin.messaging().send(advisorMessage);
+
+    if (userResponse.success && advisorResponse.success) {
+      return {
+        success: true,
+        message: 'Appointment booked notifications sent successfully'
+      };
+    } else {
+      return {
+        success: false,
+        error: 'Failed to send appointment booked notifications',
+        message: 'Failed to send appointment booked notifications'
+      };
+    }
   } catch (error) {
     console.error('Error sending appointment booked notifications:', error);
     return {
@@ -144,7 +239,7 @@ const sendNotificationToToken = async (firebaseToken, notification) => {
     if (!notification || !notification.title || !notification.body) {
       throw new Error('Notification title and body are required');
     }
-
+    console.log(notification);
     const message = {
       token: firebaseToken,
       notification: {
@@ -177,6 +272,22 @@ const sendNotificationToToken = async (firebaseToken, notification) => {
     };
   } catch (error) {
     console.error('Error sending notification to token:', error);
+
+    // Handle Firebase credential errors
+    if (error.code === 'app/invalid-credential' || 
+        error.message?.includes('Invalid JWT Signature') || 
+        error.message?.includes('invalid_grant') ||
+        error.codePrefix === 'app') {
+      console.error('Firebase credential error detected during notification send.');
+      // Reset initialization flag to allow retry
+      firebaseInitialized = false;
+      return {
+        success: false,
+        error: 'Firebase credentials are invalid. Please update your Firebase service account key.',
+        code: error.code || 'app/invalid-credential',
+        firebaseToken: firebaseToken
+      };
+    }
 
     // Handle invalid token error
     if (error.code === 'messaging/invalid-registration-token' ||
@@ -244,8 +355,8 @@ const sendNotificationToMultipleTokens = async (firebaseTokens, notification) =>
       android: {
         priority: 'high',
         notification: {
-          sound: notification.sound || 'default',
-          channelId: notification.channelId || 'default_channel'
+          sound: 'default',
+          channelId: 'high_importance_channel'
         }
       },
       apns: {
@@ -297,6 +408,18 @@ const sendNotificationToUser = async (userId, notification) => {
       throw new Error('User ID is required');
     }
 
+    // Ensure Firebase is initialized
+    if (!firebaseInitialized || admin.apps.length === 0) {
+      initializeFirebase();
+      if (!firebaseInitialized || admin.apps.length === 0) {
+        return {
+          success: false,
+          error: 'Firebase is not initialized. Please configure valid Firebase credentials.',
+          userId: userId
+        };
+      }
+    }
+
     // Fetch user from database
     const user = await User.findOne({ user_id: userId });
 
@@ -316,10 +439,56 @@ const sendNotificationToUser = async (userId, notification) => {
       };
     }
 
-    // Send notification using the user's firebase_token
-    return await sendNotificationToToken(user.firebase_token, notification);
+console.log(notification, "\n", user.firebase_token);
+
+    const message = {
+      token: user.firebase_token,
+      notification: {
+        title: notification.title,
+        body: notification.body
+      },
+      data: notification.data || {},
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channelId: 'high_importance_channel'
+        }
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'default'
+          }
+        }
+      }
+    };
+
+    const response = await admin.messaging().send(message);
+    console.log('Successfully sent notification:', response);
+    return {
+      success: true,
+      messageId: response,
+      userId: userId
+    };
   } catch (error) {
     console.error('Error sending notification to user:', error);
+
+    // Handle Firebase credential errors
+    if (error.code === 'app/invalid-credential' || 
+        error.message?.includes('Invalid JWT Signature') || 
+        error.message?.includes('invalid_grant') ||
+        error.codePrefix === 'app') {
+      console.error('Firebase credential error detected during notification send.');
+      // Reset initialization flag to allow retry
+      firebaseInitialized = false;
+      return {
+        success: false,
+        error: 'Firebase credentials are invalid. Please update your Firebase service account key.',
+        code: error.code || 'app/invalid-credential',
+        userId: userId
+      };
+    }
     return {
       success: false,
       error: error.message || 'Failed to send notification to user',
