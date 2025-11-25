@@ -97,8 +97,8 @@ const sendFirebaseNotificationToAuth = async (req, res) => {
 const sendFirebaseNotificationToUser = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const { title, body, data, sound, channelId } = req.body;
-
+    const { title, body } = req.body;
+    const image = 'https://easyadv.s3.ap-south-1.amazonaws.com/upload/1763985845166_12.jpeg';
     // Validate required fields
     if (!title || !body) {
       return res.status(400).json({
@@ -120,9 +120,10 @@ const sendFirebaseNotificationToUser = async (req, res) => {
     const notification = {
       title,
       body,
-      data: data || {},
-      sound: sound || 'default',
-      channelId: channelId || 'default_channel'
+      image,
+      data: {},
+      sound: 'default',
+      channelId: 'default_channel'
     };
 
     // Send notification (function will fetch firebase_token from database)
@@ -135,6 +136,7 @@ const sendFirebaseNotificationToUser = async (req, res) => {
         data: {
           messageId: result.messageId,
           userId: parseInt(user_id),
+          result: result,
           notification: {
             title,
             body

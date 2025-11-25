@@ -5,6 +5,7 @@ const CallType = require('../models/call_type.model.js');
 const PackageSubscription = require('../models/package_subscription.model.js');
 const User = require('../models/User.model');
 const { generateAgoraToken, generateAgoraChannelName } = require('../utils/AgoraToken');
+const { Notification } = require('../utils/firebaseNotification');
 
 // Create Schedule Call
 const createScheduleCall = async (req, res) => {
@@ -192,6 +193,35 @@ const createScheduleCall = async (req, res) => {
 
         const schedule = new ScheduleCall(data);
         await schedule.save();
+
+        // Send notifications to user and advisor
+        try {
+            // Fetch user and advisor details for notifications
+            const [userDetails, advisorDetails] = await Promise.all([
+                User.findOne({ user_id: data.created_by }).select('name full_name'),
+                User.findOne({ user_id: data.advisor_id }).select('name full_name')
+            ]);
+
+            const userName = userDetails?.name || userDetails?.full_name || 'User';
+            const advisorName = advisorDetails?.name || advisorDetails?.full_name || 'Advisor';
+
+            // Send appointment booked notifications
+            await Notification(
+                {
+                    user_id: data.created_by,
+                    advisor_id: data.advisor_id,
+                    call_type: data.call_type,
+                    date: data.date,
+                    time: data.time
+                },
+                userName,
+                advisorName
+            );
+        } catch (notificationError) {
+            // Log error but don't fail the request if notification fails
+            console.error('Error sending appointment notifications:', notificationError);
+        }
+
         res.status(201).json({ message: 'Schedule call created', schedule, status: 201 });
     } catch (error) {
         res.status(500).json({ message: error.message || error, status: 500 });

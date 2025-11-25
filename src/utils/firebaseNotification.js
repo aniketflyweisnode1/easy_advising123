@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
 const User = require('../models/User.model');
-const firebaseServiceAccount = require('../config/firebase.config');
+const firebaseServiceAccount = require('../config/easy-advising.json');
 
 let firebaseInitialized = false;
 
@@ -10,10 +10,10 @@ const initializeFirebase = () => {
   }
 
   try {
-    if (admin.apps.length === 0) {
-      // Initialize Firebase using service account from config file
+    if (admin.apps.length === 0) {     // Initialize Firebase using service account from config file
       admin.initializeApp({
-        credential: admin.credential.cert(firebaseServiceAccount)
+        credential: admin.credential.cert(firebaseServiceAccount),
+        projectId: firebaseServiceAccount.project_id
       });
       firebaseInitialized = true;
       console.log('Firebase Admin SDK initialized successfully');
@@ -47,6 +47,82 @@ try {
  * @param {string} notification.sound - Sound file name (optional, default: 'default')
  * @returns {Promise<Object>} - Response from Firebase
  */
+
+/**
+ * Send appointment booked notifications to user and advisor
+ * @param {Object} scheduleData - Schedule call data
+ * @param {number} scheduleData.user_id - User ID
+ * @param {number} scheduleData.advisor_id - Advisor ID
+ * @param {string} scheduleData.call_type - Appointment type (Chat, Audio, Video)
+ * @param {Date} scheduleData.date - Appointment date
+ * @param {string} scheduleData.time - Appointment time
+ * @param {string} userName - User name
+ * @param {string} advisorName - Advisor name
+ * @returns {Promise<Object>} - Result with success status
+ */
+const Notification = async (scheduleData, userName, advisorName) => {
+  try {
+    const image = 'https://easyadv.s3.ap-south-1.amazonaws.com/upload/1763985845166_12.jpeg';
+    
+    // Format date
+    const appointmentDate = new Date(scheduleData.date);
+    const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    const formattedTime = scheduleData.time || '';
+
+    // Get appointment type
+    const appointmentType = scheduleData.call_type || 'Appointment';
+
+    // User side notification
+    const userTitle = 'Appointment Booked';
+    const userBody = `${appointmentType} appointment with ${advisorName} is booked for ${formattedTime}, ${formattedDate}.`;
+
+    // Advisor side notification
+    const advisorTitle = 'Appointment Booked';
+    const advisorBody = `New ${appointmentType} appointment booked with ${userName} at ${formattedTime}, ${formattedDate}.`;
+
+    // Prepare notification payloads
+    const userNotification = {
+      title: userTitle,
+      body: userBody,
+      image,
+      data: {},
+      sound: 'default',
+      channelId: 'default_channel'
+    };
+
+    const advisorNotification = {
+      title: advisorTitle,
+      body: advisorBody,
+      image,
+      data: {},
+      sound: 'default',
+      channelId: 'default_channel'
+    };
+
+    // Send notifications to both user and advisor
+    const [userResult, advisorResult] = await Promise.allSettled([
+      sendNotificationToUser(scheduleData.user_id, userNotification),
+      sendNotificationToUser(scheduleData.advisor_id, advisorNotification)
+    ]);
+
+    return {
+      success: true,
+      userNotification: userResult.status === 'fulfilled' ? userResult.value : { success: false, error: userResult.reason },
+      advisorNotification: advisorResult.status === 'fulfilled' ? advisorResult.value : { success: false, error: advisorResult.reason }
+    };
+  } catch (error) {
+    console.error('Error sending appointment booked notifications:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to send appointment booked notifications'
+    };
+  }
+};
+
 const sendNotificationToToken = async (firebaseToken, notification) => {
   try {
     if (!firebaseInitialized) {
@@ -79,14 +155,14 @@ const sendNotificationToToken = async (firebaseToken, notification) => {
       android: {
         priority: 'high',
         notification: {
-          sound: notification.sound || 'default',
-          channelId: notification.channelId || 'default_channel'
+          sound: 'default',
+          channelId: 'high_importance_channel'
         }
       },
       apns: {
         payload: {
           aps: {
-            sound: notification.sound || 'default'
+            sound: 'default'
           }
         }
       }
@@ -101,10 +177,10 @@ const sendNotificationToToken = async (firebaseToken, notification) => {
     };
   } catch (error) {
     console.error('Error sending notification to token:', error);
-    
+
     // Handle invalid token error
-    if (error.code === 'messaging/invalid-registration-token' || 
-        error.code === 'messaging/registration-token-not-registered') {
+    if (error.code === 'messaging/invalid-registration-token' ||
+      error.code === 'messaging/registration-token-not-registered') {
       return {
         success: false,
         error: 'Invalid or unregistered Firebase token',
@@ -183,7 +259,7 @@ const sendNotificationToMultipleTokens = async (firebaseTokens, notification) =>
     };
 
     const response = await admin.messaging().sendEachForMulticast(message);
-    
+
     console.log(`Successfully sent ${response.successCount} notifications`);
     if (response.failureCount > 0) {
       console.log(`Failed to send ${response.failureCount} notifications`);
@@ -223,7 +299,7 @@ const sendNotificationToUser = async (userId, notification) => {
 
     // Fetch user from database
     const user = await User.findOne({ user_id: userId });
-    
+
     if (!user) {
       return {
         success: false,
@@ -266,7 +342,7 @@ const sendNotificationToMultipleUsers = async (userIds, notification) => {
 
     // Fetch users from database
     const users = await User.find({ user_id: { $in: userIds } });
-    
+
     // Extract valid firebase_tokens
     const firebaseTokens = users
       .filter(user => user.firebase_token && user.firebase_token.trim() !== '')
@@ -300,8 +376,8 @@ const sendNotificationToMultipleUsers = async (userIds, notification) => {
 const sendNotificationToAllUsers = async (notification) => {
   try {
     // Fetch all users with firebase_token
-    const users = await User.find({ 
-      firebase_token: { $exists: true, $ne: null, $ne: '' } 
+    const users = await User.find({
+      firebase_token: { $exists: true, $ne: null, $ne: '' }
     });
 
     if (users.length === 0) {
@@ -340,6 +416,7 @@ module.exports = {
   sendNotificationToUser,
   sendNotificationToMultipleUsers,
   sendNotificationToAllUsers,
-  initializeFirebase
+  initializeFirebase,
+  Notification
 };
 
