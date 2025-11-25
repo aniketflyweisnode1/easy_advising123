@@ -1,103 +1,10 @@
 const admin = require('firebase-admin');
 const User = require('../models/User.model');
 const firebaseServiceAccount = require('../config/easy-advising.json');
+admin.initializeApp({
+  credential: admin.credential.cert(firebaseServiceAccount)
+});
 
-let firebaseInitialized = false;
-
-const initializeFirebase = () => {
-  if (firebaseInitialized) {
-    return;
-  }
-
-  try {
-    if (admin.apps.length === 0) {
-      // Validate required fields
-      if (!firebaseServiceAccount || !firebaseServiceAccount.private_key || !firebaseServiceAccount.client_email) {
-        throw new Error('Firebase service account credentials are incomplete. Please check easy-advising.json file.');
-      }
-
-      // Ensure private key has proper newlines
-      // When JSON is parsed, \n should already be converted, but handle both cases
-      let privateKey = firebaseServiceAccount.private_key;
-      if (privateKey && typeof privateKey === 'string') {
-        // If it contains literal \n (not actual newlines), replace them
-        if (privateKey.includes('\\n') && !privateKey.includes('\n')) {
-          privateKey = privateKey.replace(/\\n/g, '\n');
-        }
-      }
-
-      const serviceAccount = {
-        ...firebaseServiceAccount,
-        private_key: privateKey
-      };
-
-      // Initialize Firebase using service account from config file
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: serviceAccount.project_id
-      });
-      firebaseInitialized = true;
-      console.log('Firebase Admin SDK initialized successfully');
-    } else {
-      firebaseInitialized = true;
-    }
-  } catch (error) {
-    console.error('Error initializing Firebase Admin SDK:', error.message);
-    if (error.code === 'app/invalid-credential' || error.message?.includes('Invalid JWT Signature') || error.message?.includes('invalid_grant')) {
-      console.error('═══════════════════════════════════════════════════════════');
-      console.error('FIREBASE CREDENTIAL ERROR DETECTED');
-      console.error('═══════════════════════════════════════════════════════════');
-      console.error('The Firebase service account key appears to be invalid or revoked.');
-      console.error('');
-      console.error('To fix this issue:');
-      console.error('1. Go to: https://console.firebase.google.com/project/easy-advising-543d4/settings/serviceaccounts/adminsdk');
-      console.error('2. Click "Generate new private key"');
-      console.error('3. Download the new JSON file');
-      console.error('4. Replace the contents of src/config/easy-advising.json with the new credentials');
-      console.error('5. Restart your server');
-      console.error('');
-      console.error('Or verify the key is still valid at:');
-      console.error('https://console.firebase.google.com/iam-admin/serviceaccounts/project');
-      console.error('═══════════════════════════════════════════════════════════');
-    }
-    console.warn('Firebase notifications will not work until valid credentials are provided.');
-    // Don't throw error - allow app to continue without Firebase
-    firebaseInitialized = false;
-  }
-};
-
-// Initialize Firebase on module load (but don't crash if it fails)
-try {
-  initializeFirebase();
-} catch (error) {
-  console.error('Failed to initialize Firebase on startup:', error.message);
-  console.warn('App will continue without Firebase notifications.');
-  firebaseInitialized = false;
-}
-
-/**
- * Send notification to a single device using firebase_token
- * @param {string} firebaseToken - The Firebase token of the device
- * @param {Object} notification - Notification payload
- * @param {string} notification.title - Notification title
- * @param {string} notification.body - Notification body
- * @param {Object} notification.data - Additional data payload (optional)
- * @param {string} notification.sound - Sound file name (optional, default: 'default')
- * @returns {Promise<Object>} - Response from Firebase
- */
-
-/**
- * Send appointment booked notifications to user and advisor
- * @param {Object} scheduleData - Schedule call data
- * @param {number} scheduleData.user_id - User ID
- * @param {number} scheduleData.advisor_id - Advisor ID
- * @param {string} scheduleData.call_type - Appointment type (Chat, Audio, Video)
- * @param {Date} scheduleData.date - Appointment date
- * @param {string} scheduleData.time - Appointment time
- * @param {string} userName - User name
- * @param {string} advisorName - Advisor name
- * @returns {Promise<Object>} - Result with success status
- */
 const Notification = async (scheduleData, userName, advisorName) => {
   try {
     const image = 'https://easyadv.s3.ap-south-1.amazonaws.com/upload/1763985845166_12.jpeg';
@@ -142,7 +49,7 @@ const Notification = async (scheduleData, userName, advisorName) => {
     };
 
     const userResult = await User.findOne({ user_id: scheduleData.user_id });
-    const advisorResult = await advisor.findOne({ user_id: scheduleData.advisor_id });
+    const advisorResult = await User.findOne({ user_id: scheduleData.advisor_id });
     const Usermessage = {
       token: userResult.firebase_token,
       notification: {
@@ -217,7 +124,6 @@ const Notification = async (scheduleData, userName, advisorName) => {
 const sendNotificationToToken = async (firebaseToken, notification) => {
   try {
     if (!firebaseInitialized) {
-      initializeFirebase();
       // Check again after initialization attempt
       if (!firebaseInitialized || admin.apps.length === 0) {
         return {
@@ -581,7 +487,6 @@ module.exports = {
   sendNotificationToUser,
   sendNotificationToMultipleUsers,
   sendNotificationToAllUsers,
-  initializeFirebase,
   Notification
 };
 
